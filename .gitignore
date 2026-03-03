@@ -7,3 +7,7 @@ __pycache__
 # OS-generated files and environment files
 .DS_Store
 .env
+
+# app-generated files
+app/static/uploads
+instance/
