@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>{% block title %}TrueHair AI{% endblock %}</title>
+
+        <!-- Google Fonts -->
+        <link rel="preconnect" href="https://fonts.googleapis.com">
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
+            rel="stylesheet">
+
+        <!-- Bootstrap CSS -->
+        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+
+        <!-- Bootstrap Icons -->
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+
+        <!-- Custom CSS -->
+        <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+
+        {% block extra_head %}{% endblock %}
+    </head>
+
+    <body class="{% block body_class %}bg-base{% endblock %}">
+
+        {% block navbar %}
+        <nav class="navbar navbar-expand-lg py-3 px-4 w-100 border-bottom border-secondary border-opacity-25 bg-base">
+            <a class="navbar-brand d-flex align-items-center gap-2" href="{{ url_for('main.style_studio') }}">
+                <img src="{{ url_for('static', filename='images/truehair-logo.png') }}" alt="TrueHair Logo" height="32">
+                <span class="brand-text text-white fw-bold">TrueHair AI</span>
+            </a>
+
+            <button class="navbar-toggler border-secondary" type="button" data-bs-toggle="collapse"
+                data-bs-target="#navbarContent" aria-controls="navbarContent" aria-expanded="false"
+                aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+
+            <div class="collapse navbar-collapse" id="navbarContent">
+                <div class="ms-auto d-flex flex-column flex-lg-row align-items-lg-center gap-4 mt-3 mt-lg-0">
+                    <a href="{{ url_for('main.style_studio') }}"
+                        class="{% if request.endpoint == 'main.style_studio' %}text-yellow{% else %}text-white{% endif %} text-decoration-none fw-semibold text-sm nav-link-hover">Style
+                        Studio</a>
+                    <a href="{{ url_for('main.stylists') }}"
+                        class="{% if request.endpoint == 'main.stylists' %}text-yellow{% else %}text-white{% endif %} text-decoration-none fw-semibold text-sm nav-link-hover">Stylist
+                        Directory</a>
+                    <a href="{{ url_for('main.gallery') }}"
+                        class="{% if request.endpoint == 'main.gallery' %}text-yellow{% else %}text-white{% endif %} text-decoration-none fw-semibold text-sm nav-link-hover">My
+                        Gallery</a>
+                    {% if current_user and current_user.is_admin %}
+                    <a href="{{ url_for('main.dashboard') }}"
+                        class="{% if request.endpoint == 'main.dashboard' %}text-yellow{% else %}text-white{% endif %} text-decoration-none fw-semibold text-sm nav-link-hover">KPI
+                        Dashboard</a>
+                    {% endif %}
+
+                    {% if current_user %}
+                    <div class="d-flex pt-3 pt-lg-0 align-items-center gap-4">
+                        <div class="nav-separator"></div>
+                        <div class="d-flex align-items-center gap-3">
+                            <div class="text-end d-none d-md-block">
+                                <div class="text-white fw-bold text-sm">{{ current_user.first_name }}
+                                    {{ current_user.last_name }}</div>
+                                {% if current_user.is_admin %}
+                                <div class="text-secondary" style="font-size: 0.7rem; font-weight: 600;">SUPER ADMIN
+                                </div>
+                                {% endif %}
+                            </div>
+                            <img src="{% if current_user.profile_picture %}{{ current_user.profile_picture }}{% else %}https://placehold.co/40x40/f8cd24/000000?text={{ current_user.first_name[0] }}{{ current_user.last_name[0] }}{% endif %}"
+                                class="rounded-circle border border-secondary" alt="Profile" width="40" height="40">
+                        </div>
+                        <a href="{{ url_for('auth.logout') }}" class="logout-btn fs-4" title="Logout">
+                            <i class="bi bi-box-arrow-right"></i>
+                        </a>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </nav>
+        {% endblock %}
+
+        <main class="{% block main_class %}{% endblock %}">
+            {% block content %}{% endblock %}
+        </main>
+
+        {% block footer %}
+        <footer class="footer border-top border-secondary border-opacity-25 py-5 mt-auto"
+            style="background-color: #1a1a1c;">
+            <div class="container">
+                <div class="row g-4 align-items-center">
+                    <div class="col-md-4 text-center text-md-start">
+                        <div
+                            class="d-flex align-items-center justify-content-center justify-content-md-start gap-2 mb-2">
+                            <img src="{{ url_for('static', filename='images/truehair-logo.png') }}" alt="TrueHair Logo"
+                                height="24">
+                            <span class="text-white fw-bold">TrueHair AI</span>
+                        </div>
+                        <p class="text-secondary small mb-0">The smart way to style your hair.</p>
+                    </div>
+                    <div class="col-md-4 text-center">
+                        <div class="text-secondary small">&copy; 2026 TrueHair AI. All rights reserved.</div>
+                    </div>
+                    <div class="col-md-4 text-center text-md-end">
+                        <div class="d-flex justify-content-center justify-content-md-end gap-4">
+                            <a href="#" class="text-secondary text-decoration-none small fw-semibold">Privacy</a>
+                            <a href="#" class="text-secondary text-decoration-none small fw-semibold">Terms</a>
+                            <a href="#" class="text-secondary text-decoration-none small fw-semibold">Support</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </footer>
+        {% endblock %}
+
+        <!-- Bootstrap Bundle with Popper -->
+        <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+
+        <!-- Custom JS -->
+        <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+
+        {% block extra_scripts %}{% endblock %}
+    </body>
+
+</html>
