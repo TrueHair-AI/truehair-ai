@@ -1,0 +1,40 @@
+{% extends 'base.html' %}
+
+{% block title %}Login - TrueHair AI{% endblock %}
+
+{% block navbar %}
+<nav class="navbar navbar-expand-lg py-3 px-4 w-100">
+    <a class="navbar-brand d-flex align-items-center gap-2" href="{{ url_for('auth.login') }}">
+        <img src="{{ url_for('static', filename='images/truehair-logo.png') }}" alt="TrueHair Logo" height="32">
+        <span class="brand-text text-white fw-bold">TrueHair AI</span>
+    </a>
+</nav>
+{% endblock %}
+
+{% block main_class %}flex-grow-1 d-flex flex-column justify-content-center align-items-center{% endblock %}
+
+{% block content %}
+<div class="w-100 d-flex justify-content-center" style="margin-top: -60px;">
+    <div class="login-card bg-card rounded-4 shadow-lg p-0 border border-secondary border-opacity-25"
+        style="max-width: 400px; width: 100%;">
+        <div class="login-image-wrapper border-bottom border-dark">
+            <img src="{{ url_for('static', filename='images/login-salon.jpg') }}" alt="Hair stylist working in a salon"
+                class="img-fluid rounded-top-4 w-100" style="object-fit: cover; height: 220px;"
+                onerror="this.src='https://placehold.co/400x220/1f1f22/A1A1AA?text=Salon+Image'">
+        </div>
+        <div class="card-body p-4 p-md-5 text-center">
+            <div class="mb-3 text-yellow">
+                <i class="bi bi-stars fs-2"></i>
+            </div>
+            <h3 class="fw-bold mb-3 text-white">Welcome to TrueHair AI</h3>
+            <p class="text-secondary mb-4 text-sm px-2">Visualize your perfect style with AI-powered precision. Start
+                your journey to a new look.</p>
+
+            <a href="{{ url_for('auth.google_login') }}"
+                class="btn btn-primary fw-bold w-100 py-3 d-flex align-items-center justify-content-center gap-2 rounded-3 text-decoration-none text-dark shadow-sm">
+                <i class="bi bi-google"></i> Continue with Google
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}
