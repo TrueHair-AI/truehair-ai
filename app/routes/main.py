@@ -69,3 +69,41 @@ def log_visit(page_name):
     visit = Visit(page=page_name, user_id=user_id)
     db.session.add(visit)
     db.session.commit()
+
+
+@main_bp.route("/style-studio")
+@login_required
+def style_studio():
+    log_visit("Style Studio")
+    hairstyles = Hairstyle.query.all()
+    return render_template("style_studio.html", hairstyles=hairstyles)
+
+
+@main_bp.route("/upload", methods=["POST"])
+@login_required
+def upload_image():
+    if "file" not in request.files:
+        return jsonify({"error": "No file part"}), 400
+    file = request.files["file"]
+    if file.filename == "":
+        return jsonify({"error": "No selected file"}), 400
+
+    if file:
+        filename = secure_filename(f"{uuid.uuid4()}_{file.filename}")
+        static_folder = current_app.static_folder or ""
+        upload_path = os.path.join(static_folder, "uploads", filename)
+        file.save(upload_path)
+
+        user_image = UserImage(
+            user_id=session["user_id"], image_url=f"uploads/{filename}"
+        )
+        db.session.add(user_image)
+        db.session.commit()
+
+        return jsonify(
+            {
+                "status": "success",
+                "image_url": f"/static/uploads/{filename}",
+                "image_id": user_image.id,
+            }
+        )
