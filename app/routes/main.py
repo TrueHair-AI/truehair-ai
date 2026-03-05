@@ -107,3 +107,85 @@ def upload_image():
                 "image_id": user_image.id,
             }
         )
+
+
+@main_bp.route("/api/generate", methods=["POST"])
+@login_required
+def generate():
+    data = request.json
+    user_image_id = data.get("user_image_id")
+    hairstyle_id = data.get("hairstyle_id")
+
+    if not user_image_id or not hairstyle_id:
+        return jsonify({"error": "Missing image or hairstyle selection"}), 400
+
+    user_image = db.session.get(UserImage, user_image_id)
+    hairstyle = db.session.get(Hairstyle, hairstyle_id)
+
+    if not user_image or not hairstyle:
+        return jsonify({"error": "Invalid selection"}), 400
+
+    if not user_image.user_id == session["user_id"]:
+        abort(403)
+
+    client = get_genai_client()
+    if not client:
+        return jsonify({"error": "Internal server error. Please try again later."}), 500
+
+    try:
+        static_folder = current_app.static_folder or ""
+        img_path = os.path.join(static_folder, user_image.image_url)
+        user_photo = Image.open(img_path)
+
+        prompt = (
+            f"Edit this person's photo to give them a '{hairstyle.name}' hairstyle. "
+            f"{hairstyle.description}. "
+            f"Keep the person's face, skin tone, and body exactly the same. "
+            f"Only change their hair to match the described style. "
+            f"Return the edited photo."
+        )
+
+        response = client.models.generate_content(
+            model="gemini-2.5-flash-image",
+            contents=[prompt, user_photo],
+            config=types.GenerateContentConfig(
+                response_modalities=["IMAGE"],
+                http_options=types.HttpOptions(timeout=120000),
+            ),
+        )
+
+        result_filename = f"gen_{uuid.uuid4()}.png"
+        result_url = f"uploads/{result_filename}"
+        static_folder = current_app.static_folder or ""
+        result_path = os.path.join(static_folder, result_url)
+
+        for part in response.parts:
+            if part.inline_data is not None:
+                generated_image = part.as_image()
+                generated_image.save(result_path)
+                break
+        else:
+            raise Exception("No image returned by the model.")
+
+        gen_img = GeneratedImage(
+            user_id=session["user_id"],
+            user_image_id=user_image.id,
+            hairstyle_id=hairstyle.id,
+            image_url=result_url,
+        )
+        db.session.add(gen_img)
+        db.session.commit()
+
+        return jsonify(
+            {
+                "status": "success",
+                "image_url": f"/static/{result_url}",
+                "image_id": gen_img.id,
+            }
+        )
+    except Exception as e:
+        import traceback
+
+        traceback.print_exc()
+        current_app.logger.error(f"Gemini generation failed: {e}")
+        return jsonify({"error": "Internal server error. Please try again later."}), 500
