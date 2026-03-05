@@ -1,0 +1,282 @@
+{% extends 'base.html' %}
+
+{% block title %}Style Studio - TrueHair AI{% endblock %}
+
+{% block body_class %}bg-studio{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-4 py-4">
+    <div class="row g-4">
+
+        <!-- Left Column: Upload -->
+        <div class="col-lg-5 d-flex flex-column">
+            <h3 class="fw-bold mb-1">1. Upload Photo</h3>
+            <p class="text-secondary text-sm mb-4">Front-facing portraits work best</p>
+
+            <div id="upload-container"
+                class="upload-zone flex-grow-1 rounded-4 border border-secondary border-opacity-50 border-dashed d-flex flex-column justify-content-center align-items-center text-center p-5 position-relative"
+                style="background-color: #161622; border-style: dashed !important; min-height: 500px; cursor: pointer;">
+
+                <input type="file" id="user-image-input" class="d-none" accept="image/*">
+
+                <div id="upload-placeholder">
+                    <div class="mb-4">
+                        <div class="bg-card rounded-circle d-inline-flex border border-secondary border-opacity-25 position-relative"
+                            style="width: 80px; height: 80px; align-items: center; justify-content: center;">
+                            <i class="bi bi-camera text-yellow fs-2"></i>
+                            <span
+                                class="position-absolute top-0 start-100 translate-middle badge rounded-circle bg-dark border border-secondary p-1">
+                                <i class="bi bi-plus text-yellow" style="font-size: 0.6rem;"></i>
+                            </span>
+                        </div>
+                    </div>
+                    <h5 class="fw-bold mb-2">Drag & drop your selfie</h5>
+                    <p class="text-secondary text-sm mb-4">PNG, JPG up to 10MB</p>
+                    <button class="btn btn-light fw-bold px-4 py-2 rounded-3">Browse Files</button>
+                </div>
+
+                <div id="image-preview-container" class="d-none w-100 h-100 p-2">
+                    <img id="image-preview" src="" class="img-fluid rounded-4 w-100 h-100" style="object-fit: cover;">
+                    <button class="btn btn-sm btn-dark position-absolute top-0 end-0 m-3 border border-secondary"
+                        id="remove-image">
+                        <i class="bi bi-x-lg"></i>
+                    </button>
+                </div>
+
+                <!-- Progress Spinner -->
+                <div id="upload-spinner" class="d-none">
+                    <div class="spinner-border text-yellow" role="status">
+                        <span class="visually-hidden">Uploading...</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Column: Styles -->
+        <div class="col-lg-7 d-flex flex-column">
+            <div class="d-flex justify-content-between align-items-end mb-4">
+                <h3 class="fw-bold mb-0">2. Select a Style</h3>
+                <div class="d-flex gap-2">
+                    <button class="badge bg-yellow text-dark rounded-pill px-3 py-2 fw-bold border-0"
+                        style="background-color: var(--th-yellow);">ALL</button>
+                    <button
+                        class="badge bg-dark border border-secondary rounded-pill px-3 py-2 fw-bold text-secondary">CLASSIC</button>
+                    <button
+                        class="badge bg-dark border border-secondary rounded-pill px-3 py-2 fw-bold text-secondary">MODERN</button>
+                </div>
+            </div>
+
+            <!-- Grid -->
+            <div class="row g-3 mb-4" id="hairstyle-grid">
+                {% for style in hairstyles %}
+                <div class="col-md-4 col-sm-6 hairstyle-item" data-id="{{ style.id }}">
+                    <div class="style-card rounded-4 position-relative overflow-hidden border border-secondary border-opacity-25"
+                        style="cursor: pointer;">
+                        <img src="{{ url_for('static', filename='images/' + style.image_url) }}" alt="{{ style.name }}"
+                            class="img-fluid w-100" style="aspect-ratio: 1/1; object-fit: cover;">
+                        <div class="position-absolute bottom-0 start-0 w-100 p-3 pt-5"
+                            style="background: linear-gradient(to top, rgba(0,0,0,0.9), transparent);">
+                            <span class="text-white fw-bold text-sm">{{ style.name }}</span>
+                        </div>
+                        <div class="selection-indicator position-absolute top-0 end-0 m-3 bg-yellow text-dark rounded-circle d-none align-items-center justify-content-center"
+                            style="width: 24px; height: 24px; background-color: var(--th-yellow);">
+                            <i class="bi bi-check" style="font-size: 1.2rem; line-height: 1;"></i>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+
+            <!-- Reference Box -->
+            <div
+                class="bg-card rounded-4 border border-secondary border-opacity-25 p-4 mb-4 mt-auto d-flex align-items-center justify-content-between">
+                <div class="d-flex align-items-center gap-3">
+                    <div class="bg-dark rounded-3 d-flex align-items-center justify-content-center border border-secondary border-opacity-25"
+                        style="width: 48px; height: 48px;">
+                        <i class="bi bi-file-earmark-arrow-up text-yellow fs-4"></i>
+                    </div>
+                    <div>
+                        <h6 class="fw-bold mb-1">Have a reference?</h6>
+                        <p class="text-secondary text-sm mb-0">Upload a custom style image</p>
+                    </div>
+                </div>
+                <button class="btn btn-dark border border-secondary border-opacity-25 fw-semibold text-yellow">Upload
+                    Reference</button>
+            </div>
+
+            <!-- Flash Message Container -->
+            <div id="flash-message-container" class="mb-3"></div>
+
+            <!-- Generate Button -->
+            <button id="generate-btn" disabled
+                class="btn w-100 py-3 fw-bold fs-5 shadow position-relative overflow-hidden rounded-3 text-dark d-flex justify-content-center align-items-center"
+                style="background-color: var(--th-yellow);">
+                <i class="bi bi-stars me-2"></i>
+                <span id="btn-text">GENERATE MY NEW LOOK</span>
+                <span id="btn-spinner" class="spinner-border spinner-border-sm ms-2 d-none" role="status"></span>
+            </button>
+            <p class="text-center text-secondary mt-3" style="font-size: 0.7rem;">By generating, you agree to our Terms
+                of Service. Processing usually takes 15-30 seconds.</p>
+        </div>
+
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        let selectedHairstyleId = null;
+        let uploadedImageId = null;
+
+        const uploadContainer = document.getElementById('upload-container');
+        const imageInput = document.getElementById('user-image-input');
+        const previewContainer = document.getElementById('image-preview-container');
+        const placeholder = document.getElementById('upload-placeholder');
+        const previewImg = document.getElementById('image-preview');
+        const removeBtn = document.getElementById('remove-image');
+        const generateBtn = document.getElementById('generate-btn');
+        const spinner = document.getElementById('upload-spinner');
+
+        // Handle File Selection
+        uploadContainer.addEventListener('click', (e) => {
+            if (e.target.closest('#remove-image')) return;
+            imageInput.click();
+        });
+
+        imageInput.addEventListener('change', function () {
+            if (this.files && this.files[0]) {
+                uploadFile(this.files[0]);
+            }
+        });
+
+        function uploadFile(file) {
+            const formData = new FormData();
+            formData.append('file', file);
+
+            placeholder.classList.add('d-none');
+            spinner.classList.remove('d-none');
+
+            fetch("{{ url_for('main.upload_image') }}", {
+                method: 'POST',
+                body: formData
+            })
+                .then(response => response.json())
+                .then(data => {
+                    spinner.classList.add('d-none');
+                    if (data.status === 'success') {
+                        previewImg.src = data.image_url;
+                        uploadedImageId = data.image_id;
+                        previewContainer.classList.remove('d-none');
+                        checkEnableGenerate();
+                    } else {
+                        alert('Upload failed: ' + data.error);
+                        placeholder.classList.remove('d-none');
+                    }
+                })
+                .catch(err => {
+                    console.error(err);
+                    spinner.classList.add('d-none');
+                    placeholder.classList.remove('d-none');
+                });
+        }
+
+        removeBtn.addEventListener('click', () => {
+            uploadedImageId = null;
+            previewContainer.classList.add('d-none');
+            placeholder.classList.remove('d-none');
+            imageInput.value = '';
+            checkEnableGenerate();
+        });
+
+        // Handle Hairstyle Selection
+        const hairstyleItems = document.querySelectorAll('.hairstyle-item');
+        hairstyleItems.forEach(item => {
+            item.addEventListener('click', () => {
+                hairstyleItems.forEach(i => {
+                    i.querySelector('.style-card').classList.replace('border-yellow', 'border-secondary');
+                    i.querySelector('.style-card').classList.add('border-opacity-25');
+                    i.querySelector('.selection-indicator').classList.add('d-none');
+                });
+
+                const card = item.querySelector('.style-card');
+                card.classList.replace('border-secondary', 'border-yellow');
+                card.classList.remove('border-opacity-25');
+                item.querySelector('.selection-indicator').classList.remove('d-none');
+
+                selectedHairstyleId = item.dataset.id;
+                checkEnableGenerate();
+            });
+        });
+
+        function checkEnableGenerate() {
+            if (selectedHairstyleId && uploadedImageId) {
+                generateBtn.disabled = false;
+            } else {
+                generateBtn.disabled = true;
+            }
+        }
+
+        // Handle Generation
+        generateBtn.addEventListener('click', () => {
+            const btnText = document.getElementById('btn-text');
+            const btnSpinner = document.getElementById('btn-spinner');
+
+            generateBtn.disabled = true;
+            btnText.textContent = 'GENERATING (may take 1 min)...';
+            btnSpinner.classList.remove('d-none');
+
+            fetch("{{ url_for('main.generate') }}", {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    user_image_id: uploadedImageId,
+                    hairstyle_id: selectedHairstyleId
+                })
+            })
+                .then(response => {
+                    if (!response.ok) {
+                        return response.json().then(err => { throw err; });
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    if (data.status === 'success' || data.status === 'demo') {
+                        // Redirect or show result
+                        // For MVP, navigate to result page which will show the latest generated image
+                        window.location.href = "{{ url_for('main.result') }}/" + data.image_id;
+                    } else {
+                        showFlashMessage(data.error || 'Generation failed.');
+                        btnText.textContent = 'GENERATE MY NEW LOOK';
+                        btnSpinner.classList.add('d-none');
+                        checkEnableGenerate();
+                    }
+                })
+                .catch(err => {
+                    console.error(err);
+                    showFlashMessage(err.error || 'Internal server error. Please try again later.');
+                    btnText.textContent = 'GENERATE MY NEW LOOK';
+                    btnSpinner.classList.add('d-none');
+                    checkEnableGenerate();
+                });
+        });
+
+        function showFlashMessage(message, type = 'danger') {
+            const container = document.getElementById('flash-message-container');
+            if (container) {
+                container.innerHTML = `<div class="alert alert-${type} alert-dismissible fade show" role="alert">
+                    ${message}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>`;
+            }
+        }
+    });
+</script>
+
+<style>
+    .border-yellow {
+        border-color: var(--th-yellow) !important;
+        border-width: 2px !important;
+    }
+</style>
+{% endblock %}
