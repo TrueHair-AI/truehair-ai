@@ -1,0 +1,118 @@
+{% extends 'base.html' %}
+
+{% block title %}Transformation Complete - TrueHair AI{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-5 px-xl-5" style="max-width: 1400px; margin: 0 auto;">
+
+    <!-- Title Section -->
+    <div class="mb-5">
+        <div class="badge rounded-pill border border-secondary border-opacity-50 px-3 py-2 text-yellow mb-3"
+            style="background-color: rgba(248, 205, 36, 0.1); border-color: rgba(248, 205, 36, 0.3) !important;">
+            <i class="bi bi-stars"></i> TRANSFORMATION COMPLETE
+        </div>
+        {% if latest_gen %}
+        <h1 class="fw-bold mb-2 display-5 text-white">The '{{ latest_gen.hairstyle.name }}' looks incredible!</h1>
+        {% else %}
+        <h1 class="fw-bold mb-2 display-5 text-white">Your new look is ready!</h1>
+        {% endif %}
+        <p class="text-secondary fs-5" style="color: #a1a1aa;">Our AI has perfectly mapped your new style to your facial
+            structure.</p>
+    </div>
+
+    <div class="row g-4 d-flex justify-content-between">
+
+        <!-- Left Column: Image and Actions -->
+        <div class="col-lg-7 d-flex flex-column gap-3">
+            <!-- Image Card -->
+            <div class="rounded-4 overflow-hidden border border-secondary border-opacity-25 shadow"
+                style="background-color: #1c1c1e;">
+                {% if latest_gen %}
+                <img src="{{ url_for('static', filename=latest_gen.image_url) }}" class="img-fluid w-100"
+                    style="object-fit: cover; aspect-ratio: 16/10;" alt="Generated Profile">
+                {% else %}
+                <img src="{{ url_for('static', filename='images/classic-fade-result.png') }}" class="img-fluid w-100"
+                    style="object-fit: cover; aspect-ratio: 16/10;" alt="Generated Profile">
+                {% endif %}
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="bg-card rounded-4 border border-secondary border-opacity-25 p-3 d-flex gap-3 mt-1">
+                <a href="{{ url_for('main.style_studio') }}"
+                    class="btn btn-primary fw-bold py-3 px-4 rounded-3 d-flex align-items-center gap-2 flex-grow-1 flex-md-grow-0 text-dark">
+                    <i class="bi bi-arrow-clockwise fs-5"></i> Try Another Style
+                </a>
+                <button
+                    class="btn btn-dark border border-secondary border-opacity-50 text-white fw-bold py-3 px-4 rounded-3 d-flex align-items-center justify-content-center gap-2 flex-grow-1"
+                    style="background-color: #2a2a2d;" onclick="window.location.href='{{ url_for('main.gallery') }}';">
+                    <i class="bi bi-images text-secondary"></i> My Gallery
+                </button>
+                {% if latest_gen %}
+                <a href="{{ url_for('static', filename=latest_gen.image_url) }}"
+                    download="truehair_{{ latest_gen.hairstyle.name | replace(' ', '_') }}_{{ latest_gen.id }}.png"
+                    class="btn btn-dark border border-secondary border-opacity-50 rounded-3 d-flex align-items-center justify-content-center px-4 py-3"
+                    style="background-color: #2a2a2d;" title="Download Result">
+                    <i class="bi bi-download text-white fs-5"></i>
+                </a>
+                {% else %}
+                <button
+                    class="btn btn-dark border border-secondary border-opacity-50 rounded-3 d-flex align-items-center justify-content-center px-4 py-3 opacity-50 pointer-events-none"
+                    style="background-color: #2a2a2d;" disabled>
+                    <i class="bi bi-download text-white fs-5"></i>
+                </button>
+                {% endif %}
+                <button
+                    class="btn btn-dark border border-secondary border-opacity-50 rounded-3 d-flex align-items-center justify-content-center px-4 py-3 opacity-50"
+                    style="background-color: #2a2a2d; cursor: not-allowed;" disabled title="Sharing coming soon">
+                    <i class="bi bi-share-fill text-white fs-5"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- Right Column: Details & Stylists -->
+        <div class="col-lg-5 col-xl-4 d-flex flex-column gap-4">
+
+            <!-- Recommended Stylists -->
+            <div class="bg-card rounded-4 border border-secondary border-opacity-25 overflow-hidden">
+                <div class="p-4 border-bottom border-dark">
+                    <h5 class="fw-bold text-white mb-2 d-flex align-items-center gap-2">
+                        <i class="bi bi-scissors text-yellow"></i> Style Breakdown
+                    </h5>
+                    <p class="text-secondary text-sm mb-0">What makes this look work for you</p>
+                </div>
+
+                <div class="p-4">
+                    {% if latest_gen %}
+                    <div class="mb-4">
+                        <h6 class="text-yellow fw-bold mb-2">Selected Style</h6>
+                        <div class="p-3 bg-dark bg-opacity-50 rounded-3 border border-secondary border-opacity-25">
+                            <div class="fw-bold text-white">{{ latest_gen.hairstyle.name }}</div>
+                            <div class="text-secondary text-sm">{{ latest_gen.hairstyle.description }}</div>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    <div class="d-flex justify-content-between mb-3">
+                        <span class="text-secondary">Face Shape Match:</span>
+                        <span class="text-white fw-semibold">98% High</span>
+                    </div>
+                    <div class="d-flex justify-content-between mb-3">
+                        <span class="text-secondary">Maintenance:</span>
+                        <span class="text-white fw-semibold">Low - Medium</span>
+                    </div>
+                    <div class="d-flex justify-content-between">
+                        <span class="text-secondary">Styling Product:</span>
+                        <span class="text-white fw-semibold">Matte Pomade</span>
+                    </div>
+                </div>
+
+                <div class="p-3 border-top border-secondary border-opacity-25">
+                    <a href="{{ url_for('main.stylists') }}" class="btn btn-outline-yellow w-100 py-2 fw-bold text-sm">
+                        Find Stylists for this Look
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
