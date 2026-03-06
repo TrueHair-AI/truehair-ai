@@ -109,6 +109,39 @@ def upload_image():
         )
 
 
+@main_bp.route("/result")
+@main_bp.route("/result/<int:image_id>")
+@login_required
+def result(image_id=None):
+    log_visit("Results Page")
+    if image_id:
+        gen_img = db.session.get(GeneratedImage, image_id)
+        if not gen_img:
+            abort(404)
+        if gen_img.user_id != session["user_id"]:
+            abort(403)
+    else:
+        gen_img = (
+            GeneratedImage.query.filter_by(user_id=session["user_id"])
+            .order_by(GeneratedImage.created_at.desc())
+            .first()
+        )
+
+    return render_template("result.html", latest_gen=gen_img)
+
+
+@main_bp.route("/gallery")
+@login_required
+def gallery():
+    log_visit("My Gallery")
+    images = (
+        GeneratedImage.query.filter_by(user_id=session["user_id"])
+        .order_by(GeneratedImage.created_at.desc())
+        .all()
+    )
+    return render_template("gallery.html", images=images)
+
+
 @main_bp.route("/api/generate", methods=["POST"])
 @login_required
 def generate():
