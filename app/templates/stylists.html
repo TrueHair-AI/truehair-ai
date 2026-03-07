@@ -1,0 +1,116 @@
+{% extends 'base.html' %}
+
+{% block title %}Stylist Directory - TrueHair AI{% endblock %}
+
+
+
+{% block content %}
+<div class="container py-5" style="max-width: 1200px;">
+
+    <!-- Header -->
+    <div class="mb-5 col-lg-8">
+        <h1 class="fw-bold mb-3 display-5 text-white">Find a Stylist</h1>
+        <p class="text-secondary fs-5 pe-xl-5">Connect with expert barbers and stylists specialized in your specific
+            look. Filter by specialty to find the perfect match for your hair goals.</p>
+    </div>
+
+    <!-- Search Bar -->
+    <form class="d-flex gap-3 mb-4 flex-column flex-md-row" method="GET" action="{{ url_for('main.stylists') }}">
+        <div class="position-relative flex-grow-1">
+            <i class="bi bi-search position-absolute top-50 start-0 translate-middle-y ms-3 text-secondary"></i>
+            <input type="text" name="q" value="{{ search_query if search_query else '' }}"
+                class="form-control form-control-lg bg-card border-secondary border-opacity-25 text-white py-3 ps-5 rounded-3"
+                placeholder="Search by name, specialty...">
+        </div>
+        <button type="submit" class="btn btn-primary px-4 py-3 fw-bold rounded-3 d-flex align-items-center gap-2">
+            <i class="bi bi-sliders"></i> Search Now
+        </button>
+    </form>
+
+    <!-- Filters -->
+    <div class="d-flex flex-wrap gap-2 mb-5">
+        <a href="{{ url_for('main.stylists') }}"
+            class="badge text-decoration-none rounded-pill px-4 py-2 text-sm {% if not search_query %}bg-yellow text-dark fw-bold{% else %}bg-card text-secondary border border-secondary border-opacity-25 fw-semibold{% endif %}"
+            {% if not search_query %}style="background-color: var(--th-yellow);" {% endif %}>All Stylists</a>
+        <a href="{{ url_for('main.stylists', q='Haircut') }}"
+            class="badge text-decoration-none rounded-pill px-4 py-2 text-sm d-flex align-items-center gap-2 {% if search_query == 'Haircut' %}bg-yellow text-dark fw-bold{% else %}bg-card text-secondary border border-secondary border-opacity-25 fw-semibold{% endif %}"
+            {% if search_query=='Haircut' %}style="background-color: var(--th-yellow);" {% endif %}><i
+                class="bi bi-scissors"></i> Haircut</a>
+        <a href="{{ url_for('main.stylists', q='Braids') }}"
+            class="badge text-decoration-none rounded-pill px-4 py-2 text-sm d-flex align-items-center gap-2 {% if search_query == 'Braids' %}bg-yellow text-dark fw-bold{% else %}bg-card text-secondary border border-secondary border-opacity-25 fw-semibold{% endif %}"
+            {% if search_query=='Braids' %}style="background-color: var(--th-yellow);" {% endif %}><i
+                class="bi bi-grid-3x3-gap-fill"></i> Braids</a>
+        <a href="{{ url_for('main.stylists', q='Fades') }}"
+            class="badge text-decoration-none rounded-pill px-4 py-2 text-sm d-flex align-items-center gap-2 {% if search_query == 'Fades' %}bg-yellow text-dark fw-bold{% else %}bg-card text-secondary border border-secondary border-opacity-25 fw-semibold{% endif %}"
+            {% if search_query=='Fades' %}style="background-color: var(--th-yellow);" {% endif %}><i
+                class="bi bi-scissors"></i> Fades</a>
+        <a href="{{ url_for('main.stylists', q='Color') }}"
+            class="badge text-decoration-none rounded-pill px-4 py-2 text-sm d-flex align-items-center gap-2 {% if search_query == 'Color' %}bg-yellow text-dark fw-bold{% else %}bg-card text-secondary border border-secondary border-opacity-25 fw-semibold{% endif %}"
+            {% if search_query=='Color' %}style="background-color: var(--th-yellow);" {% endif %}><i
+                class="bi bi-palette"></i> Color</a>
+        <a href="{{ url_for('main.stylists', q='Locs') }}"
+            class="badge text-decoration-none rounded-pill px-4 py-2 text-sm d-flex align-items-center gap-2 {% if search_query == 'Locs' %}bg-yellow text-dark fw-bold{% else %}bg-card text-secondary border border-secondary border-opacity-25 fw-semibold{% endif %}"
+            {% if search_query=='Locs' %}style="background-color: var(--th-yellow);" {% endif %}><i
+                class="bi bi-layers"></i> Locs</a>
+        <a href="{{ url_for('main.stylists', q='Twists') }}"
+            class="badge text-decoration-none rounded-pill px-4 py-2 text-sm d-flex align-items-center gap-2 {% if search_query == 'Twists' %}bg-yellow text-dark fw-bold{% else %}bg-card text-secondary border border-secondary border-opacity-25 fw-semibold{% endif %}"
+            {% if search_query=='Twists' %}style="background-color: var(--th-yellow);" {% endif %}><i
+                class="bi bi-arrow-repeat"></i> Twists</a>
+        <a href="{{ url_for('main.stylists', q='Beard Trim') }}"
+            class="badge text-decoration-none rounded-pill px-4 py-2 text-sm d-flex align-items-center gap-2 {% if search_query == 'Beard Trim' %}bg-yellow text-dark fw-bold{% else %}bg-card text-secondary border border-secondary border-opacity-25 fw-semibold{% endif %}"
+            {% if search_query=='Beard Trim' %}style="background-color: var(--th-yellow);" {% endif %}><i
+                class="bi bi-person-bounding-box"></i> Beard Trim</a>
+    </div>
+
+    <!-- Grid -->
+    <div class="row g-4">
+        {% for stylist in stylists %}
+        <div class="col-12 col-md-6 col-lg-3">
+            <div class="card bg-card border border-secondary border-opacity-25 rounded-4 h-100 overflow-hidden shadow">
+                <div class="position-relative">
+                    <img src="{{ stylist.image_url }}" class="card-img-top w-100" alt="{{ stylist.name }}"
+                        style="height: 200px; object-fit: cover;">
+                </div>
+                <div class="card-body p-4 border-bottom border-secondary border-opacity-25">
+                    <h5 class="fw-bold text-white mb-1">{{ stylist.name }}</h5>
+                    {% if stylist.specialties %}
+                    <div class="d-flex flex-wrap gap-2 mt-3">
+                        {% for spec in stylist.specialties.split(',') %}
+                        <span class="badge px-2 py-1 text-xs fw-bold"
+                            style="background-color: rgba(248, 205, 36, 0.1); color: var(--th-yellow);">{{ spec.strip()
+                            | upper }}</span>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                </div>
+                <div class="card-footer bg-transparent border-0 p-3 d-flex justify-content-between">
+                    {% if stylist.instagram %}
+                    <a href="{{ stylist.instagram }}"
+                        class="btn btn-dark w-100 border-0 me-1 d-flex justify-content-center align-items-center rounded-3 p-2"
+                        style="background-color: #2a2a2d;" title="Instagram"><i
+                            class="bi bi-instagram text-secondary"></i></a>
+                    {% endif %}
+                    <a href="{{ stylist.website if stylist.website else '#' }}" target="_blank"
+                        class="btn btn-dark w-100 border-0 mx-1 d-flex justify-content-center align-items-center rounded-3 p-2"
+                        style="background-color: #2a2a2d;" title="Website"><i
+                            class="bi bi-globe2 text-secondary"></i></a>
+                    <a href="{{ 'mailto:' + stylist.email if stylist.email else '#' }}"
+                        class="btn btn-dark w-100 border-0 mx-1 d-flex justify-content-center align-items-center rounded-3 p-2"
+                        style="background-color: #2a2a2d;" title="Email"><i
+                            class="bi bi-envelope text-secondary"></i></a>
+                    <a href="{{ 'tel:' + stylist.phone if stylist.phone else '#' }}"
+                        class="btn btn-dark w-100 border-0 ms-1 d-flex justify-content-center align-items-center rounded-3 p-2"
+                        style="background-color: #2a2a2d;" title="Phone"><i
+                            class="bi bi-telephone text-secondary"></i></a>
+                </div>
+            </div>
+        </div>
+        {% else %}
+        <div class="col-12 text-center py-5">
+            <p class="text-secondary fs-5">No stylists currently available.</p>
+        </div>
+        {% endfor %}
+    </div>
+
+</div>
+{% endblock %}
