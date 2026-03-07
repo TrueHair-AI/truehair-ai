@@ -107,6 +107,26 @@ def upload_image():
                 "image_id": user_image.id,
             }
         )
+    
+
+@main_bp.route("/stylists")
+@login_required
+def stylists():
+    log_visit("Stylist Directory")
+    query = request.args.get("q", "").strip()
+
+    if query:
+        search_filter = f"%{query}%"
+        stylists_list = Stylist.query.filter(
+            db.or_(
+                Stylist.name.ilike(search_filter),
+                Stylist.specialties.ilike(search_filter),
+            )
+        ).all()
+    else:
+        stylists_list = Stylist.query.all()
+
+    return render_template("stylists.html", stylists=stylists_list, search_query=query)
 
 
 @main_bp.route("/result")
