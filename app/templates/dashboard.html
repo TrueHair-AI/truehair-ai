@@ -1,0 +1,377 @@
+{% extends 'base.html' %}
+
+{% block title %}KPI Dashboard - TrueHair AI{% endblock %}
+
+{% block body_class %}bg-studio{% endblock %}
+
+{% block navbar %}{% endblock %}
+
+{% block content %}
+<div class="d-flex h-100 w-100">
+
+    <!-- Sidebar -->
+    <div class="sidebar d-flex flex-column p-4 flex-shrink-0" style="width: 280px; background-color: #1a1b24;">
+        <a class="navbar-brand d-flex flex-column gap-1 mb-5" href="{{ url_for('main.style_studio') }}">
+            <div class="d-flex align-items-center gap-2">
+                <img src="{{ url_for('static', filename='images/truehair-logo.png') }}" alt="TrueHair Logo" height="32">
+                <span class="brand-text text-white fw-bold fs-5">TrueHair AI</span>
+            </div>
+            <span class="text-secondary" style="font-size: 0.65rem; letter-spacing: 1px; font-weight: 600;">ADMIN
+                CONSOLE</span>
+        </a>
+
+        <ul class="nav nav-pills flex-column mb-auto">
+            <li class="nav-item">
+                <a href="#"
+                    class="nav-link bg-yellow text-dark fw-bold d-flex align-items-center gap-3 rounded-3 py-3 px-3 shadow"
+                    style="background-color: var(--th-yellow);">
+                    <i class="bi bi-grid-1x2-fill fs-5"></i>
+                    Dashboard
+                </a>
+            </li>
+        </ul>
+    </div>
+
+    <!-- Main Content -->
+    <div class="flex-grow-1 d-flex flex-column overflow-auto h-100">
+
+        <!-- Top Nav -->
+        <div class="d-flex justify-content-between align-items-center py-4 px-5 border-bottom border-secondary border-opacity-25"
+            style="background-color: var(--th-bg-studio);">
+            <div class="d-flex align-items-center gap-2">
+                <i class="bi bi-grid-3x3-gap-fill text-white fs-4"></i>
+                <h3 class="fw-bold mb-0 text-white">KPI Dashboard</h3>
+            </div>
+            {% if current_user %}
+            <div class="d-flex align-items-center gap-4 ps-4 ms-2">
+                <div class="nav-separator"></div>
+                <div class="d-flex align-items-center gap-3">
+                    <div class="text-end">
+                        <div class="text-white fw-bold text-sm">{{ current_user.first_name }} {{
+                            current_user.last_name }}</div>
+                        <div class="text-secondary" style="font-size: 0.7rem; font-weight: 600;">SUPER ADMIN</div>
+                    </div>
+                    <img src="{% if current_user.profile_picture %}{{ current_user.profile_picture }}{% else %}https://placehold.co/40x40/f8cd24/000000?text={{ current_user.first_name[0] }}{{ current_user.last_name[0] }}{% endif %}"
+                        class="rounded-circle" alt="Profile" width="40" height="40">
+                </div>
+                <a href="{{ url_for('auth.logout') }}" class="logout-btn fs-4" title="Logout">
+                    <i class="bi bi-box-arrow-right"></i>
+                </a>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Dashboard Content -->
+        <div class="p-5 flex-grow-1" style="background-color: var(--th-bg-studio);">
+
+            <!-- Metrics Row -->
+            <div class="row g-4 mb-5">
+                <!-- Card 1 -->
+                <div class="col-xl col-md-6">
+                    <div class="card bg-card border border-secondary border-opacity-25 rounded-4 h-100 p-4 shadow-sm">
+                        <div class="d-flex justify-content-between align-items-start mb-3">
+                            <span class="text-secondary fw-semibold">Today's Visits</span>
+                            <i class="bi bi-bar-chart-line-fill text-yellow fs-5"></i>
+                        </div>
+                        <h2 class="fw-bold text-white mb-2">{{ "{:,}".format(visits_today) }}</h2>
+                        <div
+                            class="text-sm fw-semibold d-flex align-items-center gap-1 {% if visit_change >= 0 %}text-success{% else %}text-danger{% endif %}">
+                            <i
+                                class="bi {% if visit_change >= 0 %}bi-graph-up-arrow{% else %}bi-graph-down-arrow{% endif %}"></i>
+                            {% if visit_change >= 0 %}+{% endif %}{{ visit_change }}% <span
+                                class="text-secondary fw-normal">vs last week</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Card 2 -->
+                <div class="col-xl col-md-6">
+                    <div class="card bg-card border border-secondary border-opacity-25 rounded-4 h-100 p-4 shadow-sm">
+                        <div class="d-flex justify-content-between align-items-start mb-3">
+                            <span class="text-secondary fw-semibold">New Users<br>(Week)</span>
+                            <i class="bi bi-person-plus-fill text-yellow fs-5"></i>
+                        </div>
+                        <h2 class="fw-bold text-white mb-2">{{ "{:,}".format(new_users) }}</h2>
+                        <div
+                            class="text-sm fw-semibold d-flex align-items-center gap-1 {% if user_change >= 0 %}text-success{% else %}text-danger{% endif %}">
+                            <i
+                                class="bi {% if user_change >= 0 %}bi-graph-up-arrow{% else %}bi-graph-down-arrow{% endif %}"></i>
+                            {% if user_change >= 0 %}+{% endif %}{{ user_change }}% <span
+                                class="text-secondary fw-normal">vs last week</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Card 3 -->
+                <div class="col-xl col-md-6">
+                    <div class="card rounded-4 h-100 p-4 shadow text-dark"
+                        style="background-color: var(--th-yellow); border: none;">
+                        <div class="d-flex justify-content-between align-items-start mb-3">
+                            <span class="fw-bold">Activation Rate</span>
+                            <i class="bi bi-lightning-fill fs-5"></i>
+                        </div>
+                        <h2 class="fw-extrabold mb-2" style="font-size: 2.5rem;">{{ activation_rate }}%</h2>
+                        <div class="text-dark text-sm fw-bold d-flex align-items-center gap-1">
+                            <i
+                                class="bi {% if activation_change >= 0 %}bi-graph-up-arrow{% else %}bi-graph-down-arrow{% endif %}"></i>
+                            {% if activation_change >= 0 %}+{% endif %}{{ activation_change }}% <span
+                                class="fw-semibold opacity-75">vs last week</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Card 4 -->
+                <div class="col-xl col-md-6">
+                    <div class="card rounded-4 h-100 p-4 shadow text-dark"
+                        style="background-color: var(--th-yellow); border: none;">
+                        <div class="d-flex justify-content-between align-items-start mb-3">
+                            <span class="fw-bold">Retention Rate</span>
+                            <i class="bi bi-arrow-repeat fs-5"></i>
+                        </div>
+                        <h2 class="fw-extrabold mb-2" style="font-size: 2.5rem;">{{ retention_rate }}%</h2>
+                        <div class="text-dark text-sm fw-bold d-flex align-items-center gap-1">
+                            <i
+                                class="bi {% if retention_change >= 0 %}bi-graph-up-arrow{% else %}bi-graph-down-arrow{% endif %}"></i>
+                            {% if retention_change >= 0 %}+{% endif %}{{ retention_change }}% <span
+                                class="fw-semibold opacity-75">vs last week</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Card 5 -->
+                <div class="col-xl col-md-12">
+                    <div class="card bg-card border border-secondary border-opacity-25 rounded-4 h-100 p-4 shadow-sm">
+                        <div class="d-flex justify-content-between align-items-start mb-3">
+                            <span class="text-secondary fw-semibold">Total Users</span>
+                            <i class="bi bi-people-fill text-yellow fs-5"></i>
+                        </div>
+                        <h2 class="fw-bold text-white mb-2">{{ "{:,}".format(total_users) }}</h2>
+                        <div
+                            class="text-sm fw-semibold d-flex align-items-center gap-1 {% if total_users_change >= 0 %}text-success{% else %}text-danger{% endif %}">
+                            <i
+                                class="bi {% if total_users_change >= 0 %}bi-graph-up-arrow{% else %}bi-graph-down-arrow{% endif %}"></i>
+                            {% if total_users_change >= 0 %}+{% endif %}{{ total_users_change }}% <span
+                                class="text-secondary fw-normal">vs last week</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Charts -->
+            <div class="row g-4">
+                <div class="col-12">
+                    <div class="card bg-card border border-secondary border-opacity-25 rounded-4 p-4 shadow-sm mb-4">
+                        <div class="d-flex justify-content-between align-items-start mb-4">
+                            <div>
+                                <h5 class="text-white fw-bold mb-1">Number of Hairstyle Visualizations</h5>
+                                <div class="text-secondary text-sm">Today: {{ today_gen_count }}</div>
+                            </div>
+                            <div class="d-flex gap-3">
+                                <span class="text-secondary text-sm d-flex align-items-center gap-2"><i
+                                        class="bi bi-circle-fill text-yellow" style="font-size: 8px;"></i> This
+                                    week</span>
+                                <span class="text-secondary text-sm d-flex align-items-center gap-2"><i
+                                        class="bi bi-circle-fill" style="font-size: 8px; color: #4b4b53;"></i> Last
+                                    week</span>
+                            </div>
+                        </div>
+                        <div style="height: 300px;">
+                            <canvas id="generationsChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-12">
+                    <div class="card bg-card border border-secondary border-opacity-25 rounded-4 p-4 shadow-sm">
+                        <h5 class="text-white fw-bold mb-4">Visits by Page (Today)</h5>
+                        <div style="height: 200px;">
+                            <canvas id="visitsChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block footer %}{% endblock %}
+
+{% block extra_scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    // Initialize Chart.js exactly like the mockup
+    document.addEventListener("DOMContentLoaded", function () {
+        Chart.defaults.color = "#a1a1aa";
+        Chart.defaults.font.family = "'Inter', sans-serif";
+
+        const genCtx = document.getElementById("generationsChart").getContext("2d");
+
+        // Gradient for line chart
+        const gradientThisWeek = genCtx.createLinearGradient(0, 0, 0, 400);
+        gradientThisWeek.addColorStop(0, "rgba(248, 205, 36, 0.2)");
+        gradientThisWeek.addColorStop(1, "rgba(248, 205, 36, 0)");
+
+        const gradientLastWeek = genCtx.createLinearGradient(0, 0, 0, 400);
+        gradientLastWeek.addColorStop(0, "rgba(75, 75, 83, 0.2)");
+        gradientLastWeek.addColorStop(1, "rgba(75, 75, 83, 0)");
+
+        new Chart(genCtx, {
+            type: "line",
+            data: {
+                labels: ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"],
+                datasets: [
+                    {
+                        label: "This week",
+                        data: {{ generations_this_week | tojson }},
+                        borderColor: "#f8cd24",
+                        backgroundColor: gradientThisWeek,
+                        borderWidth: 3,
+                        tension: 0.4,
+                        fill: true,
+                        pointRadius: 4,
+                        pointHoverRadius: 6,
+                        pointBackgroundColor: "#f8cd24",
+                        pointBorderColor: "#1a1b24",
+                        pointBorderWidth: 2
+                    },
+                    {
+                        label: "Last week",
+                        data: {{ generations_last_week | tojson }},
+                        borderColor: "#4b4b53",
+                        backgroundColor: gradientLastWeek,
+                        borderWidth: 2,
+                        tension: 0.4,
+                        fill: true,
+                        pointRadius: 4,
+                        pointHoverRadius: 6,
+                        pointBackgroundColor: "#4b4b53",
+                        pointBorderColor: "#1a1b24",
+                        pointBorderWidth: 2
+                    }
+                ]
+            },
+        options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+            legend: { display: false },
+            tooltip: {
+                enabled: true,
+                backgroundColor: '#1a1b24',
+                titleColor: '#fff',
+                bodyColor: '#a1a1aa',
+                borderColor: 'rgba(255, 255, 255, 0.1)',
+                borderWidth: 1,
+                padding: 10,
+                displayColors: false
+            }
+        },
+        scales: {
+            x: {
+                grid: { color: "rgba(255, 255, 255, 0.05)" }
+            },
+            y: {
+                display: false,
+                grid: { color: "rgba(255, 255, 255, 0.05)" },
+                beginAtZero: true
+            }
+        }
+    }
+        });
+
+    // Visits Chart
+    const visitCtx = document.getElementById("visitsChart").getContext("2d");
+    const visitLabels = {{ visit_labels | tojson }};
+    const visitData = {{ visit_data | tojson }};
+    const maxVal = Math.max(10, ...visitData);
+
+    new Chart(visitCtx, {
+        type: "bar",
+        data: {
+            labels: visitLabels,
+            datasets: [
+                {
+                    data: visitData,
+                    backgroundColor: "#f8cd24",
+                    borderRadius: 4,
+                    barThickness: 8
+                },
+                {
+                    data: visitLabels.map(() => maxVal), // Background bars
+                    backgroundColor: "#2a2a2d",
+                    borderRadius: 4,
+                    barThickness: 8,
+                    grouped: false
+                }
+            ]
+        },
+        options: {
+            indexAxis: 'y',
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    enabled: true,
+                    backgroundColor: '#1a1b24',
+                    titleColor: '#fff',
+                    bodyColor: '#a1a1aa',
+                    borderColor: 'rgba(255, 255, 255, 0.1)',
+                    borderWidth: 1,
+                    padding: 10,
+                    displayColors: false,
+                    callbacks: {
+                        label: function (context) {
+                            if (context.datasetIndex === 0) {
+                                return ' ' + context.raw + ' visits';
+                            }
+                            return null;
+                        }
+                    },
+                    filter: function (tooltipItem) {
+                        return tooltipItem.datasetIndex === 0;
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    display: false,
+                    max: maxVal
+                },
+                y: {
+                    grid: { display: false },
+                    border: { display: false },
+                    ticks: { color: "#a1a1aa", font: { weight: 'bold' } }
+                }
+            },
+            animation: {
+                onComplete: function () {
+                    // We still use onComplete for initial draw but we also need a plugin for redraws
+                }
+            }
+        },
+        plugins: [{
+            id: 'barLabels',
+            afterDatasetsDraw(chart, args, pluginOptions) {
+                const { ctx, data } = chart;
+                ctx.save();
+                ctx.textAlign = 'left';
+                ctx.textBaseline = 'middle';
+                ctx.fillStyle = '#f8cd24';
+                ctx.font = 'bold 12px Inter';
+
+                const meta = chart.getDatasetMeta(0);
+                meta.data.forEach((bar, index) => {
+                    const value = data.datasets[0].data[index];
+                    ctx.fillText(value, bar.x + 8, bar.y);
+                });
+                ctx.restore();
+            }
+        }]
+    });
+    });
+</script>
+{% endblock %}
