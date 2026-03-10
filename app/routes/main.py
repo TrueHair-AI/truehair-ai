@@ -91,7 +91,9 @@ def upload_image():
     if file:
         filename = secure_filename(f"{uuid.uuid4()}_{file.filename}")
         static_folder = current_app.static_folder or ""
-        upload_path = os.path.join(static_folder, "uploads", filename)
+        upload_dir = os.path.join(static_folder, "uploads")
+        os.makedirs(upload_dir, exist_ok=True)
+        upload_path = os.path.join(upload_dir, filename)
         file.save(upload_path)
 
         user_image = UserImage(
@@ -376,6 +378,7 @@ def generate():
         result_url = f"uploads/{result_filename}"
         static_folder = current_app.static_folder or ""
         result_path = os.path.join(static_folder, result_url)
+        os.makedirs(os.path.dirname(result_path), exist_ok=True)
 
         for part in response.parts:
             if part.inline_data is not None:
