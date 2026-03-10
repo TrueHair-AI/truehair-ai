@@ -107,7 +107,7 @@ def upload_image():
                 "image_id": user_image.id,
             }
         )
-    
+
 
 @main_bp.route("/stylists")
 @login_required
