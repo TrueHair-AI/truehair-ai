@@ -7,7 +7,9 @@ load_dotenv()
 
 class Config:
     SECRET_KEY = os.environ.get("FLASK_SECRET_KEY", "super-secret-default-key")
-    SQLALCHEMY_DATABASE_URI = (os.environ.get("DATABASE_URL") or "sqlite:///truehair.db").replace("postgres://", "postgresql://", 1)
+    SQLALCHEMY_DATABASE_URI = (
+        os.environ.get("DATABASE_URL") or "sqlite:///truehair.db"
+    ).replace("postgres://", "postgresql://", 1)
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID")
     GOOGLE_CLIENT_SECRET = os.environ.get("GOOGLE_CLIENT_SECRET")
