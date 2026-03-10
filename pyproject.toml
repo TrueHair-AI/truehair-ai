@@ -9,6 +9,7 @@ dependencies = [
     "google-genai>=1.66.0",
     "gunicorn>=25.1.0",
     "pillow>=12.1.1",
+    "psycopg2-binary>=2.9.10",
     "python-dotenv>=1.2.2",
     "requests>=2.32.5",
 ]
