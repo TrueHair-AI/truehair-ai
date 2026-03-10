@@ -8,7 +8,7 @@ stylists_data = [
     {
         "name": "Supercuts",
         "phone": "(207) 873-5908",
-        "website": "https://www.supercuts.com/locations/nearme/haircut?utm_source=tia&utm_medium=search&utm_campaign=nonbrandhcv2&gad_source=1&gad_campaignid=23341677285&gbraid=0AAAABBUEXD23SSy9Npv97pmWx-q6Ul4xP&gclid=CjwKCAiAtq_NBhA_EiwA78nNWPmbruAW-SKI09NkZJP-XyPOdyVKQUVtdz970Apx3U_9lx8Ol3Y53hoC-tAQAvD_BwE",
+        "website": "https://www.supercuts.com/locations/nearme/haircut",
         "instagram": "https://www.instagram.com/supercuts/",
         "email": "",
         "specialties": "Haircut, Color",

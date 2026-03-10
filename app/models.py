@@ -74,8 +74,8 @@ class Stylist(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)
     phone = db.Column(db.String(20))
-    website = db.Column(db.String(255))
-    instagram = db.Column(db.String(100))
+    website = db.Column(db.String(500))  # URLs with query params can exceed 255
+    instagram = db.Column(db.String(255))
     email = db.Column(db.String(120))
     specialties = db.Column(db.String(255))  # Comma-separated list
     image_url = db.Column(db.String(255))
