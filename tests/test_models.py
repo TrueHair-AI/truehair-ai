@@ -1,13 +1,8 @@
 """Tests for app models (repr and basic usage for coverage)."""
 
-import pytest
 
 from app.models import (
     GeneratedImage,
-    Hairstyle,
-    Stylist,
-    User,
-    UserImage,
     Visit,
     db,
 )

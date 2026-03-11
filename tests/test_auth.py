@@ -2,7 +2,6 @@
 
 from unittest.mock import MagicMock, patch
 
-import pytest
 
 
 def test_login_unauthenticated(client):
@@ -59,7 +58,7 @@ def test_auth_google_no_userinfo_returns_400(mock_oauth, client):
 @patch("app.oauth")
 def test_auth_google_new_user_created(mock_oauth, client, app):
     """auth/google creates a new user when email not in DB."""
-    from app.models import User, db
+    from app.models import User
 
     mock_google = MagicMock()
     mock_google.authorize_access_token.return_value = {
