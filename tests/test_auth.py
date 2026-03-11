@@ -3,7 +3,6 @@
 from unittest.mock import MagicMock, patch
 
 
-
 def test_login_unauthenticated(client):
     """Login page renders when not in session."""
     response = client.get("/")

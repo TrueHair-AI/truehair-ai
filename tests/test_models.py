@@ -1,6 +1,5 @@
 """Tests for app models (repr and basic usage for coverage)."""
 
-
 from app.models import (
     GeneratedImage,
     Visit,
