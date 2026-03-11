@@ -25,6 +25,13 @@ from app.models import GeneratedImage, Hairstyle, Stylist, User, UserImage, Visi
 main_bp = Blueprint("main", __name__)
 
 
+def _day_of_week(date_column):
+    """Return a SQL expression for day of week (0=Sunday .. 6=Saturday) for the current DB dialect."""
+    if db.engine.dialect.name == "postgresql":
+        return func.extract("dow", date_column)
+    return func.strftime("%w", date_column)
+
+
 def get_genai_client():
     """Return a google.genai Client configured with the API key, or None."""
     api_key = current_app.config.get("GEMINI_API_KEY")
@@ -228,24 +235,19 @@ def dashboard():
     this_week_gens = {str(i): 0 for i in range(7)}
     last_week_gens = {str(i): 0 for i in range(7)}
 
+    day_of_week = _day_of_week(GeneratedImage.created_at).label("dow")
     tw_data = (
-        db.session.query(
-            func.strftime("%w", GeneratedImage.created_at).label("dow"),
-            func.count(GeneratedImage.id),
-        )
+        db.session.query(day_of_week, func.count(GeneratedImage.id))
         .filter(GeneratedImage.created_at >= week_ago)
         .group_by("dow")
         .all()
     )
     for row in tw_data:
         if row[0] is not None:
-            this_week_gens[str(row[0])] = row[1]
+            this_week_gens[str(int(float(row[0])))] = row[1]
 
     lw_data = (
-        db.session.query(
-            func.strftime("%w", GeneratedImage.created_at).label("dow"),
-            func.count(GeneratedImage.id),
-        )
+        db.session.query(day_of_week, func.count(GeneratedImage.id))
         .filter(
             GeneratedImage.created_at >= two_weeks_ago,
             GeneratedImage.created_at < week_ago,
@@ -255,7 +257,7 @@ def dashboard():
     )
     for row in lw_data:
         if row[0] is not None:
-            last_week_gens[str(row[0])] = row[1]
+            last_week_gens[str(int(float(row[0])))] = row[1]
 
     day_indices = ["1", "2", "3", "4", "5", "6", "0"]
     this_week_arr = [this_week_gens[d] for d in day_indices]
