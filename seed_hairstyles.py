@@ -55,21 +55,24 @@ def seed_hairstyles():
     with app.app_context():
         db.create_all()
 
-        # Remove existing hairstyles (may break FK from generated_image if any exist)
-        Hairstyle.query.delete()
-
         print("Seeding hairstyles...")
         for data in HAIRSTYLES_DATA:
-            hairstyle = Hairstyle(
-                name=data["name"],
-                description=data["description"],
-                category=data["category"],
-                image_url=data["image_url"],
-            )
-            db.session.add(hairstyle)
+            hairstyle = Hairstyle.query.filter_by(name=data["name"]).first()
+            if hairstyle:
+                hairstyle.description = data["description"]
+                hairstyle.category = data["category"]
+                hairstyle.image_url = data["image_url"]
+            else:
+                hairstyle = Hairstyle(
+                    name=data["name"],
+                    description=data["description"],
+                    category=data["category"],
+                    image_url=data["image_url"],
+                )
+                db.session.add(hairstyle)
 
         db.session.commit()
-        print(f"Successfully added {len(HAIRSTYLES_DATA)} hairstyles!")
+        print(f"Successfully added/updated {len(HAIRSTYLES_DATA)} hairstyles!")
 
 
 if __name__ == "__main__":
