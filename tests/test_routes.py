@@ -188,7 +188,9 @@ def test_api_generate_wrong_user_403(auth_client, hairstyle, app):
 
 
 @patch("app.routes.main.get_genai_client")
-def test_api_generate_no_gemini_key(mock_get_client, auth_client, user_image, hairstyle):
+def test_api_generate_no_gemini_key(
+    mock_get_client, auth_client, user_image, hairstyle
+):
     """API generate returns 500 when Gemini API key is missing."""
     mock_get_client.return_value = None
     response = auth_client.post(
@@ -203,7 +205,9 @@ def test_api_generate_no_gemini_key(mock_get_client, auth_client, user_image, ha
 
 @patch("app.routes.main.get_genai_client")
 @patch("app.routes.main.Image.open")
-def test_api_generate_success(mock_image_open, mock_get_client, auth_client, user_image, hairstyle, app):
+def test_api_generate_success(
+    mock_image_open, mock_get_client, auth_client, user_image, hairstyle, app
+):
     """API generate returns success when Gemini returns image."""
     mock_image_open.return_value = MagicMock()
     mock_client = MagicMock()
@@ -227,11 +231,15 @@ def test_api_generate_success(mock_image_open, mock_get_client, auth_client, use
 
 @patch("app.routes.main.get_genai_client")
 @patch("app.routes.main.Image.open")
-def test_api_generate_exception_returns_500(mock_image_open, mock_get_client, auth_client, user_image, hairstyle):
+def test_api_generate_exception_returns_500(
+    mock_image_open, mock_get_client, auth_client, user_image, hairstyle
+):
     """API generate returns 500 when Gemini raises."""
     mock_image_open.return_value = MagicMock()
     mock_get_client.return_value = MagicMock()
-    mock_get_client.return_value.models.generate_content.side_effect = Exception("API error")
+    mock_get_client.return_value.models.generate_content.side_effect = Exception(
+        "API error"
+    )
     response = auth_client.post(
         "/api/generate",
         json={"user_image_id": user_image.id, "hairstyle_id": hairstyle.id},
@@ -244,7 +252,9 @@ def test_api_generate_exception_returns_500(mock_image_open, mock_get_client, au
 
 @patch("app.routes.main.get_genai_client")
 @patch("app.routes.main.Image.open")
-def test_api_generate_no_image_in_response_returns_500(mock_image_open, mock_get_client, auth_client, user_image, hairstyle):
+def test_api_generate_no_image_in_response_returns_500(
+    mock_image_open, mock_get_client, auth_client, user_image, hairstyle
+):
     """API generate returns 500 when model returns no image."""
     mock_image_open.return_value = MagicMock()
     mock_client = MagicMock()
