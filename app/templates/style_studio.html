@@ -56,20 +56,22 @@
         <div class="col-lg-7 d-flex flex-column">
             <div class="d-flex justify-content-between align-items-end mb-4">
                 <h3 class="fw-bold mb-0">2. Select a Style</h3>
-                <div class="d-flex gap-2">
-                    <button class="badge bg-yellow text-dark rounded-pill px-3 py-2 fw-bold border-0"
-                        style="background-color: var(--th-yellow);">ALL</button>
+                <div class="d-flex gap-2" id="category-filters">
+                    <button class="badge bg-warning text-dark rounded-pill px-3 py-2 fw-bold border-0 category-filter"
+                        data-category="ALL">ALL</button>
                     <button
-                        class="badge bg-dark border border-secondary rounded-pill px-3 py-2 fw-bold text-secondary">CLASSIC</button>
+                        class="badge bg-dark border border-secondary rounded-pill px-3 py-2 fw-bold text-secondary category-filter"
+                        data-category="CLASSIC">CLASSIC</button>
                     <button
-                        class="badge bg-dark border border-secondary rounded-pill px-3 py-2 fw-bold text-secondary">MODERN</button>
+                        class="badge bg-dark border border-secondary rounded-pill px-3 py-2 fw-bold text-secondary category-filter"
+                        data-category="MODERN">MODERN</button>
                 </div>
             </div>
 
             <!-- Grid -->
             <div class="row g-3 mb-4" id="hairstyle-grid">
                 {% for style in hairstyles %}
-                <div class="col-md-4 col-sm-6 hairstyle-item" data-id="{{ style.id }}">
+                <div class="col-md-4 col-sm-6 hairstyle-item" data-id="{{ style.id }}" data-category="{{ (style.category or 'UNCATEGORIZED') | upper }}">
                     <div class="style-card rounded-4 position-relative overflow-hidden border border-secondary border-opacity-25"
                         style="cursor: pointer;">
                         <img src="{{ url_for('static', filename='images/' + style.image_url) }}" alt="{{ style.name }}"
@@ -78,8 +80,8 @@
                             style="background: linear-gradient(to top, rgba(0,0,0,0.9), transparent);">
                             <span class="text-white fw-bold text-sm">{{ style.name }}</span>
                         </div>
-                        <div class="selection-indicator position-absolute top-0 end-0 m-3 bg-yellow text-dark rounded-circle d-none align-items-center justify-content-center"
-                            style="width: 24px; height: 24px; background-color: var(--th-yellow);">
+                        <div class="selection-indicator position-absolute top-0 end-0 m-3 bg-warning text-dark rounded-circle d-none align-items-center justify-content-center"
+                            style="width: 24px; height: 24px;">
                             <i class="bi bi-check" style="font-size: 1.2rem; line-height: 1;"></i>
                         </div>
                     </div>
@@ -189,8 +191,45 @@
 
         // Handle Hairstyle Selection
         const hairstyleItems = document.querySelectorAll('.hairstyle-item');
+        const categoryFilterButtons = document.querySelectorAll('.category-filter');
+
+        function setFilterButtonState(activeButton) {
+            categoryFilterButtons.forEach(btn => {
+                btn.classList.remove('bg-warning', 'text-dark', 'border-0');
+                btn.classList.add('bg-dark', 'border', 'border-secondary', 'text-secondary');
+            });
+
+            activeButton.classList.remove('bg-dark', 'border', 'border-secondary', 'text-secondary');
+            activeButton.classList.add('bg-warning', 'text-dark', 'border-0');
+        }
+
+        function applyCategoryFilter(category) {
+            hairstyleItems.forEach(item => {
+                const itemCategory = item.dataset.category;
+                const shouldShow = category === 'ALL' || itemCategory === category;
+                item.classList.toggle('d-none', !shouldShow);
+
+                if (!shouldShow && selectedHairstyleId === item.dataset.id) {
+                    selectedHairstyleId = null;
+                    item.querySelector('.style-card').classList.replace('border-yellow', 'border-secondary');
+                    item.querySelector('.style-card').classList.add('border-opacity-25');
+                    item.querySelector('.selection-indicator').classList.add('d-none');
+                }
+            });
+
+            checkEnableGenerate();
+        }
+
+        categoryFilterButtons.forEach(button => {
+            button.addEventListener('click', () => {
+                setFilterButtonState(button);
+                applyCategoryFilter(button.dataset.category);
+            });
+        });
+
         hairstyleItems.forEach(item => {
             item.addEventListener('click', () => {
+                if (item.classList.contains('d-none')) return;
                 hairstyleItems.forEach(i => {
                     i.querySelector('.style-card').classList.replace('border-yellow', 'border-secondary');
                     i.querySelector('.style-card').classList.add('border-opacity-25');
