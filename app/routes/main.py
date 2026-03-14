@@ -331,6 +331,11 @@ def gallery():
     return render_template("gallery.html", images=images)
 
 
+@main_bp.route("/terms")
+def terms():
+    return render_template("terms.html")
+
+
 @main_bp.route("/api/generate", methods=["POST"])
 @login_required
 def generate():
