@@ -1,0 +1,101 @@
+{% extends 'base.html' %}
+
+{% block title %}Privacy Notice - TrueHair AI{% endblock %}
+
+{% block content %}
+<div class="container py-5" style="max-width: 760px;">
+
+    <!-- Header -->
+    <div class="mb-5">
+        <span class="badge bg-warning text-dark fw-bold px-3 py-2 rounded-pill mb-3"
+            style="background-color: var(--th-yellow) !important;">Legal</span>
+        <h1 class="fw-bold display-5 mb-2">Privacy Notice</h1>
+        <p class="text-secondary">Last updated: March 2026</p>
+    </div>
+
+    <!-- Section: Our Commitment -->
+    <div class="bg-card rounded-4 border border-secondary border-opacity-25 p-4 mb-4">
+        <h2 class="fw-bold h4 mb-3">
+            <i class="bi bi-shield-check text-warning me-2"></i>Our Commitment to Privacy
+        </h2>
+        <p class="text-secondary mb-0">
+            TrueHair.ai is a student-developed application created for a software engineering course at Colby College.
+            We are committed to being transparent about the data we collect during this testing phase.
+        </p>
+    </div>
+
+    <!-- Section: What We Collect -->
+    <div class="bg-card rounded-4 border border-secondary border-opacity-25 p-4 mb-4">
+        <h2 class="fw-bold h4 mb-4">
+            <i class="bi bi-database text-warning me-2"></i>What Data We Collect &amp; Why
+        </h2>
+        <p class="text-secondary mb-4">To validate our prototype, we collect the following information:</p>
+
+        <div class="d-flex flex-column gap-3">
+            <div class="d-flex gap-3">
+                <div class="flex-shrink-0 bg-dark border border-secondary border-opacity-25 rounded-3 d-flex align-items-center justify-content-center"
+                    style="width: 40px; height: 40px;">
+                    <i class="bi bi-envelope text-warning"></i>
+                </div>
+                <div>
+                    <h6 class="fw-bold mb-1 text-white">Email Addresses &amp; Account Info</h6>
+                    <p class="text-secondary mb-0 small">Collected during registration to verify that our platform is
+                        being tested by real users.</p>
+                </div>
+            </div>
+
+            <div class="d-flex gap-3">
+                <div class="flex-shrink-0 bg-dark border border-secondary border-opacity-25 rounded-3 d-flex align-items-center justify-content-center"
+                    style="width: 40px; height: 40px;">
+                    <i class="bi bi-image text-warning"></i>
+                </div>
+                <div>
+                    <h6 class="fw-bold mb-1 text-white">User-Uploaded Images</h6>
+                    <p class="text-secondary mb-0 small">Any photos uploaded to visualize hairstyles are processed
+                        solely to deliver the core functionality of the prototype.</p>
+                </div>
+            </div>
+
+            <div class="d-flex gap-3">
+                <div class="flex-shrink-0 bg-dark border border-secondary border-opacity-25 rounded-3 d-flex align-items-center justify-content-center"
+                    style="width: 40px; height: 40px;">
+                    <i class="bi bi-cookie text-warning"></i>
+                </div>
+                <div>
+                    <h6 class="fw-bold mb-1 text-white">Session Data &amp; Cookies</h6>
+                    <p class="text-secondary mb-0 small">Used to keep you logged in securely and to measure basic app
+                        usage.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Section: How Data Is Used -->
+    <div class="bg-card rounded-4 border border-secondary border-opacity-25 p-4 mb-4">
+        <h2 class="fw-bold h4 mb-3">
+            <i class="bi bi-bar-chart text-warning me-2"></i>How Your Data is Used
+        </h2>
+        <p class="text-secondary mb-0">
+            All data collected is used strictly for educational purposes. We analyze this information to evaluate the
+            success of our prototype, calculate user retention, and make data-driven decisions for our coursework.
+            <strong class="text-white">Your data will never be sold or used for commercial purposes.</strong>
+        </p>
+    </div>
+
+    <!-- Section: Data Removal -->
+    <div class="bg-card rounded-4 border border-secondary border-opacity-25 p-4 mb-5">
+        <h2 class="fw-bold h4 mb-3">
+            <i class="bi bi-trash3 text-warning me-2"></i>Data Removal Requests
+        </h2>
+        <p class="text-secondary mb-4">
+            You have the right to request the deletion of your account and any associated data (including emails and
+            photos) at any time.
+        </p>
+        <a href="mailto:privacy@truehair.ai" class="btn fw-bold px-4 py-2 rounded-3 text-dark"
+            style="background-color: var(--th-yellow);">
+            <i class="bi bi-envelope me-2"></i>Request Data Deletion
+        </a>
+    </div>
+
+</div>
+{% endblock %}
