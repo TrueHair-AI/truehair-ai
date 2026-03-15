@@ -335,6 +335,7 @@ def gallery():
 def terms():
     return render_template("terms.html")
 
+
 @main_bp.route("/privacy")
 def privacy():
     return render_template("privacy.html")
