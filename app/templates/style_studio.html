@@ -148,6 +148,38 @@
             }
         });
 
+        // Handle Drag & Drop
+        uploadContainer.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            uploadContainer.classList.add('drag-active');
+        });
+
+        uploadContainer.addEventListener('dragleave', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            // Only remove highlight if leaving the container itself (not a child element)
+            if (!uploadContainer.contains(e.relatedTarget)) {
+                uploadContainer.classList.remove('drag-active');
+            }
+        });
+
+        uploadContainer.addEventListener('drop', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            uploadContainer.classList.remove('drag-active');
+
+            const files = e.dataTransfer.files;
+            if (files && files.length > 0) {
+                const file = files[0];
+                if (!file.type.startsWith('image/')) {
+                    showFlashMessage('Please drop an image file (PNG, JPG, etc.)');
+                    return;
+                }
+                uploadFile(file);
+            }
+        });
+
         function uploadFile(file) {
             const formData = new FormData();
             formData.append('file', file);
@@ -277,6 +309,13 @@
     .border-yellow {
         border-color: var(--th-yellow) !important;
         border-width: 2px !important;
+    }
+
+    .drag-active {
+        border-color: var(--th-yellow) !important;
+        background-color: rgba(255, 214, 0, 0.07) !important;
+        box-shadow: 0 0 0 3px rgba(255, 214, 0, 0.25);
+        transition: all 0.15s ease;
     }
 </style>
 {% endblock %}
