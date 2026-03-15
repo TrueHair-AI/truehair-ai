@@ -331,6 +331,11 @@ def gallery():
     return render_template("gallery.html", images=images)
 
 
+@main_bp.route("/terms")
+def terms():
+    return render_template("terms.html")
+
+
 @main_bp.route("/privacy")
 def privacy():
     return render_template("privacy.html")

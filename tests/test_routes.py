@@ -10,6 +10,17 @@ def test_index(client):
     """Test the index page."""
     response = client.get("/")
     assert response.status_code == 200
+    assert b'href="/terms"' in response.data
+
+
+def test_terms_page_public(client):
+    """Terms page is public and renders required disclaimer content."""
+    response = client.get("/terms")
+    assert response.status_code == 200
+    assert b"Terms &amp; Educational Disclaimer" in response.data
+    assert b"Educational Prototype Disclaimer" in response.data
+    assert b"No Liability" in response.data
+    assert b"Service Interruptions" in response.data
 
 
 def test_dashboard_redirect_unauthenticated(client):
