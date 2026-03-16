@@ -143,3 +143,16 @@ a.logout-btn:hover, a.logout-btn:focus, a.logout-btn:active {
     background-color: var(--th-yellow);
     color: #000;
 }
+
+#googleLoginBtn.login-cta-disabled {
+    pointer-events: none;
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.disclosure-blockquote {
+    border-left: 4px solid var(--th-yellow);
+    padding-left: 1rem;
+    margin-left: 0;
+    font-size: 0.9rem;
+}
