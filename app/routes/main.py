@@ -1,6 +1,4 @@
 import io
-import os
-import uuid
 from datetime import datetime, timedelta
 from functools import wraps
 
@@ -19,7 +17,6 @@ from google import genai
 from google.genai import types
 from PIL import Image
 from sqlalchemy import func
-from werkzeug.utils import secure_filename
 
 from app.models import GeneratedImage, Hairstyle, Stylist, User, UserImage, Visit, db
 from app.services import r2 as r2_service
@@ -329,7 +326,9 @@ def result(image_id=None):
             .first()
         )
 
-    image_display_url = r2_service.get_display_url(gen_img.image_url) if gen_img else None
+    image_display_url = (
+        r2_service.get_display_url(gen_img.image_url) if gen_img else None
+    )
 
     return render_template(
         "result.html", latest_gen=gen_img, image_display_url=image_display_url

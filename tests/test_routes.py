@@ -76,8 +76,6 @@ def test_dashboard_non_admin_forbidden(auth_client):
     assert response.status_code == 403
 
 
-
-
 def test_result_redirect_unauthenticated(client):
     """Result page redirects when not logged in."""
     response = client.get("/result")

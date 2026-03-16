@@ -17,6 +17,7 @@ class TestConfig(Config):
     R2_SECRET_ACCESS_KEY = "test-secret-key"
     R2_BUCKET_NAME = "test-bucket"
 
+
 @pytest.fixture
 def app():
     app = create_app(TestConfig)
