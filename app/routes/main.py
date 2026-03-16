@@ -1,3 +1,4 @@
+import io
 import os
 import uuid
 from datetime import datetime, timedelta
@@ -21,6 +22,7 @@ from sqlalchemy import func
 from werkzeug.utils import secure_filename
 
 from app.models import GeneratedImage, Hairstyle, Stylist, User, UserImage, Visit, db
+from app.services import r2 as r2_service
 
 main_bp = Blueprint("main", __name__)
 
@@ -86,36 +88,47 @@ def style_studio():
     return render_template("style_studio.html", hairstyles=hairstyles)
 
 
-@main_bp.route("/upload", methods=["POST"])
+@main_bp.route("/api/upload/presign", methods=["POST"])
 @login_required
-def upload_image():
-    if "file" not in request.files:
-        return jsonify({"error": "No file part"}), 400
-    file = request.files["file"]
-    if file.filename == "":
-        return jsonify({"error": "No selected file"}), 400
+def upload_presign():
+    """Return a presigned PUT URL so the client can upload directly to R2."""
+    data = request.get_json(silent=True) or {}
+    filename = data.get("filename", "photo.jpg")
+    content_type = data.get("content_type", "image/jpeg")
 
-    if file:
-        filename = secure_filename(f"{uuid.uuid4()}_{file.filename}")
-        static_folder = current_app.static_folder or ""
-        upload_dir = os.path.join(static_folder, "uploads")
-        os.makedirs(upload_dir, exist_ok=True)
-        upload_path = os.path.join(upload_dir, filename)
-        file.save(upload_path)
+    if content_type not in r2_service.ALLOWED_CONTENT_TYPES:
+        return jsonify({"error": f"Unsupported content type: {content_type}"}), 400
 
-        user_image = UserImage(
-            user_id=session["user_id"], image_url=f"uploads/{filename}"
-        )
-        db.session.add(user_image)
-        db.session.commit()
+    upload_key = r2_service.make_upload_key(filename)
+    put_url = r2_service.get_presigned_put_url(upload_key, content_type)
 
-        return jsonify(
-            {
-                "status": "success",
-                "image_url": f"/static/uploads/{filename}",
-                "image_id": user_image.id,
-            }
-        )
+    return jsonify({"put_url": put_url, "upload_key": upload_key})
+
+
+@main_bp.route("/api/upload/confirm", methods=["POST"])
+@login_required
+def upload_confirm():
+    """Confirm a client-side R2 upload and create the DB record."""
+    data = request.get_json(silent=True) or {}
+    upload_key = data.get("upload_key")
+
+    if not upload_key or not upload_key.startswith("uploads/"):
+        return jsonify({"error": "Invalid upload_key"}), 400
+
+    user_image = UserImage(
+        user_id=session["user_id"],
+        image_url=upload_key,
+    )
+    db.session.add(user_image)
+    db.session.commit()
+
+    return jsonify(
+        {
+            "status": "success",
+            "image_url": r2_service.get_display_url(upload_key),
+            "image_id": user_image.id,
+        }
+    )
 
 
 @main_bp.route("/stylists")
@@ -316,7 +329,11 @@ def result(image_id=None):
             .first()
         )
 
-    return render_template("result.html", latest_gen=gen_img)
+    image_display_url = r2_service.get_display_url(gen_img.image_url) if gen_img else None
+
+    return render_template(
+        "result.html", latest_gen=gen_img, image_display_url=image_display_url
+    )
 
 
 @main_bp.route("/gallery")
@@ -328,7 +345,10 @@ def gallery():
         .order_by(GeneratedImage.created_at.desc())
         .all()
     )
-    return render_template("gallery.html", images=images)
+
+    display_urls = {img.id: r2_service.get_display_url(img.image_url) for img in images}
+
+    return render_template("gallery.html", images=images, display_urls=display_urls)
 
 
 @main_bp.route("/terms")
@@ -365,9 +385,8 @@ def generate():
         return jsonify({"error": "Internal server error. Please try again later."}), 500
 
     try:
-        static_folder = current_app.static_folder or ""
-        img_path = os.path.join(static_folder, user_image.image_url)
-        user_photo = Image.open(img_path)
+        photo_bytes = r2_service.download_bytes(user_image.image_url)
+        user_photo = Image.open(io.BytesIO(photo_bytes))
 
         prompt = (
             f"Edit this person's photo to give them a '{hairstyle.name}' hairstyle. "
@@ -386,19 +405,19 @@ def generate():
             ),
         )
 
-        result_filename = f"gen_{uuid.uuid4()}.png"
-        result_url = f"uploads/{result_filename}"
-        static_folder = current_app.static_folder or ""
-        result_path = os.path.join(static_folder, result_url)
-        os.makedirs(os.path.dirname(result_path), exist_ok=True)
-
+        image_part = None
         for part in response.parts:
             if part.inline_data is not None:
-                generated_image = part.as_image()
-                generated_image.save(result_path)
+                image_part = part
                 break
         else:
             raise Exception("No image returned by the model.")
+
+        result_key = r2_service.make_generated_key()
+        image_bytes = image_part.inline_data.data
+        mime_type = image_part.inline_data.mime_type or "image/png"
+        r2_service.upload_bytes(result_key, image_bytes, mime_type)
+        result_url = result_key
 
         gen_img = GeneratedImage(
             user_id=session["user_id"],
@@ -412,7 +431,7 @@ def generate():
         return jsonify(
             {
                 "status": "success",
-                "image_url": f"/static/{result_url}",
+                "image_url": r2_service.get_display_url(result_url),
                 "image_id": gen_img.id,
             }
         )
