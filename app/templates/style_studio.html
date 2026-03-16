@@ -183,34 +183,48 @@
         });
 
         function uploadFile(file) {
-            const formData = new FormData();
-            formData.append('file', file);
-
             placeholder.classList.add('d-none');
             spinner.classList.remove('d-none');
 
-            fetch("{{ url_for('main.upload_image') }}", {
+            fetch("{{ url_for('main.upload_presign') }}", {
                 method: 'POST',
-                body: formData
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ filename: file.name, content_type: file.type || 'image/jpeg' })
             })
-                .then(response => response.json())
-                .then(data => {
-                    spinner.classList.add('d-none');
-                    if (data.status === 'success') {
-                        previewImg.src = data.image_url;
-                        uploadedImageId = data.image_id;
-                        previewContainer.classList.remove('d-none');
-                        checkEnableGenerate();
-                    } else {
-                        alert('Upload failed: ' + data.error);
-                        placeholder.classList.remove('d-none');
-                    }
-                })
-                .catch(err => {
-                    console.error(err);
-                    spinner.classList.add('d-none');
+            .then(r => r.json())
+            .then(presignData => {
+                if (presignData.error) throw presignData;
+                return fetch(presignData.put_url, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': file.type || 'image/jpeg' },
+                    body: file
+                }).then(() => presignData.upload_key);
+            })
+            .then(uploadKey => {
+                return fetch("{{ url_for('main.upload_confirm') }}", {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ upload_key: uploadKey })
+                }).then(r => r.json());
+            })
+            .then(data => {
+                spinner.classList.add('d-none');
+                if (data.status === 'success') {
+                    previewImg.src = data.image_url;
+                    uploadedImageId = data.image_id;
+                    previewContainer.classList.remove('d-none');
+                    checkEnableGenerate();
+                } else {
+                    showFlashMessage(data.error || 'Upload failed.');
                     placeholder.classList.remove('d-none');
-                });
+                }
+            })
+            .catch(err => {
+                console.error(err);
+                spinner.classList.add('d-none');
+                showFlashMessage(err.error || 'Upload failed. Please try again.');
+                placeholder.classList.remove('d-none');
+            });
         }
 
         removeBtn.addEventListener('click', () => {

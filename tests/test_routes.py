@@ -5,6 +5,8 @@ from unittest.mock import MagicMock, patch
 
 from PIL import Image
 
+from app.models import UserImage, db
+
 
 def test_index(client):
     """Test the index page."""
@@ -72,42 +74,6 @@ def test_dashboard_non_admin_forbidden(auth_client):
     """Dashboard returns 403 for non-admin."""
     response = auth_client.get("/dashboard")
     assert response.status_code == 403
-
-
-def test_upload_no_file(auth_client):
-    """Upload without file returns 400."""
-    response = auth_client.post("/upload", data={})
-    assert response.status_code == 400
-    assert b"No file part" in response.data or b"error" in response.data.lower()
-
-
-def test_upload_empty_filename(auth_client):
-    """Upload with empty filename returns 400."""
-    response = auth_client.post(
-        "/upload",
-        data={"file": (io.BytesIO(b""), "")},
-        content_type="multipart/form-data",
-    )
-    assert response.status_code == 400
-
-
-def test_upload_success(auth_client, app):
-    """Upload with valid file returns success and image_id."""
-    img = Image.new("RGB", (10, 10), color="red")
-    buf = io.BytesIO()
-    img.save(buf, format="PNG")
-    buf.seek(0)
-    data = {"file": (buf, "photo.png")}
-    response = auth_client.post(
-        "/upload",
-        data=data,
-        content_type="multipart/form-data",
-    )
-    assert response.status_code == 200
-    data = response.get_json()
-    assert data.get("status") == "success"
-    assert "image_id" in data
-    assert "image_url" in data
 
 
 def test_result_redirect_unauthenticated(client):
@@ -198,9 +164,10 @@ def test_api_generate_wrong_user_403(auth_client, hairstyle, app):
     assert response.status_code == 403
 
 
+@patch("app.services.r2.download_bytes")
 @patch("app.routes.main.get_genai_client")
 def test_api_generate_no_gemini_key(
-    mock_get_client, auth_client, user_image, hairstyle
+    mock_get_client, mock_download, auth_client, user_image, hairstyle
 ):
     """API generate returns 500 when Gemini API key is missing."""
     mock_get_client.return_value = None
@@ -214,38 +181,14 @@ def test_api_generate_no_gemini_key(
     assert "error" in data
 
 
-@patch("app.routes.main.get_genai_client")
-@patch("app.routes.main.Image.open")
-def test_api_generate_success(
-    mock_image_open, mock_get_client, auth_client, user_image, hairstyle, app
-):
-    """API generate returns success when Gemini returns image."""
-    mock_image_open.return_value = MagicMock()
-    mock_client = MagicMock()
-    mock_part = MagicMock()
-    mock_part.inline_data = "present"
-    mock_img = MagicMock()
-    mock_part.as_image.return_value = mock_img
-    mock_client.models.generate_content.return_value = MagicMock(parts=[mock_part])
-    mock_get_client.return_value = mock_client
-    response = auth_client.post(
-        "/api/generate",
-        json={"user_image_id": user_image.id, "hairstyle_id": hairstyle.id},
-        content_type="application/json",
-    )
-    assert response.status_code == 200
-    data = response.get_json()
-    assert data.get("status") == "success"
-    assert "image_id" in data
-    assert "image_url" in data
-
-
+@patch("app.services.r2.download_bytes")
 @patch("app.routes.main.get_genai_client")
 @patch("app.routes.main.Image.open")
 def test_api_generate_exception_returns_500(
-    mock_image_open, mock_get_client, auth_client, user_image, hairstyle
+    mock_image_open, mock_get_client, mock_download, auth_client, user_image, hairstyle
 ):
     """API generate returns 500 when Gemini raises."""
+    mock_download.return_value = b"fake-bytes"
     mock_image_open.return_value = MagicMock()
     mock_get_client.return_value = MagicMock()
     mock_get_client.return_value.models.generate_content.side_effect = Exception(
@@ -261,12 +204,14 @@ def test_api_generate_exception_returns_500(
     assert "error" in data
 
 
+@patch("app.services.r2.download_bytes")
 @patch("app.routes.main.get_genai_client")
 @patch("app.routes.main.Image.open")
 def test_api_generate_no_image_in_response_returns_500(
-    mock_image_open, mock_get_client, auth_client, user_image, hairstyle
+    mock_image_open, mock_get_client, mock_download, auth_client, user_image, hairstyle
 ):
     """API generate returns 500 when model returns no image."""
+    mock_download.return_value = b"fake-bytes"
     mock_image_open.return_value = MagicMock()
     mock_client = MagicMock()
     mock_client.models.generate_content.return_value = MagicMock(parts=[])
@@ -277,3 +222,276 @@ def test_api_generate_no_image_in_response_returns_500(
         content_type="application/json",
     )
     assert response.status_code == 500
+
+
+# ---------------------------------------------------------------------------
+# R2 presign / confirm endpoint tests
+# ---------------------------------------------------------------------------
+
+
+def _r2_auth_client(app):
+    """Create an authenticated test client using the app."""
+    from app.models import User, db
+
+    client = app.test_client()
+    with app.app_context():
+        u = User(
+            email="r2user@example.com",
+            username="r2user",
+            first_name="R2",
+            last_name="User",
+        )
+        db.session.add(u)
+        db.session.commit()
+        uid = u.id
+    with client.session_transaction() as sess:
+        sess["user_id"] = uid
+    return client, uid
+
+
+@patch("app.services.r2.get_presigned_put_url")
+@patch("app.services.r2.make_upload_key")
+def test_presign_returns_put_url(mock_key, mock_presign, app):
+    """POST /api/upload/presign returns put_url and upload_key."""
+    mock_key.return_value = "uploads/abc_photo.jpg"
+    mock_presign.return_value = "https://r2.example.com/put"
+    ac, _ = _r2_auth_client(app)
+
+    response = ac.post(
+        "/api/upload/presign",
+        json={"filename": "photo.jpg", "content_type": "image/jpeg"},
+        content_type="application/json",
+    )
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["put_url"] == "https://r2.example.com/put"
+    assert data["upload_key"] == "uploads/abc_photo.jpg"
+
+
+def test_presign_rejects_bad_content_type(app):
+    """POST /api/upload/presign rejects unsupported content types."""
+    ac, _ = _r2_auth_client(app)
+    response = ac.post(
+        "/api/upload/presign",
+        json={"filename": "file.txt", "content_type": "text/plain"},
+        content_type="application/json",
+    )
+    assert response.status_code == 400
+    assert b"Unsupported" in response.data
+
+
+def test_presign_requires_auth(app):
+    """POST /api/upload/presign redirects when not authenticated."""
+    client = app.test_client()
+    response = client.post(
+        "/api/upload/presign",
+        json={"filename": "photo.jpg"},
+        content_type="application/json",
+    )
+    assert response.status_code == 302
+
+
+@patch("app.services.r2.get_display_url")
+def test_confirm_creates_user_image(mock_display, app):
+    """POST /api/upload/confirm creates a UserImage and returns display URL."""
+    mock_display.return_value = "https://r2.example.com/get/uploads/abc.jpg"
+    ac, uid = _r2_auth_client(app)
+
+    response = ac.post(
+        "/api/upload/confirm",
+        json={"upload_key": "uploads/abc_photo.jpg"},
+        content_type="application/json",
+    )
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["status"] == "success"
+    assert data["image_url"] == "https://r2.example.com/get/uploads/abc.jpg"
+    assert "image_id" in data
+
+    with app.app_context():
+        ui = db.session.get(UserImage, data["image_id"])
+        assert ui is not None
+        assert ui.image_url == "uploads/abc_photo.jpg"
+        assert ui.user_id == uid
+
+
+def test_confirm_rejects_invalid_key(app):
+    """POST /api/upload/confirm rejects keys without uploads/ prefix."""
+    ac, _ = _r2_auth_client(app)
+    response = ac.post(
+        "/api/upload/confirm",
+        json={"upload_key": "malicious/path"},
+        content_type="application/json",
+    )
+    assert response.status_code == 400
+
+
+def test_confirm_rejects_missing_key(app):
+    """POST /api/upload/confirm rejects missing upload_key."""
+    ac, _ = _r2_auth_client(app)
+    response = ac.post(
+        "/api/upload/confirm",
+        json={},
+        content_type="application/json",
+    )
+    assert response.status_code == 400
+
+
+# ---------------------------------------------------------------------------
+# R2-enabled generate tests
+# ---------------------------------------------------------------------------
+
+
+@patch("app.services.r2.get_display_url")
+@patch("app.services.r2.upload_bytes")
+@patch("app.services.r2.download_bytes")
+@patch("app.routes.main.get_genai_client")
+def test_api_generate_success(
+    mock_get_client, mock_download, mock_upload, mock_display, app
+):
+    """Generate reads from R2, uploads result, returns presigned URL."""
+    from app.models import Hairstyle, User, UserImage, db
+
+    ac = app.test_client()
+    with app.app_context():
+        u = User(
+            email="gen@example.com",
+            username="genuser",
+            first_name="Gen",
+            last_name="User",
+        )
+        db.session.add(u)
+        db.session.commit()
+        h = Hairstyle(
+            name="R2 Cut",
+            description="A test style",
+            category="MODERN",
+            image_url="test.png",
+        )
+        ui = UserImage(user_id=u.id, image_url="uploads/selfie.jpg")
+        db.session.add_all([h, ui])
+        db.session.commit()
+        uid, ui_id, h_id = u.id, ui.id, h.id
+
+    with ac.session_transaction() as sess:
+        sess["user_id"] = uid
+
+    img = Image.new("RGB", (10, 10), color="blue")
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    mock_download.return_value = buf.getvalue()
+
+    mock_part = MagicMock()
+    mock_part.inline_data = MagicMock(data=b"fake-png-bytes", mime_type="image/png")
+    mock_part.as_image.return_value = MagicMock()
+    mock_client = MagicMock()
+    mock_client.models.generate_content.return_value = MagicMock(parts=[mock_part])
+    mock_get_client.return_value = mock_client
+
+    mock_display.return_value = "https://r2.example.com/get/result.png"
+
+    response = ac.post(
+        "/api/generate",
+        json={"user_image_id": ui_id, "hairstyle_id": h_id},
+        content_type="application/json",
+    )
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["status"] == "success"
+    assert data["image_url"] == "https://r2.example.com/get/result.png"
+
+    mock_download.assert_called_once_with("uploads/selfie.jpg")
+    mock_upload.assert_called_once()
+
+
+# ---------------------------------------------------------------------------
+# R2-enabled result / gallery display URL tests
+# ---------------------------------------------------------------------------
+
+
+@patch("app.services.r2.get_display_url")
+def test_result_uses_r2_display_url(mock_display, app):
+    """Result page passes presigned URL to template."""
+    from app.models import GeneratedImage, Hairstyle, User, UserImage, db
+
+    ac = app.test_client()
+    with app.app_context():
+        u = User(
+            email="res@example.com",
+            username="resuser",
+            first_name="R",
+            last_name="U",
+        )
+        db.session.add(u)
+        db.session.commit()
+        h = Hairstyle(
+            name="Res Cut",
+            description="A style",
+            category="MODERN",
+            image_url="test.png",
+        )
+        ui = UserImage(user_id=u.id, image_url="uploads/photo.jpg")
+        db.session.add_all([h, ui])
+        db.session.commit()
+        gi = GeneratedImage(
+            user_id=u.id,
+            user_image_id=ui.id,
+            hairstyle_id=h.id,
+            image_url="uploads/gen_result.png",
+        )
+        db.session.add(gi)
+        db.session.commit()
+        uid, gi_id = u.id, gi.id
+
+    with ac.session_transaction() as sess:
+        sess["user_id"] = uid
+
+    mock_display.return_value = "https://r2.example.com/display/gen_result.png"
+
+    response = ac.get(f"/result/{gi_id}")
+    assert response.status_code == 200
+    assert b"https://r2.example.com/display/gen_result.png" in response.data
+
+
+@patch("app.services.r2.get_display_url")
+def test_gallery_uses_r2_display_urls(mock_display, app):
+    """Gallery passes presigned URLs for all images."""
+    from app.models import GeneratedImage, Hairstyle, User, UserImage, db
+
+    ac = app.test_client()
+    with app.app_context():
+        u = User(
+            email="gal@example.com",
+            username="galuser",
+            first_name="G",
+            last_name="U",
+        )
+        db.session.add(u)
+        db.session.commit()
+        h = Hairstyle(
+            name="Gal Cut",
+            description="A style",
+            category="MODERN",
+            image_url="test.png",
+        )
+        ui = UserImage(user_id=u.id, image_url="uploads/photo.jpg")
+        db.session.add_all([h, ui])
+        db.session.commit()
+        gi = GeneratedImage(
+            user_id=u.id,
+            user_image_id=ui.id,
+            hairstyle_id=h.id,
+            image_url="uploads/gen_gal.png",
+        )
+        db.session.add(gi)
+        db.session.commit()
+        uid = u.id
+
+    with ac.session_transaction() as sess:
+        sess["user_id"] = uid
+
+    mock_display.return_value = "https://r2.example.com/display/gen_gal.png"
+
+    response = ac.get("/gallery")
+    assert response.status_code == 200
+    assert b"https://r2.example.com/display/gen_gal.png" in response.data
