@@ -9,11 +9,13 @@ class TestConfig(Config):
     TESTING = True
     SQLALCHEMY_DATABASE_URI = "sqlite:///:memory:"
     WTF_CSRF_ENABLED = False
-    # Mocking environment variables for tests
     GOOGLE_CLIENT_ID = "test-id"
     GOOGLE_CLIENT_SECRET = "test-secret"
     GEMINI_API_KEY = "test-gemini-key"
-
+    R2_ACCOUNT_ID = "test-account-id"
+    R2_ACCESS_KEY_ID = "test-access-key"
+    R2_SECRET_ACCESS_KEY = "test-secret-key"
+    R2_BUCKET_NAME = "test-bucket"
 
 @pytest.fixture
 def app():
