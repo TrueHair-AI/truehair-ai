@@ -30,11 +30,87 @@
             <p class="text-secondary mb-4 text-sm px-2">Visualize your perfect style with AI-powered precision. Start
                 your journey to a new look.</p>
 
-            <a href="{{ url_for('auth.google_login') }}"
+            <a id="googleLoginBtn" href="{{ url_for('auth.google_login') }}"
                 class="btn btn-primary fw-bold w-100 py-3 d-flex align-items-center justify-content-center gap-2 rounded-3 text-decoration-none text-dark shadow-sm">
                 <i class="bi bi-google"></i> Continue with Google
             </a>
         </div>
     </div>
 </div>
+
+<div class="modal fade" id="disclosureModal" tabindex="-1" aria-labelledby="disclosureModalLabel" aria-hidden="true"
+    data-bs-backdrop="static" data-bs-keyboard="false">
+    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content bg-card border border-secondary border-opacity-25">
+            <div class="modal-header border-secondary border-opacity-25 flex-column text-center pt-4">
+                <div class="d-flex justify-content-center mb-2">
+                    <img src="{{ url_for('static', filename='images/truehair-logo.png') }}" alt="TrueHair Logo" height="36">
+                </div>
+                <h2 class="modal-title fs-5 fw-bold text-white w-100 mb-0" id="disclosureModalLabel">Welcome to TrueHair AI (Educational Prototype)</h2>
+            </div>
+            <div class="modal-body text-white">
+                <blockquote class="disclosure-blockquote text-secondary mb-3">
+                    <p class="mb-2">This application is part of a university software engineering course project. It is an experimental prototype used to improve product ideas. Any data collected will be used only for educational purposes.</p>
+                    <p class="mb-0">By using this application, you acknowledge that it should not be relied upon for important decisions or critical tasks. The developers and the university assume no liability for any loss, harm, or damages resulting from the use of this prototype.</p>
+                </blockquote>
+                <p class="text-secondary mb-0 small">Additionally, this site uses cookies and basic analytics to measure usage and improve the product.</p>
+            </div>
+            <div class="modal-footer border-secondary border-opacity-25">
+                <button type="button" class="btn btn-primary fw-bold px-4 py-2 rounded-3" id="disclosureAcceptBtn">I Understand &amp; Agree</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+(function () {
+    var STORAGE_KEY = 'truehair_disclosure_ack';
+    var modalEl = document.getElementById('disclosureModal');
+    var googleBtn = document.getElementById('googleLoginBtn');
+    var acceptBtn = document.getElementById('disclosureAcceptBtn');
+
+    function disableGoogleLogin() {
+        if (googleBtn) {
+            googleBtn.classList.add('login-cta-disabled');
+            googleBtn.setAttribute('aria-disabled', 'true');
+            googleBtn.setAttribute('tabindex', '-1');
+        }
+    }
+
+    function enableGoogleLogin() {
+        if (googleBtn) {
+            googleBtn.classList.remove('login-cta-disabled');
+            googleBtn.removeAttribute('aria-disabled');
+            googleBtn.removeAttribute('tabindex');
+        }
+    }
+
+    function onAccept() {
+        try {
+            localStorage.setItem(STORAGE_KEY, 'true');
+        } catch (e) {}
+        if (modalEl) {
+            var modal = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
+            modal.hide();
+        }
+        enableGoogleLogin();
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+        if (!modalEl || !acceptBtn) return;
+
+        if (localStorage.getItem(STORAGE_KEY)) return;
+
+        disableGoogleLogin();
+        var modal = new bootstrap.Modal(modalEl, { backdrop: 'static', keyboard: false });
+        modal.show();
+
+        acceptBtn.addEventListener('click', function () {
+            onAccept();
+        });
+    });
+})();
+</script>
 {% endblock %}
