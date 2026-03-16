@@ -15,3 +15,8 @@ class Config:
     GOOGLE_CLIENT_SECRET = os.environ.get("GOOGLE_CLIENT_SECRET")
     SERVER_METADATA_URL = "https://accounts.google.com/.well-known/openid-configuration"
     GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
+
+    R2_ACCOUNT_ID = os.environ.get("R2_ACCOUNT_ID")
+    R2_ACCESS_KEY_ID = os.environ.get("R2_ACCESS_KEY_ID")
+    R2_SECRET_ACCESS_KEY = os.environ.get("R2_SECRET_ACCESS_KEY")
+    R2_BUCKET_NAME = os.environ.get("R2_BUCKET_NAME")
