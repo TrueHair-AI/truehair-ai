@@ -402,7 +402,7 @@ def test_api_generate_success(
 
     mock_download.assert_called_once_with("uploads/selfie.jpg")
     mock_upload.assert_called_once()
-    
+
     uploaded_key = mock_upload.call_args[0][0]
     uploaded_mime = mock_upload.call_args[0][2]
     assert uploaded_key.endswith(".webp")
