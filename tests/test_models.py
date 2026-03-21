@@ -45,7 +45,7 @@ def test_generated_image_relationships(app, user, user_image, hairstyle):
             user_id=user.id,
             user_image_id=user_image.id,
             hairstyle_id=hairstyle.id,
-            image_url="uploads/gen.png",
+            image_url="uploads/gen.webp",
         )
         db.session.add(gen)
         db.session.commit()

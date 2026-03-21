@@ -382,13 +382,13 @@ def test_api_generate_success(
     mock_download.return_value = buf.getvalue()
 
     mock_part = MagicMock()
-    mock_part.inline_data = MagicMock(data=b"fake-png-bytes", mime_type="image/png")
+    mock_part.inline_data = MagicMock(data=buf.getvalue(), mime_type="image/png")
     mock_part.as_image.return_value = MagicMock()
     mock_client = MagicMock()
     mock_client.models.generate_content.return_value = MagicMock(parts=[mock_part])
     mock_get_client.return_value = mock_client
 
-    mock_display.return_value = "https://r2.example.com/get/result.png"
+    mock_display.return_value = "https://r2.example.com/get/result.webp"
 
     response = ac.post(
         "/api/generate",
@@ -398,10 +398,15 @@ def test_api_generate_success(
     assert response.status_code == 200
     data = response.get_json()
     assert data["status"] == "success"
-    assert data["image_url"] == "https://r2.example.com/get/result.png"
+    assert data["image_url"] == "https://r2.example.com/get/result.webp"
 
     mock_download.assert_called_once_with("uploads/selfie.jpg")
     mock_upload.assert_called_once()
+    
+    uploaded_key = mock_upload.call_args[0][0]
+    uploaded_mime = mock_upload.call_args[0][2]
+    assert uploaded_key.endswith(".webp")
+    assert uploaded_mime == "image/webp"
 
 
 # ---------------------------------------------------------------------------
@@ -437,7 +442,7 @@ def test_result_uses_r2_display_url(mock_display, app):
             user_id=u.id,
             user_image_id=ui.id,
             hairstyle_id=h.id,
-            image_url="uploads/gen_result.png",
+            image_url="uploads/gen_result.webp",
         )
         db.session.add(gi)
         db.session.commit()
@@ -446,11 +451,11 @@ def test_result_uses_r2_display_url(mock_display, app):
     with ac.session_transaction() as sess:
         sess["user_id"] = uid
 
-    mock_display.return_value = "https://r2.example.com/display/gen_result.png"
+    mock_display.return_value = "https://r2.example.com/display/gen_result.webp"
 
     response = ac.get(f"/result/{gi_id}")
     assert response.status_code == 200
-    assert b"https://r2.example.com/display/gen_result.png" in response.data
+    assert b"https://r2.example.com/display/gen_result.webp" in response.data
 
 
 @patch("app.services.r2.get_display_url")
@@ -481,7 +486,7 @@ def test_gallery_uses_r2_display_urls(mock_display, app):
             user_id=u.id,
             user_image_id=ui.id,
             hairstyle_id=h.id,
-            image_url="uploads/gen_gal.png",
+            image_url="uploads/gen_gal.webp",
         )
         db.session.add(gi)
         db.session.commit()
@@ -490,8 +495,8 @@ def test_gallery_uses_r2_display_urls(mock_display, app):
     with ac.session_transaction() as sess:
         sess["user_id"] = uid
 
-    mock_display.return_value = "https://r2.example.com/display/gen_gal.png"
+    mock_display.return_value = "https://r2.example.com/display/gen_gal.webp"
 
     response = ac.get("/gallery")
     assert response.status_code == 200
-    assert b"https://r2.example.com/display/gen_gal.png" in response.data
+    assert b"https://r2.example.com/display/gen_gal.webp" in response.data
