@@ -414,8 +414,14 @@ def generate():
 
         result_key = r2_service.make_generated_key()
         image_bytes = image_part.inline_data.data
-        mime_type = image_part.inline_data.mime_type or "image/png"
-        r2_service.upload_bytes(result_key, image_bytes, mime_type)
+
+        # Transcode to lossless WebP
+        gen_image_pil = Image.open(io.BytesIO(image_bytes))
+        webp_io = io.BytesIO()
+        gen_image_pil.save(webp_io, format="WEBP", lossless=True)
+        webp_bytes = webp_io.getvalue()
+
+        r2_service.upload_bytes(result_key, webp_bytes, "image/webp")
         result_url = result_key
 
         gen_img = GeneratedImage(

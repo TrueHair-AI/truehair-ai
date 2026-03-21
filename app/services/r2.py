@@ -27,7 +27,7 @@ def make_upload_key(filename):
 
 def make_generated_key():
     """Generate a unique R2 object key for a generated image."""
-    return f"uploads/gen_{uuid.uuid4()}.png"
+    return f"uploads/gen_{uuid.uuid4()}.webp"
 
 
 def get_presigned_put_url(key, content_type="image/jpeg", expires_in=3600):
@@ -57,7 +57,7 @@ def get_presigned_get_url(key, expires_in=3600):
     )
 
 
-def upload_bytes(key, data, content_type="image/png"):
+def upload_bytes(key, data, content_type="image/webp"):
     """Upload raw bytes to R2 under the given key."""
     client = _get_s3_client()
     client.put_object(

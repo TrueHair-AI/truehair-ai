@@ -22,11 +22,11 @@ def test_make_upload_key_default_when_empty(app):
 
 
 def test_make_generated_key_format(app):
-    """Generated key has uploads/gen_ prefix and .png extension."""
+    """Generated key has uploads/gen_ prefix and .webp extension."""
     with app.app_context():
         key = r2_service.make_generated_key()
         assert key.startswith("uploads/gen_")
-        assert key.endswith(".png")
+        assert key.endswith(".webp")
 
 
 def test_make_upload_key_unique(app):
@@ -87,13 +87,13 @@ def test_upload_bytes(mock_client_fn, app):
     mock_client_fn.return_value = mock_client
 
     with app.app_context():
-        r2_service.upload_bytes("uploads/gen_abc.png", b"fake-image", "image/png")
+        r2_service.upload_bytes("uploads/gen_abc.webp", b"fake-image", "image/webp")
 
     mock_client.put_object.assert_called_once_with(
         Bucket="test-bucket",
-        Key="uploads/gen_abc.png",
+        Key="uploads/gen_abc.webp",
         Body=b"fake-image",
-        ContentType="image/png",
+        ContentType="image/webp",
     )
 
 
