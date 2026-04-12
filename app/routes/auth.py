@@ -82,4 +82,5 @@ def auth_google():
 @auth_bp.route("/logout")
 def logout():
     session.pop("user_id", None)
+    session.pop("experiment_group", None)
     return redirect(url_for("auth.login"))
