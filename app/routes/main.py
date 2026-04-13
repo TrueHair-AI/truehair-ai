@@ -21,6 +21,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import joinedload
 
 from app.models import (
+    ExperimentSession,
     GeneratedImage,
     Hairstyle,
     Rating,
@@ -532,3 +533,145 @@ def api_rate():
         db.session.commit()
 
     return jsonify({"status": "success", "rating": rating_val})
+
+
+@main_bp.route("/api/consent", methods=["POST"])
+@login_required
+def submit_consent():
+    data = request.get_json(silent=True) or {}
+    full_name = data.get("full_name", "").strip()
+
+    if not full_name or len(full_name) < 2:
+        return jsonify({"error": "Full name must be at least 2 characters"}), 400
+
+    user_id = session["user_id"]
+    existing = Consent.query.filter_by(user_id=user_id).first()
+
+    if existing:
+        return jsonify({
+            "status": "success",
+            "consented_at": existing.consented_at.isoformat()
+        })
+
+    user = db.session.get(User, user_id)
+    experiment_group = user.experiment_group or "unknown"
+
+    consent = Consent(
+        user_id=user_id,
+        full_name=full_name,
+        experiment_group=experiment_group
+    )
+    db.session.add(consent)
+    try:
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        existing = Consent.query.filter_by(user_id=user_id).first()
+        if existing:
+            return jsonify({
+                "status": "success",
+                "consented_at": existing.consented_at.isoformat()
+            })
+        return jsonify({"error": "Unable to save consent"}), 500
+
+    return jsonify({
+        "status": "success",
+        "consented_at": consent.consented_at.isoformat()
+    })
+
+
+SESSION_TIMEOUT_SECONDS = 300
+
+
+@main_bp.route("/api/session/start", methods=["POST"])
+@login_required
+def api_session_start():
+    user_id = session["user_id"]
+    user = db.session.get(User, user_id)
+    experiment_group = user.experiment_group or "unknown"
+
+    # Check for existing active session
+    active_session = ExperimentSession.query.filter_by(
+        user_id=user_id, ended_at=None
+    ).order_by(ExperimentSession.started_at.desc()).first()
+
+    now = datetime.utcnow()
+
+    if active_session:
+        # Check if it timed out server-side
+        if (now - active_session.last_ping_at).total_seconds() > SESSION_TIMEOUT_SECONDS:
+            active_session.ended_at = active_session.last_ping_at
+            active_session.duration_seconds = int(
+                (active_session.ended_at - active_session.started_at).total_seconds()
+            )
+            # Create a new session
+            new_session = ExperimentSession(
+                user_id=user_id,
+                experiment_group=experiment_group,
+                started_at=now,
+                last_ping_at=now,
+            )
+            db.session.add(new_session)
+            db.session.commit()
+            return jsonify({"session_id": new_session.id})
+        else:
+            # Return existing session
+            return jsonify({"session_id": active_session.id})
+
+    # Create new session
+    new_session = ExperimentSession(
+        user_id=user_id,
+        experiment_group=experiment_group,
+        started_at=now,
+        last_ping_at=now,
+    )
+    db.session.add(new_session)
+    db.session.commit()
+    return jsonify({"session_id": new_session.id})
+
+
+@main_bp.route("/api/session/ping", methods=["POST"])
+@login_required
+def api_session_ping():
+    data = request.get_json(silent=True) or {}
+    session_id = data.get("session_id")
+    if not session_id:
+        return jsonify({"error": "Missing session_id"}), 400
+
+    exp_session = db.session.get(ExperimentSession, session_id)
+    if not exp_session or exp_session.user_id != session["user_id"]:
+        return jsonify({"error": "Session not found or forbidden"}), 404
+
+    if exp_session.ended_at is not None:
+        return jsonify({"error": "Session already ended"}), 400
+
+    now = datetime.utcnow()
+    # If ping is too late, we could end it here, but let's just update last_ping_at
+    # and let the timeout logic handle it later or when a new session starts.
+    exp_session.last_ping_at = now
+    db.session.commit()
+
+    return jsonify({"status": "ok"})
+
+
+@main_bp.route("/api/session/end", methods=["POST"])
+@login_required
+def api_session_end():
+    data = request.get_json(silent=True) or {}
+    session_id = data.get("session_id")
+    if not session_id:
+        return jsonify({"error": "Missing session_id"}), 400
+
+    exp_session = db.session.get(ExperimentSession, session_id)
+    if not exp_session or exp_session.user_id != session["user_id"]:
+        return jsonify({"error": "Session not found or forbidden"}), 404
+
+    if exp_session.ended_at is None:
+        now = datetime.utcnow()
+        exp_session.ended_at = now
+        exp_session.duration_seconds = int(
+            (now - exp_session.started_at).total_seconds()
+        )
+        db.session.commit()
+
+    return jsonify({"status": "success"})

@@ -32,6 +32,18 @@ class Visit(db.Model):
         return f"<Visit id={self.id} page='{self.page}' timestamp={self.timestamp}>"
 
 
+class ExperimentSession(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
+    experiment_group = db.Column(db.String(20), nullable=False)
+    started_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    last_ping_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    ended_at = db.Column(db.DateTime, nullable=True)  # NULL means session is still active
+    duration_seconds = db.Column(db.Integer, nullable=True)  # Computed when session ends
+
+    user = db.relationship("User", backref=db.backref("experiment_sessions", lazy=True))
+
+
 class Hairstyle(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)
