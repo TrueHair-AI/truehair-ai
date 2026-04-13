@@ -99,11 +99,11 @@ class GeneratedImage(db.Model):
 
     user = db.relationship("User", backref=db.backref("generated_images", lazy=True))
     user_image = db.relationship(
-        "UserImage", foreign_keys=[user_image_id], backref=db.backref("generations", lazy=True)
+        "UserImage",
+        foreign_keys=[user_image_id],
+        backref=db.backref("generations", lazy=True),
     )
-    reference_image = db.relationship(
-        "UserImage", foreign_keys=[reference_image_id]
-    )
+    reference_image = db.relationship("UserImage", foreign_keys=[reference_image_id])
     hairstyle = db.relationship(
         "Hairstyle", backref=db.backref("generations", lazy=True)
     )
