@@ -17,6 +17,7 @@ from google import genai
 from google.genai import types
 from PIL import Image
 from sqlalchemy import func
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import joinedload
 
 from app.models import (
@@ -490,17 +491,25 @@ def api_rate():
     if gen_img.user_id != session["user_id"]:
         abort(403)
 
-    existing = Rating.query.filter_by(generated_image_id=gen_id).first()
-    if existing:
-        existing.rating = rating_val
-    else:
-        db.session.add(
-            Rating(
-                user_id=session["user_id"],
-                generated_image_id=gen_id,
-                rating=rating_val,
+    try:
+        existing = Rating.query.filter_by(generated_image_id=gen_id).first()
+        if existing:
+            existing.rating = rating_val
+        else:
+            db.session.add(
+                Rating(
+                    user_id=session["user_id"],
+                    generated_image_id=gen_id,
+                    rating=rating_val,
+                )
             )
-        )
-    db.session.commit()
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        # Handle race condition: another request created the rating first
+        existing = Rating.query.filter_by(generated_image_id=gen_id).first()
+        if existing:
+            existing.rating = rating_val
+            db.session.commit()
 
     return jsonify({"status": "success", "rating": rating_val})
