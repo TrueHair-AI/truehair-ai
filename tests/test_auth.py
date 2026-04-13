@@ -132,3 +132,46 @@ def test_auth_google_username_collision_increments(mock_oauth, client, app):
         u = User.query.filter_by(email="newuser@other.com").first()
         assert u is not None
         assert u.username == "newuser1"
+
+
+@patch("app.oauth")
+def test_auth_google_new_user_gets_experiment_group(mock_oauth, client, app):
+    """New users get assigned to control or experimental group."""
+    from app.models import User
+
+    mock_google = MagicMock()
+    mock_google.authorize_access_token.return_value = {
+        "userinfo": {
+            "email": "expuser@example.com",
+            "given_name": "Exp",
+            "family_name": "User",
+        }
+    }
+    mock_oauth.google = mock_google
+
+    response = client.get("/auth/google")
+    assert response.status_code == 302
+
+    with app.app_context():
+        u = User.query.filter_by(email="expuser@example.com").first()
+        assert u is not None
+        assert u.experiment_group in ["control", "experimental"]
+
+
+@patch("app.oauth")
+def test_experiment_group_saved_in_session(mock_oauth, client):
+    """Experiment group is stored in session after login."""
+    mock_google = MagicMock()
+    mock_google.authorize_access_token.return_value = {
+        "userinfo": {
+            "email": "sessionuser@example.com",
+            "given_name": "Sess",
+            "family_name": "User",
+        }
+    }
+    mock_oauth.google = mock_google
+
+    client.get("/auth/google")
+
+    with client.session_transaction() as sess:
+        assert sess.get("experiment_group") in ["control", "experimental"]

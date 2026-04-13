@@ -67,7 +67,10 @@ def inject_user():
     user = None
     if "user_id" in session:
         user = db.session.get(User, session["user_id"])
-    return {"current_user": user}
+    return {
+        "current_user": user,
+        "experiment_group": session.get("experiment_group"),
+    }
 
 
 def log_visit(page_name):

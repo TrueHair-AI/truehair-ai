@@ -13,6 +13,7 @@ class User(db.Model):
     last_name = db.Column(db.String(80))
     profile_picture = db.Column(db.String(255))
     is_admin = db.Column(db.Boolean, default=False)
+    experiment_group = db.Column(db.String(20), nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     def __repr__(self):

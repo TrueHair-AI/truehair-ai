@@ -5,6 +5,7 @@ from flask import (
     session,
     url_for,
 )
+import random
 
 from app.models import User, Visit, db
 
@@ -63,15 +64,23 @@ def auth_google():
             first_name=user_info.get("given_name", ""),
             last_name=user_info.get("family_name", ""),
             profile_picture=user_info.get("picture", ""),
+            experiment_group=random.choice(["control", "experimental"]),
         )
         db.session.add(user)
         db.session.commit()
 
+    elif user.experiment_group is None:
+        user.experiment_group = random.choice(["control", "experimental"])
+        db.session.commit()
+
     session["user_id"] = user.id
+    session["experiment_group"] = user.experiment_group
+
     return redirect(url_for("main.style_studio"))
 
 
 @auth_bp.route("/logout")
 def logout():
     session.pop("user_id", None)
+    session.pop("experiment_group", None)
     return redirect(url_for("auth.login"))

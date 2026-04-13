@@ -11,6 +11,7 @@ class Config:
         os.environ.get("DATABASE_URL") or "sqlite:///truehair.db"
     ).replace("postgres://", "postgresql://", 1)
     SQLALCHEMY_TRACK_MODIFICATIONS = False
+    AUTO_CREATE_SCHEMA = True
     GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID")
     GOOGLE_CLIENT_SECRET = os.environ.get("GOOGLE_CLIENT_SECRET")
     SERVER_METADATA_URL = "https://accounts.google.com/.well-known/openid-configuration"
