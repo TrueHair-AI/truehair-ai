@@ -57,6 +57,7 @@
             <div class="d-flex justify-content-between align-items-end mb-4">
                 <h3 class="fw-bold mb-0">2. Select a Style</h3>
                 <div class="d-flex gap-2 flex-wrap" id="category-filters">
+                    {% if experiment_group != 'experimental' %}
                     <button class="badge bg-warning text-dark rounded-pill px-3 py-2 fw-bold border-0 category-filter"
                         data-category="ALL">ALL</button>
                     {% for category in categories %}
@@ -64,6 +65,7 @@
                         class="badge bg-dark border border-secondary rounded-pill px-3 py-2 fw-bold text-secondary category-filter"
                         data-category="{{ category }}">{{ category }}</button>
                     {% endfor %}
+                    {% endif %}
                 </div>
             </div>
 
@@ -125,6 +127,7 @@
 
 <script>
     document.addEventListener('DOMContentLoaded', function () {
+        const experimentGroup = "{{ experiment_group }}";
         let selectedHairstyleId = null;
         let uploadedImageId = null;
 
@@ -213,6 +216,10 @@
                     uploadedImageId = data.image_id;
                     previewContainer.classList.remove('d-none');
                     checkEnableGenerate();
+                    
+                    if (experimentGroup === 'experimental') {
+                        fetchRecommendations(uploadedImageId);
+                    }
                 } else {
                     showFlashMessage(data.error || 'Upload failed.');
                     placeholder.classList.remove('d-none');
@@ -223,6 +230,99 @@
                 spinner.classList.add('d-none');
                 showFlashMessage(err.error || 'Upload failed. Please try again.');
                 placeholder.classList.remove('d-none');
+            });
+        }
+
+        function fetchRecommendations(imageId) {
+            const gridContainer = document.getElementById('hairstyle-grid');
+            
+            // Show loading state
+            gridContainer.innerHTML = `
+                <div class="col-12 text-center py-5">
+                    <div class="spinner-border text-warning mb-3" role="status"></div>
+                    <h5 class="fw-bold">Analyzing your photo and finding your best styles...</h5>
+                </div>
+            `;
+            
+            fetch("{{ url_for('main.recommend') }}", {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ user_image_id: imageId })
+            })
+            .then(response => {
+                if (!response.ok) {
+                    return response.json().then(err => { throw err; });
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.status === 'success') {
+                    renderRecommendations(data.recommendations);
+                } else {
+                    throw new Error(data.error || 'Recommendation failed.');
+                }
+            })
+            .catch(err => {
+                console.error(err);
+                gridContainer.innerHTML = '';
+                showFlashMessage(err.error || 'AI recommendation could not be generated. This session cannot proceed. Please try again later.');
+            });
+        }
+
+        function renderRecommendations(recommendations) {
+            const gridContainer = document.getElementById('hairstyle-grid');
+            gridContainer.innerHTML = '';
+            
+            if (!recommendations || recommendations.length === 0) {
+                gridContainer.innerHTML = '<div class="col-12"><p class="text-secondary text-center">No recommendations found.</p></div>';
+                return;
+            }
+            
+            recommendations.forEach(style => {
+                const imgSrc = "{{ url_for('static', filename='images/') }}" + style.image_url;
+                
+                const col = document.createElement('div');
+                col.className = 'col-md-4 col-sm-6 hairstyle-item';
+                col.dataset.id = style.hairstyle_id;
+                col.dataset.category = 'ALL';
+                
+                col.innerHTML = `
+                    <div class="style-card rounded-4 position-relative overflow-hidden border border-secondary border-opacity-25 mb-2"
+                        style="cursor: pointer;">
+                        <img src="${imgSrc}" alt="${style.name}"
+                            class="img-fluid w-100" style="aspect-ratio: 1/1; object-fit: cover;">
+                        <div class="position-absolute bottom-0 start-0 w-100 p-3 pt-5"
+                            style="background: linear-gradient(to top, rgba(0,0,0,0.9), transparent);">
+                            <span class="text-white fw-bold text-sm">${style.name}</span>
+                        </div>
+                        <div class="selection-indicator position-absolute top-0 end-0 m-3 bg-warning text-dark rounded-circle d-none align-items-center justify-content-center"
+                            style="width: 24px; height: 24px;">
+                            <i class="bi bi-check" style="font-size: 1.2rem; line-height: 1;"></i>
+                        </div>
+                    </div>
+                    <div class="text-sm text-secondary px-1 mb-3" style="font-size: 0.8rem; line-height: 1.4;">
+                        ${style.reasoning}
+                    </div>
+                `;
+                
+                gridContainer.appendChild(col);
+                
+                col.addEventListener('click', () => {
+                    const allItems = document.querySelectorAll('.hairstyle-item');
+                    allItems.forEach(i => {
+                        i.querySelector('.style-card').classList.replace('border-yellow', 'border-secondary');
+                        i.querySelector('.style-card').classList.add('border-opacity-25');
+                        i.querySelector('.selection-indicator').classList.add('d-none');
+                    });
+
+                    const card = col.querySelector('.style-card');
+                    card.classList.replace('border-secondary', 'border-yellow');
+                    card.classList.remove('border-opacity-25');
+                    col.querySelector('.selection-indicator').classList.remove('d-none');
+
+                    selectedHairstyleId = col.dataset.id;
+                    checkEnableGenerate();
+                });
             });
         }
 
