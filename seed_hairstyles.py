@@ -133,6 +133,7 @@ HAIRSTYLES_DATA = [
     },
 ]
 
+
 def seed_hairstyles():
     app = create_app()
     with app.app_context():
@@ -156,6 +157,7 @@ def seed_hairstyles():
 
         db.session.commit()
         print(f"Successfully added/updated {len(HAIRSTYLES_DATA)} hairstyles!")
+
 
 if __name__ == "__main__":
     seed_hairstyles()
