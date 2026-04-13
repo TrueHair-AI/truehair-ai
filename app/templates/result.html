@@ -25,7 +25,7 @@
         <!-- Left Column: Image and Actions -->
         <div class="col-lg-7 d-flex flex-column gap-3">
             <!-- Image Card -->
-            <div class="rounded-4 overflow-hidden border border-secondary border-opacity-25 shadow"
+            <div class="position-relative rounded-4 overflow-hidden border border-secondary border-opacity-25 shadow"
                 style="background-color: #1c1c1e;">
                 {% if latest_gen and image_display_url %}
                 <img src="{{ image_display_url }}" class="img-fluid w-100"
@@ -34,6 +34,13 @@
                 <img src="{{ url_for('static', filename='images/classic-fade-result.png') }}" class="img-fluid w-100"
                     style="object-fit: cover; aspect-ratio: 16/10;" alt="Generated Profile">
                 {% endif %}
+
+                <!-- Fullscreen Overlay Button -->
+                <button type="button" class="btn btn-dark border-secondary border-opacity-50 text-white position-absolute bottom-0 end-0 m-3 rounded-circle"
+                    data-bs-toggle="modal" data-bs-target="#imageModal" title="View Fullscreen"
+                    style="width: 44px; height: 44px; z-index: 10; display: flex; align-items: center; justify-content: center; background-color: rgba(42, 42, 45, 0.8); backdrop-filter: blur(4px); transition: all 0.2s ease;">
+                    <i class="bi bi-arrows-fullscreen"></i>
+                </button>
             </div>
 
             {% if latest_gen %}
@@ -142,10 +149,46 @@
             </div>
         </div>
     </div>
+
+    <!-- Fullscreen Image Modal -->
+    <div class="modal fade" id="imageModal" tabindex="-1" aria-labelledby="imageModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-xl" style="max-width: 90vw;">
+            <div class="modal-content bg-transparent border-0" style="cursor: zoom-out;">
+                <h2 id="imageModalLabel" class="visually-hidden">Fullscreen generated profile image</h2>
+                <div class="modal-header border-0 pb-0 position-absolute top-0 end-0 w-100 d-flex justify-content-end" style="z-index: 1055;">
+                    <button type="button" class="btn btn-dark border-0 m-3 d-flex align-items-center justify-content-center" data-bs-dismiss="modal" aria-label="Close" 
+                        style="width: 44px; height: 44px; border-radius: 50%; background-color: rgba(42, 42, 45, 0.8); backdrop-filter: blur(4px); box-shadow: 0 4px 12px rgba(0,0,0,0.5); transition: all 0.2s ease; cursor: pointer;">
+                        <i class="bi bi-x-lg text-white"></i>
+                    </button>
+                </div>
+                <div class="modal-body text-center p-0 d-flex justify-content-center align-items-center">
+                    {% if latest_gen and image_display_url %}
+                    <img src="{{ image_display_url }}" class="img-fluid rounded-4 shadow-lg" alt="Generated Profile Fullscreen" style="max-height: 90vh; object-fit: contain; cursor: default;">
+                    {% else %}
+                    <img src="{{ url_for('static', filename='images/classic-fade-result.png') }}" class="img-fluid rounded-4 shadow-lg" alt="Generated Profile Fullscreen" style="max-height: 90vh; object-fit: contain; cursor: default;">
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 {% endblock %}
 
 {% block extra_scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    var imageModal = document.getElementById('imageModal');
+    if (imageModal) {
+        imageModal.addEventListener('click', function(e) {
+            // Dismiss if clicking on the modal content area (outside the image and close button)
+            if (e.target.closest('.modal-content') && e.target.tagName !== 'IMG' && !e.target.closest('button')) {
+                var btn = imageModal.querySelector('[data-bs-dismiss="modal"]');
+                if (btn) btn.click();
+            }
+        });
+    }
+});
+</script>
 {% if latest_gen %}
 <script>
 (function () {

@@ -96,7 +96,17 @@ def log_visit(page_name):
 def style_studio():
     log_visit("Style Studio")
     hairstyles = Hairstyle.query.all()
-    return render_template("style_studio.html", hairstyles=hairstyles)
+    categories = sorted(
+        list(
+            set(
+                (h.category.upper() if h.category else "UNCATEGORIZED")
+                for h in hairstyles
+            )
+        )
+    )
+    return render_template(
+        "style_studio.html", hairstyles=hairstyles, categories=categories
+    )
 
 
 @main_bp.route("/api/upload/presign", methods=["POST"])
