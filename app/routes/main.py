@@ -523,8 +523,10 @@ def generate():
         return jsonify({"error": "Select a hairstyle or upload a reference image"}), 400
 
     user_image = db.session.get(UserImage, user_image_id)
-    if not user_image or user_image.user_id != session["user_id"]:
+    if not user_image:
         return jsonify({"error": "Invalid selection"}), 400
+    if user_image.user_id != session["user_id"]:
+        abort(403)
 
     hairstyle = db.session.get(Hairstyle, hairstyle_id) if hairstyle_id else None
     if hairstyle_id and not hairstyle:
@@ -533,8 +535,10 @@ def generate():
     reference_image = None
     if reference_image_id:
         reference_image = db.session.get(UserImage, reference_image_id)
-        if not reference_image or reference_image.user_id != session["user_id"]:
+        if not reference_image:
             return jsonify({"error": "Invalid reference image"}), 400
+        if reference_image.user_id != session["user_id"]:
+            abort(403)
 
     client = get_genai_client()
     if not client:
