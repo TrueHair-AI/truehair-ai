@@ -3,6 +3,7 @@
 import io
 from unittest.mock import MagicMock, patch
 
+import pytest
 from PIL import Image
 
 from app.models import UserImage, db
