@@ -466,8 +466,9 @@ def generate():
 
 
 @main_bp.route("/api/rate", methods=["POST"])
-@login_required
 def api_rate():
+    if "user_id" not in session:
+        return jsonify({"error": "Authentication required"}), 401
     data = request.get_json(silent=True) or {}
     raw_gen_id = data.get("generated_image_id")
     raw_rating = data.get("rating")
@@ -478,7 +479,7 @@ def api_rate():
     try:
         gen_id = int(raw_gen_id)
         rating_val = int(raw_rating)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return jsonify({"error": "Invalid generated_image_id or rating"}), 400
 
     if rating_val < 1 or rating_val > 5:
@@ -508,8 +509,13 @@ def api_rate():
         db.session.rollback()
         # Handle race condition: another request created the rating first
         existing = Rating.query.filter_by(generated_image_id=gen_id).first()
-        if existing:
-            existing.rating = rating_val
-            db.session.commit()
+        if not existing:
+            current_app.logger.exception(
+                "Rating upsert failed for generated_image_id=%s", gen_id
+            )
+            return jsonify({"error": "Unable to save rating"}), 409
+
+        existing.rating = rating_val
+        db.session.commit()
 
     return jsonify({"status": "success", "rating": rating_val})

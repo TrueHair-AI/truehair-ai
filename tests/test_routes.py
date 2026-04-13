@@ -529,7 +529,7 @@ def test_api_rate_stores_rating(auth_client, generated_image, app):
     data = response.get_json()
     assert data == {"status": "success", "rating": 5}
 
-    from app.models import Rating, db
+    from app.models import Rating
 
     with app.app_context():
         row = Rating.query.filter_by(generated_image_id=generated_image.id).one()
@@ -586,7 +586,7 @@ def test_api_rate_other_users_image_403(auth_client, generated_image, app, hairs
 
 def test_api_rate_updates_existing(auth_client, generated_image, app):
     """Re-rating the same image updates the row instead of creating a duplicate."""
-    from app.models import Rating, db
+    from app.models import Rating
 
     auth_client.post(
         "/api/rate",
@@ -600,5 +600,10 @@ def test_api_rate_updates_existing(auth_client, generated_image, app):
     )
 
     with app.app_context():
-        assert Rating.query.filter_by(generated_image_id=generated_image.id).count() == 1
-        assert Rating.query.filter_by(generated_image_id=generated_image.id).one().rating == 5
+        assert (
+            Rating.query.filter_by(generated_image_id=generated_image.id).count() == 1
+        )
+        assert (
+            Rating.query.filter_by(generated_image_id=generated_image.id).one().rating
+            == 5
+        )

@@ -71,6 +71,10 @@ class GeneratedImage(db.Model):
 
 
 class Rating(db.Model):
+    __table_args__ = (
+        db.CheckConstraint("rating >= 1 AND rating <= 5", name="ck_rating_range"),
+    )
+
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
     generated_image_id = db.Column(
