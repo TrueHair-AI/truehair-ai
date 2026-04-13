@@ -108,6 +108,13 @@ def test_gallery_authenticated(auth_client):
     assert response.status_code == 200
 
 
+def test_gallery_no_consent_redirects(no_consent_client):
+    """Users without consent are redirected to style studio."""
+    response = no_consent_client.get("/gallery")
+    assert response.status_code == 302
+    assert "/style-studio" in response.headers["Location"]
+
+
 def test_api_generate_redirect_unauthenticated(client):
     """API generate requires login."""
     response = client.post(
@@ -607,3 +614,61 @@ def test_api_rate_updates_existing(auth_client, generated_image, app):
             Rating.query.filter_by(generated_image_id=generated_image.id).one().rating
             == 5
         )
+
+
+def test_api_consent_success(no_consent_client, app):
+    """Valid consent submission creates a record."""
+    from app.models import Consent
+
+    response = no_consent_client.post(
+        "/api/consent",
+        json={"full_name": "John Doe"},
+        content_type="application/json",
+    )
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["status"] == "success"
+    assert "consented_at" in data
+
+    with app.app_context():
+        consent = Consent.query.filter_by(full_name="John Doe").first()
+        assert consent is not None
+
+
+def test_api_consent_invalid_name(no_consent_client):
+    """Invalid name returns 400."""
+    response = no_consent_client.post(
+        "/api/consent",
+        json={"full_name": "J"},
+        content_type="application/json",
+    )
+    assert response.status_code == 400
+    assert "error" in response.get_json()
+
+
+def test_api_consent_duplicate(no_consent_client, app):
+    """Duplicate consent submission returns success with existing record."""
+    from app.models import Consent
+
+    # First submission
+    no_consent_client.post(
+        "/api/consent",
+        json={"full_name": "John Doe"},
+        content_type="application/json",
+    )
+
+    # Second submission
+    response = no_consent_client.post(
+        "/api/consent",
+        json={"full_name": "Jane Doe"},
+        content_type="application/json",
+    )
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["status"] == "success"
+
+    with app.app_context():
+        consents = Consent.query.filter_by(full_name="John Doe").all()
+        assert len(consents) == 1
+        # Jane Doe should not exist because John Doe was already created for this user
+        assert Consent.query.filter_by(full_name="Jane Doe").first() is None

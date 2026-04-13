@@ -41,6 +41,8 @@ def runner(app):
 
 @pytest.fixture
 def user(app):
+    from app.models import Consent
+
     with app.app_context():
         u = User(
             email="test@example.com",
@@ -50,6 +52,15 @@ def user(app):
         )
         db.session.add(u)
         db.session.commit()
+        
+        c = Consent(
+            user_id=u.id,
+            full_name="Test User",
+            experiment_group="control"
+        )
+        db.session.add(c)
+        db.session.commit()
+        
         db.session.refresh(u)
         return u
 
@@ -74,6 +85,28 @@ def admin_user(app):
 def auth_client(client, user):
     with client.session_transaction() as sess:
         sess["user_id"] = user.id
+    return client
+
+
+@pytest.fixture
+def no_consent_user(app):
+    with app.app_context():
+        u = User(
+            email="noconsent@example.com",
+            username="noconsentuser",
+            first_name="No",
+            last_name="Consent",
+        )
+        db.session.add(u)
+        db.session.commit()
+        db.session.refresh(u)
+        return u
+
+
+@pytest.fixture
+def no_consent_client(client, no_consent_user):
+    with client.session_transaction() as sess:
+        sess["user_id"] = no_consent_user.id
     return client
 
 

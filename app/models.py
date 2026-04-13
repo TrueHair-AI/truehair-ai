@@ -32,6 +32,20 @@ class Visit(db.Model):
         return f"<Visit id={self.id} page='{self.page}' timestamp={self.timestamp}>"
 
 
+class Consent(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(
+        db.Integer, db.ForeignKey("user.id"), nullable=False, unique=True
+    )
+    full_name = db.Column(db.String(200), nullable=False)
+    experiment_group = db.Column(db.String(20), nullable=False)
+    consented_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+
+    user = db.relationship(
+        "User", backref=db.backref("consent", uselist=False, lazy=True)
+    )
+
+
 class Hairstyle(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)

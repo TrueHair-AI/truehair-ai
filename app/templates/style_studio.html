@@ -5,6 +5,49 @@
 {% block body_class %}bg-studio{% endblock %}
 
 {% block content %}
+<!-- IRB Consent Modal -->
+{% if not has_consented %}
+<div class="modal fade" id="irbConsentModal" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1" aria-labelledby="irbConsentModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content bg-dark text-light border-secondary">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title text-yellow fw-bold" id="irbConsentModalLabel">Research Study Consent Form</h5>
+            </div>
+            <div class="modal-body" style="font-size: 0.9rem; line-height: 1.6;">
+                <p><strong>Purpose of the Study:</strong> We are evaluating the usability and effectiveness of AI-generated hairstyle visualizations. By participating, you will help us understand how users interact with these tools.</p>
+                
+                <p><strong>What You Will Do:</strong> You will be asked to upload a photo, select hairstyles, and view AI-generated results. We will record your interactions, choices, and the images generated during your session.</p>
+                
+                <p><strong>Data Collection & Privacy:</strong> Your uploaded photos and generated images will be stored securely. We will collect usage data (e.g., clicks, time spent) for research purposes. Your personal identity will be kept confidential in any published results.</p>
+                
+                <p><strong>Voluntary Participation:</strong> Your participation is completely voluntary. You may stop using the application at any time without penalty.</p>
+                
+                <p><strong>Risks & Benefits:</strong> There are no foreseeable risks beyond those of typical web browsing. While you may not directly benefit, your participation will contribute to the improvement of AI design tools.</p>
+
+                <hr class="border-secondary my-4">
+
+                <form id="consentForm">
+                    <div class="mb-3">
+                        <label for="consentFullName" class="form-label fw-bold">Full Name (electronic signature)</label>
+                        <input type="text" class="form-control bg-black text-light border-secondary" id="consentFullName" placeholder="Type your full name" required minlength="2">
+                        <div class="invalid-feedback">Please enter your full name (at least 2 characters).</div>
+                    </div>
+                    <div class="form-check mb-3">
+                        <input class="form-check-input" type="checkbox" id="consentCheckbox" required>
+                        <label class="form-check-label" for="consentCheckbox">
+                            I have read and understand the above information and voluntarily agree to participate.
+                        </label>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer border-secondary">
+                <button type="button" class="btn btn-yellow fw-bold w-100" id="btnSubmitConsent" disabled>I Agree & Continue</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
 <div class="container-fluid px-4 py-4">
     <div class="row g-4">
 
@@ -126,6 +169,58 @@
 
 <script>
     document.addEventListener('DOMContentLoaded', function () {
+        // IRB Consent Modal Logic
+        const consentModalEl = document.getElementById('irbConsentModal');
+        if (consentModalEl) {
+            const consentModal = new bootstrap.Modal(consentModalEl);
+            consentModal.show();
+
+            const consentFullName = document.getElementById('consentFullName');
+            const consentCheckbox = document.getElementById('consentCheckbox');
+            const btnSubmitConsent = document.getElementById('btnSubmitConsent');
+
+            function checkConsentValidity() {
+                const name = consentFullName.value.trim();
+                btnSubmitConsent.disabled = !(name.length >= 2 && consentCheckbox.checked);
+            }
+
+            consentFullName.addEventListener('input', checkConsentValidity);
+            consentCheckbox.addEventListener('change', checkConsentValidity);
+
+            btnSubmitConsent.addEventListener('click', function() {
+                const name = consentFullName.value.trim();
+                if (name.length < 2 || !consentCheckbox.checked) return;
+
+                btnSubmitConsent.disabled = true;
+                btnSubmitConsent.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Submitting...';
+
+                fetch('{{ url_for("main.submit_consent") }}', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ full_name: name })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        consentModal.hide();
+                        // Optionally trigger heartbeat here if implemented
+                    } else {
+                        alert(data.error || 'Failed to submit consent. Please try again.');
+                        btnSubmitConsent.disabled = false;
+                        btnSubmitConsent.innerHTML = 'I Agree & Continue';
+                    }
+                })
+                .catch(err => {
+                    console.error(err);
+                    alert('An error occurred. Please try again.');
+                    btnSubmitConsent.disabled = false;
+                    btnSubmitConsent.innerHTML = 'I Agree & Continue';
+                });
+            });
+        }
+
         let selectedHairstyleId = null;
         let uploadedImageId = null;
 

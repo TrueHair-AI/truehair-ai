@@ -21,6 +21,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import joinedload
 
 from app.models import (
+    Consent,
     GeneratedImage,
     Hairstyle,
     Rating,
@@ -60,6 +61,20 @@ def login_required(f):
     return decorated_function
 
 
+def consent_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if "user_id" not in session:
+            return redirect(url_for("auth.login", next=request.url))
+        user_id = session["user_id"]
+        has_consented = Consent.query.filter_by(user_id=user_id).first() is not None
+        if not has_consented:
+            return redirect(url_for("main.style_studio"))
+        return f(*args, **kwargs)
+
+    return decorated_function
+
+
 def admin_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
@@ -76,11 +91,15 @@ def admin_required(f):
 @main_bp.app_context_processor
 def inject_user():
     user = None
+    has_consented = False
     if "user_id" in session:
         user = db.session.get(User, session["user_id"])
+        if user:
+            has_consented = Consent.query.filter_by(user_id=user.id).first() is not None
     return {
         "current_user": user,
         "experiment_group": session.get("experiment_group"),
+        "has_consented": has_consented,
     }
 
 
@@ -144,6 +163,7 @@ def upload_confirm():
 
 @main_bp.route("/stylists")
 @login_required
+@consent_required
 def stylists():
     log_visit("Stylist Directory")
     query = request.args.get("q", "").strip()
@@ -325,6 +345,7 @@ def dashboard():
 @main_bp.route("/result")
 @main_bp.route("/result/<int:image_id>")
 @login_required
+@consent_required
 def result(image_id=None):
     log_visit("Results Page")
     if image_id:
@@ -356,6 +377,7 @@ def result(image_id=None):
 
 @main_bp.route("/gallery")
 @login_required
+@consent_required
 def gallery():
     log_visit("My Gallery")
     images = (
@@ -522,3 +544,48 @@ def api_rate():
         db.session.commit()
 
     return jsonify({"status": "success", "rating": rating_val})
+
+
+@main_bp.route("/api/consent", methods=["POST"])
+@login_required
+def submit_consent():
+    data = request.get_json(silent=True) or {}
+    full_name = data.get("full_name", "").strip()
+
+    if not full_name or len(full_name) < 2:
+        return jsonify({"error": "Full name must be at least 2 characters"}), 400
+
+    user_id = session["user_id"]
+    existing = Consent.query.filter_by(user_id=user_id).first()
+
+    if existing:
+        return jsonify({
+            "status": "success",
+            "consented_at": existing.consented_at.isoformat()
+        })
+
+    user = db.session.get(User, user_id)
+    experiment_group = user.experiment_group or "unknown"
+
+    consent = Consent(
+        user_id=user_id,
+        full_name=full_name,
+        experiment_group=experiment_group
+    )
+    db.session.add(consent)
+    try:
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        existing = Consent.query.filter_by(user_id=user_id).first()
+        if existing:
+            return jsonify({
+                "status": "success",
+                "consented_at": existing.consented_at.isoformat()
+            })
+        return jsonify({"error": "Unable to save consent"}), 500
+
+    return jsonify({
+        "status": "success",
+        "consented_at": consent.consented_at.isoformat()
+    })
