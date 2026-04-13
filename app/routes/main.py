@@ -24,6 +24,7 @@ from app.models import (
     GeneratedImage,
     Hairstyle,
     Rating,
+    Recommendation,
     Stylist,
     User,
     UserImage,
@@ -390,6 +391,121 @@ def privacy():
     return render_template("privacy.html")
 
 
+@main_bp.route("/api/recommend", methods=["POST"])
+@login_required
+def recommend():
+    import json
+
+    if session.get("experiment_group") != "experimental":
+        abort(403)
+
+    data = request.json
+    user_image_id = data.get("user_image_id")
+    if not user_image_id:
+        return jsonify({"error": "Missing user_image_id"}), 400
+
+    user_image = db.session.get(UserImage, user_image_id)
+    if not user_image:
+        return jsonify({"error": "Invalid user_image_id"}), 400
+
+    if user_image.user_id != session["user_id"]:
+        abort(403)
+
+    client = get_genai_client()
+    if not client:
+        return jsonify({"error": "Internal server error. Please try again later."}), 500
+
+    try:
+        photo_bytes = r2_service.download_bytes(user_image.image_url)
+        user_photo = Image.open(io.BytesIO(photo_bytes))
+
+        hairstyles = Hairstyle.query.all()
+        catalog_list = [
+            {"id": h.id, "name": h.name, "description": h.description}
+            for h in hairstyles
+        ]
+        json_catalog = json.dumps(catalog_list)
+
+        prompt_text = f"""You are a professional hairstylist and image consultant. Analyze the person in this photo 
+and recommend the best matching hairstyles from the catalog below.
+
+Consider:
+- Face shape (oval, round, square, heart, oblong, diamond)
+- Apparent hair texture and current hair characteristics
+- Overall facial features and proportions
+
+HAIRSTYLE CATALOG:
+{json_catalog}
+
+Recommend exactly 5 to 8 hairstyles from the catalog. For each recommendation, explain 
+specifically why this style would suit this person based on your visual analysis.
+
+Respond with a JSON object in this exact format:
+{{
+  "recommendations": [
+    {{
+      "hairstyle_id": <int>,
+      "reasoning": "<2-3 sentences explaining why this style suits this person>"
+    }}
+  ]
+}}"""
+
+        response = client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=[prompt_text, user_photo],
+            config=types.GenerateContentConfig(
+                response_mime_type="application/json",
+            ),
+        )
+
+        response_json = json.loads(response.text)
+        recs = response_json.get("recommendations", [])
+
+        hairstyle_dict = {h.id: h for h in hairstyles}
+
+        valid_recommendations = []
+        for rec in recs:
+            h_id = rec.get("hairstyle_id")
+            reasoning = rec.get("reasoning")
+            if h_id in hairstyle_dict:
+                h = hairstyle_dict[h_id]
+                valid_recommendations.append(
+                    {
+                        "hairstyle_id": h.id,
+                        "name": h.name,
+                        "description": h.description,
+                        "image_url": h.image_url,
+                        "reasoning": reasoning,
+                    }
+                )
+
+                db_rec = Recommendation(
+                    user_id=session["user_id"],
+                    user_image_id=user_image.id,
+                    hairstyle_id=h.id,
+                    reasoning=reasoning,
+                )
+                db.session.add(db_rec)
+
+        if not valid_recommendations:
+            raise Exception("No valid recommendations returned.")
+
+        db.session.commit()
+
+        return jsonify({"status": "success", "recommendations": valid_recommendations})
+
+    except Exception as e:
+        import traceback
+
+        traceback.print_exc()
+        current_app.logger.error(f"Gemini recommendation failed: {e}")
+        return jsonify(
+            {
+                "error": "AI recommendation could not be generated. This session cannot proceed. Please try again later."
+            }
+        ), 500
+
+
 @main_bp.route("/api/generate", methods=["POST"])
 @login_required
 def generate():
@@ -492,7 +608,7 @@ def api_rate():
     try:
         gen_id = int(raw_gen_id)
         rating_val = int(raw_rating)
-    except TypeError, ValueError:
+    except (TypeError, ValueError):  # fmt: skip
         return jsonify({"error": "Invalid generated_image_id or rating"}), 400
 
     if rating_val < 1 or rating_val > 5:
