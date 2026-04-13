@@ -340,7 +340,9 @@ def export_data():
         num_visualizations = len(gen_images)
 
         # Get unique styles
-        styles = ", ".join(set(gi.hairstyle.name for gi in gen_images if gi.hairstyle))
+        styles = ", ".join(
+            sorted({gi.hairstyle.name for gi in gen_images if gi.hairstyle})
+        )
 
         rows.append(
             {
@@ -549,11 +551,13 @@ def api_rate():
     if raw_gen_id is None or raw_rating is None:
         return jsonify({"error": "Missing generated_image_id or rating"}), 400
 
+    # fmt: off
     try:
         gen_id = int(raw_gen_id)
         rating_val = int(raw_rating)
-    except TypeError, ValueError:
+    except (TypeError, ValueError):
         return jsonify({"error": "Invalid generated_image_id or rating"}), 400
+    # fmt: on
 
     if rating_val < 1 or rating_val > 5:
         return jsonify({"error": "rating must be between 1 and 5"}), 400
