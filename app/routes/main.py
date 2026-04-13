@@ -1,3 +1,4 @@
+import csv
 import io
 from datetime import datetime, timedelta, timezone
 from functools import wraps
@@ -335,6 +336,100 @@ def dashboard():
     )
 
 
+@main_bp.route("/api/admin/export")
+@admin_required
+def export_data():
+    """Admin endpoint to export experiment data (basic version)."""
+
+    users = User.query.filter(User.experiment_group.isnot(None)).all()
+
+    rows = []
+
+    for i, user in enumerate(users, 1):
+        # Get all generated images for this user
+        gen_images = GeneratedImage.query.filter_by(user_id=user.id).all()
+
+        # Count visualizations
+        num_visualizations = len(gen_images)
+
+        ratings = Rating.query.filter_by(user_id=user.id).all()
+        avg_rating = (
+            round(sum(r.rating for r in ratings) / len(ratings), 2) if ratings else None
+        )
+        num_ratings = len(ratings)
+
+        session_obj = (
+            ExperimentSession.query.filter_by(user_id=user.id)
+            .order_by(ExperimentSession.started_at.desc())
+            .first()
+        )
+
+        duration = None
+        if session_obj:
+            if session_obj.duration_seconds:
+                duration = session_obj.duration_seconds
+            elif session_obj.last_ping_at and session_obj.started_at:
+                duration = int(
+                    (session_obj.last_ping_at - session_obj.started_at).total_seconds()
+                )
+
+        consented_at = user.consent.consented_at.isoformat() if user.consent else None
+
+        # Get unique styles
+        styles = ", ".join(
+            sorted({gi.hairstyle.name for gi in gen_images if gi.hairstyle})
+        )
+
+        rows.append(
+            {
+                "participant_id": i,
+                "experiment_group": user.experiment_group,
+                "num_visualizations": num_visualizations,
+                "avg_rating": avg_rating,
+                "num_ratings": num_ratings,
+                "session_duration_seconds": duration,
+                "styles_selected": styles,
+                "consented_at": consented_at,
+            }
+        )
+
+    fmt = request.args.get("format", "csv").lower()
+
+    if fmt not in ["json", "csv"]:
+        return jsonify({"error": "Invalid format. Use 'json' or 'csv'."}), 400
+
+    if fmt == "json":
+        return jsonify(rows)
+
+    output = io.StringIO()
+
+    fieldnames = [
+        "participant_id",
+        "experiment_group",
+        "num_visualizations",
+        "avg_rating",
+        "num_ratings",
+        "session_duration_seconds",
+        "styles_selected",
+        "consented_at",
+    ]
+
+    writer = csv.DictWriter(output, fieldnames=fieldnames)
+    writer.writeheader()
+
+    if rows:
+        writer.writerows(rows)
+
+    response = current_app.response_class(
+        output.getvalue(),
+        mimetype="text/csv",
+    )
+
+    response.headers["Content-Disposition"] = "attachment; filename=experiment_data.csv"
+
+    return response
+
+
 @main_bp.route("/result")
 @main_bp.route("/result/<int:image_id>")
 @login_required
@@ -647,11 +742,13 @@ def api_rate():
     if raw_gen_id is None or raw_rating is None:
         return jsonify({"error": "Missing generated_image_id or rating"}), 400
 
+    # fmt: off
     try:
         gen_id = int(raw_gen_id)
         rating_val = int(raw_rating)
     except (TypeError, ValueError):  # fmt: skip
         return jsonify({"error": "Invalid generated_image_id or rating"}), 400
+    # fmt: on
 
     if rating_val < 1 or rating_val > 5:
         return jsonify({"error": "rating must be between 1 and 5"}), 400

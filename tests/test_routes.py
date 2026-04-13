@@ -77,6 +77,139 @@ def test_dashboard_non_admin_forbidden(auth_client):
     assert response.status_code == 403
 
 
+# ---------------------------------------------------------------------------
+# Admin export endpoint tests
+# ---------------------------------------------------------------------------
+
+
+def test_admin_export_requires_admin(auth_client):
+    """Non-admin users should not access export endpoint."""
+    response = auth_client.get("/api/admin/export")
+    assert response.status_code == 403
+
+
+def test_admin_export_json(app):
+    """Admin should receive JSON export data."""
+    from app.models import User, db
+
+    client = app.test_client()
+
+    with app.app_context():
+        admin = User(
+            email="admin@test.com",
+            username="admin",
+            first_name="Admin",
+            last_name="User",
+            is_admin=True,
+            experiment_group="control",
+        )
+        db.session.add(admin)
+        db.session.commit()
+        admin_id = admin.id
+
+    with client.session_transaction() as sess:
+        sess["user_id"] = admin_id
+
+    response = client.get("/api/admin/export?format=json")
+    assert response.status_code == 200
+
+    data = response.get_json()
+    assert isinstance(data, list)
+
+    assert len(data) > 0
+
+    row = data[0]
+    assert "participant_id" in row
+    assert "experiment_group" in row
+    assert "num_visualizations" in row
+    assert "avg_rating" in row
+    assert "num_ratings" in row
+
+    # Ensure required fields exist
+    assert "session_duration_seconds" in row
+    assert "styles_selected" in row
+    assert "consented_at" in row
+
+    # Dynamic metrics may vary by seed/test data; assert fields are present above.
+
+    # Ensure no PII is exposed
+    assert "email" not in row
+    assert "username" not in row
+    assert "first_name" not in row
+    assert "last_name" not in row
+
+
+def test_admin_export_csv(app):
+    """Admin should receive CSV download."""
+    from app.models import User, db
+
+    client = app.test_client()
+
+    with app.app_context():
+        admin = User(
+            email="admin2@test.com",
+            username="admin2",
+            first_name="Admin",
+            last_name="User",
+            is_admin=True,
+            experiment_group="control",
+        )
+        db.session.add(admin)
+        db.session.commit()
+        admin_id = admin.id
+
+    with client.session_transaction() as sess:
+        sess["user_id"] = admin_id
+
+    response = client.get("/api/admin/export")
+
+    assert response.status_code == 200
+    assert response.headers["Content-Type"].startswith("text/csv")
+    assert "attachment" in response.headers["Content-Disposition"]
+
+    csv_data = response.data.decode("utf-8")
+    assert "participant_id" in csv_data
+    assert "experiment_group" in csv_data
+
+
+def test_export_excludes_users_without_experiment_group(app):
+    """Users without experiment_group should not be included."""
+    from app.models import User, db
+
+    client = app.test_client()
+
+    with app.app_context():
+        admin = User(
+            email="admin3@test.com",
+            username="admin3",
+            first_name="Admin",
+            last_name="User",
+            is_admin=True,
+            experiment_group="control",
+        )
+
+        no_group_user = User(
+            email="nogroup@test.com",
+            username="nogroup",
+            first_name="No",
+            last_name="Group",
+            is_admin=False,
+            experiment_group=None,
+        )
+
+        db.session.add_all([admin, no_group_user])
+        db.session.commit()
+        admin_id = admin.id
+
+    with client.session_transaction() as sess:
+        sess["user_id"] = admin_id
+
+    response = client.get("/api/admin/export?format=json")
+    data = response.get_json()
+
+    assert len(data) == 1
+
+
 def test_result_redirect_unauthenticated(client):
     """Result page redirects when not logged in."""
     response = client.get("/result")
