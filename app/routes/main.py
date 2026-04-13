@@ -514,18 +514,31 @@ def generate():
     data = request.json
     user_image_id = data.get("user_image_id")
     hairstyle_id = data.get("hairstyle_id")
+    reference_image_id = data.get("reference_image_id")
 
-    if not user_image_id or not hairstyle_id:
-        return jsonify({"error": "Missing image or hairstyle selection"}), 400
+    if not user_image_id:
+        return jsonify({"error": "Missing user photo"}), 400
+
+    if not hairstyle_id and not reference_image_id:
+        return jsonify({"error": "Select a hairstyle or upload a reference image"}), 400
 
     user_image = db.session.get(UserImage, user_image_id)
-    hairstyle = db.session.get(Hairstyle, hairstyle_id)
-
-    if not user_image or not hairstyle:
+    if not user_image:
         return jsonify({"error": "Invalid selection"}), 400
-
-    if not user_image.user_id == session["user_id"]:
+    if user_image.user_id != session["user_id"]:
         abort(403)
+
+    hairstyle = db.session.get(Hairstyle, hairstyle_id) if hairstyle_id else None
+    if hairstyle_id and not hairstyle:
+        return jsonify({"error": "Invalid hairstyle"}), 400
+
+    reference_image = None
+    if reference_image_id:
+        reference_image = db.session.get(UserImage, reference_image_id)
+        if not reference_image:
+            return jsonify({"error": "Invalid reference image"}), 400
+        if reference_image.user_id != session["user_id"]:
+            abort(403)
 
     client = get_genai_client()
     if not client:
@@ -535,17 +548,44 @@ def generate():
         photo_bytes = r2_service.download_bytes(user_image.image_url)
         user_photo = Image.open(io.BytesIO(photo_bytes))
 
-        prompt = (
-            f"Edit this person's photo to give them a '{hairstyle.name}' hairstyle. "
-            f"{hairstyle.description}. "
-            f"Keep the person's face, skin tone, and body exactly the same. "
-            f"Only change their hair to match the described style. "
-            f"Return the edited photo."
-        )
+        contents = []
+
+        if reference_image and hairstyle:
+            ref_bytes = r2_service.download_bytes(reference_image.image_url)
+            ref_photo = Image.open(io.BytesIO(ref_bytes))
+            prompt = (
+                f"Edit this person's photo to give them a hairstyle matching "
+                f"the reference image provided. The target style is '{hairstyle.name}': "
+                f"{hairstyle.description}. "
+                f"Use the reference image as the primary guide for the exact look. "
+                f"Keep the person's face, skin tone, and body exactly the same. "
+                f"Only change their hair. Return the edited photo."
+            )
+            contents = [prompt, user_photo, ref_photo]
+        elif reference_image:
+            ref_bytes = r2_service.download_bytes(reference_image.image_url)
+            ref_photo = Image.open(io.BytesIO(ref_bytes))
+            prompt = (
+                "Edit this person's photo to give them the hairstyle shown in "
+                "the reference image. Replicate the hair style, length, texture, "
+                "and shape from the reference as closely as possible. "
+                "Keep the person's face, skin tone, and body exactly the same. "
+                "Only change their hair. Return the edited photo."
+            )
+            contents = [prompt, user_photo, ref_photo]
+        else:
+            prompt = (
+                f"Edit this person's photo to give them a '{hairstyle.name}' hairstyle. "
+                f"{hairstyle.description}. "
+                f"Keep the person's face, skin tone, and body exactly the same. "
+                f"Only change their hair to match the described style. "
+                f"Return the edited photo."
+            )
+            contents = [prompt, user_photo]
 
         response = client.models.generate_content(
             model="gemini-2.5-flash-image",
-            contents=[prompt, user_photo],
+            contents=contents,
             config=types.GenerateContentConfig(
                 response_modalities=["IMAGE"],
                 http_options=types.HttpOptions(timeout=120000),
@@ -563,7 +603,6 @@ def generate():
         result_key = r2_service.make_generated_key()
         image_bytes = image_part.inline_data.data
 
-        # Transcode to lossless WebP
         gen_image_pil = Image.open(io.BytesIO(image_bytes))
         webp_io = io.BytesIO()
         gen_image_pil.save(webp_io, format="WEBP", lossless=True)
@@ -575,7 +614,8 @@ def generate():
         gen_img = GeneratedImage(
             user_id=session["user_id"],
             user_image_id=user_image.id,
-            hairstyle_id=hairstyle.id,
+            hairstyle_id=hairstyle.id if hairstyle else None,
+            reference_image_id=reference_image.id if reference_image else None,
             image_url=result_url,
         )
         db.session.add(gen_img)

@@ -88,7 +88,10 @@ class GeneratedImage(db.Model):
     user_image_id = db.Column(
         db.Integer, db.ForeignKey("user_image.id"), nullable=False
     )
-    hairstyle_id = db.Column(db.Integer, db.ForeignKey("hairstyle.id"), nullable=False)
+    hairstyle_id = db.Column(db.Integer, db.ForeignKey("hairstyle.id"), nullable=True)
+    reference_image_id = db.Column(
+        db.Integer, db.ForeignKey("user_image.id"), nullable=True
+    )
     image_url = db.Column(db.String(255), nullable=False)
     created_at = db.Column(
         db.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
@@ -96,8 +99,11 @@ class GeneratedImage(db.Model):
 
     user = db.relationship("User", backref=db.backref("generated_images", lazy=True))
     user_image = db.relationship(
-        "UserImage", backref=db.backref("generations", lazy=True)
+        "UserImage",
+        foreign_keys=[user_image_id],
+        backref=db.backref("generations", lazy=True),
     )
+    reference_image = db.relationship("UserImage", foreign_keys=[reference_image_id])
     hairstyle = db.relationship(
         "Hairstyle", backref=db.backref("generations", lazy=True)
     )

@@ -91,20 +91,43 @@
             </div>
 
             <!-- Reference Box -->
-            <div
-                class="bg-card rounded-4 border border-secondary border-opacity-25 p-4 mb-4 mt-auto d-flex align-items-center justify-content-between">
-                <div class="d-flex align-items-center gap-3">
-                    <div class="bg-dark rounded-3 d-flex align-items-center justify-content-center border border-secondary border-opacity-25"
-                        style="width: 48px; height: 48px;">
-                        <i class="bi bi-file-earmark-arrow-up text-yellow fs-4"></i>
+            <div id="reference-box"
+                class="bg-card rounded-4 border border-secondary border-opacity-25 p-4 mb-4 mt-auto">
+                <input type="file" id="reference-image-input" class="d-none" accept="image/*">
+
+                <div id="reference-upload-prompt" class="d-flex align-items-center justify-content-between">
+                    <div class="d-flex align-items-center gap-3">
+                        <div class="bg-dark rounded-3 d-flex align-items-center justify-content-center border border-secondary border-opacity-25"
+                            style="width: 48px; height: 48px;">
+                            <i class="bi bi-file-earmark-arrow-up text-yellow fs-4"></i>
+                        </div>
+                        <div>
+                            <h6 class="fw-bold mb-1">Have a reference?</h6>
+                            <p class="text-secondary text-sm mb-0">Upload a custom style image instead</p>
+                        </div>
                     </div>
-                    <div>
-                        <h6 class="fw-bold mb-1">Have a reference?</h6>
-                        <p class="text-secondary text-sm mb-0">Upload a custom style image</p>
+                    <button id="reference-upload-btn" class="btn btn-dark border border-secondary border-opacity-25 fw-semibold text-yellow">Upload
+                        Reference</button>
+                </div>
+
+                <div id="reference-preview-container" class="d-none">
+                    <div class="d-flex align-items-center gap-3">
+                        <img id="reference-preview-img" src="" class="rounded-3" style="width: 48px; height: 48px; object-fit: cover;">
+                        <div class="flex-grow-1">
+                            <h6 class="fw-bold mb-0 text-yellow">Reference uploaded</h6>
+                            <p class="text-secondary text-sm mb-0">This will guide the generation</p>
+                        </div>
+                        <button id="remove-reference" class="btn btn-sm btn-dark border border-secondary">
+                            <i class="bi bi-x-lg"></i>
+                        </button>
                     </div>
                 </div>
-                <button class="btn btn-dark border border-secondary border-opacity-25 fw-semibold text-yellow">Upload
-                    Reference</button>
+
+                <div id="reference-spinner" class="d-none text-center py-2">
+                    <div class="spinner-border spinner-border-sm text-yellow" role="status">
+                        <span class="visually-hidden">Uploading...</span>
+                    </div>
+                </div>
             </div>
 
             <!-- Flash Message Container -->
@@ -130,6 +153,7 @@
         const experimentGroup = "{{ experiment_group }}";
         let selectedHairstyleId = null;
         let uploadedImageId = null;
+        let referenceImageId = null;
 
         const uploadContainer = document.getElementById('upload-container');
         const imageInput = document.getElementById('user-image-input');
@@ -139,6 +163,14 @@
         const removeBtn = document.getElementById('remove-image');
         const generateBtn = document.getElementById('generate-btn');
         const spinner = document.getElementById('upload-spinner');
+
+        const referenceInput = document.getElementById('reference-image-input');
+        const referenceUploadBtn = document.getElementById('reference-upload-btn');
+        const referenceUploadPrompt = document.getElementById('reference-upload-prompt');
+        const referencePreviewContainer = document.getElementById('reference-preview-container');
+        const referencePreviewImg = document.getElementById('reference-preview-img');
+        const removeReferenceBtn = document.getElementById('remove-reference');
+        const referenceSpinner = document.getElementById('reference-spinner');
 
         // Handle File Selection
         uploadContainer.addEventListener('click', (e) => {
@@ -334,6 +366,69 @@
             checkEnableGenerate();
         });
 
+        // Reference Image Upload
+        referenceUploadBtn.addEventListener('click', () => referenceInput.click());
+
+        referenceInput.addEventListener('change', function () {
+            if (this.files && this.files[0]) {
+                uploadReferenceFile(this.files[0]);
+            }
+        });
+
+        function uploadReferenceFile(file) {
+            referenceUploadPrompt.classList.add('d-none');
+            referencePreviewContainer.classList.add('d-none');
+            referenceSpinner.classList.remove('d-none');
+
+            fetch("{{ url_for('main.upload_presign') }}", {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ filename: file.name, content_type: file.type || 'image/jpeg' })
+            })
+            .then(r => r.json())
+            .then(presignData => {
+                if (presignData.error) throw presignData;
+                return fetch(presignData.put_url, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': file.type || 'image/jpeg' },
+                    body: file
+                }).then(() => presignData.upload_key);
+            })
+            .then(uploadKey => {
+                return fetch("{{ url_for('main.upload_confirm') }}", {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ upload_key: uploadKey })
+                }).then(r => r.json());
+            })
+            .then(data => {
+                referenceSpinner.classList.add('d-none');
+                if (data.status === 'success') {
+                    referenceImageId = data.image_id;
+                    referencePreviewImg.src = data.image_url;
+                    referencePreviewContainer.classList.remove('d-none');
+                    checkEnableGenerate();
+                } else {
+                    showFlashMessage(data.error || 'Reference upload failed.');
+                    referenceUploadPrompt.classList.remove('d-none');
+                }
+            })
+            .catch(err => {
+                console.error(err);
+                referenceSpinner.classList.add('d-none');
+                showFlashMessage(err.error || 'Reference upload failed. Please try again.');
+                referenceUploadPrompt.classList.remove('d-none');
+            });
+        }
+
+        removeReferenceBtn.addEventListener('click', () => {
+            referenceImageId = null;
+            referencePreviewContainer.classList.add('d-none');
+            referenceUploadPrompt.classList.remove('d-none');
+            referenceInput.value = '';
+            checkEnableGenerate();
+        });
+
         // Handle Hairstyle Selection
         const hairstyleItems = document.querySelectorAll('.hairstyle-item');
         const categoryFilterButtons = document.querySelectorAll('.category-filter');
@@ -392,11 +487,9 @@
         });
 
         function checkEnableGenerate() {
-            if (selectedHairstyleId && uploadedImageId) {
-                generateBtn.disabled = false;
-            } else {
-                generateBtn.disabled = true;
-            }
+            const hasPhoto = !!uploadedImageId;
+            const hasStyle = !!selectedHairstyleId || !!referenceImageId;
+            generateBtn.disabled = !(hasPhoto && hasStyle);
         }
 
         // Handle Generation
@@ -415,7 +508,8 @@
                 },
                 body: JSON.stringify({
                     user_image_id: uploadedImageId,
-                    hairstyle_id: selectedHairstyleId
+                    hairstyle_id: selectedHairstyleId,
+                    reference_image_id: referenceImageId
                 })
             })
                 .then(response => {
