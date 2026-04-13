@@ -56,20 +56,19 @@
         <div class="col-lg-7 d-flex flex-column">
             <div class="d-flex justify-content-between align-items-end mb-4">
                 <h3 class="fw-bold mb-0">2. Select a Style</h3>
-                <div class="d-flex gap-2" id="category-filters">
+                <div class="d-flex gap-2 flex-wrap" id="category-filters">
                     <button class="badge bg-warning text-dark rounded-pill px-3 py-2 fw-bold border-0 category-filter"
                         data-category="ALL">ALL</button>
+                    {% for category in categories %}
                     <button
                         class="badge bg-dark border border-secondary rounded-pill px-3 py-2 fw-bold text-secondary category-filter"
-                        data-category="CLASSIC">CLASSIC</button>
-                    <button
-                        class="badge bg-dark border border-secondary rounded-pill px-3 py-2 fw-bold text-secondary category-filter"
-                        data-category="MODERN">MODERN</button>
+                        data-category="{{ category }}">{{ category }}</button>
+                    {% endfor %}
                 </div>
             </div>
 
             <!-- Grid -->
-            <div class="row g-3 mb-4" id="hairstyle-grid">
+            <div class="row g-3 mb-4 scrollable-grid pe-2" id="hairstyle-grid">
                 {% for style in hairstyles %}
                 <div class="col-md-4 col-sm-6 hairstyle-item" data-id="{{ style.id }}" data-category="{{ (style.category or 'UNCATEGORIZED') | upper }}">
                     <div class="style-card rounded-4 position-relative overflow-hidden border border-secondary border-opacity-25"
@@ -359,6 +358,27 @@
 </script>
 
 <style>
+    .scrollable-grid {
+        max-height: 64.75vh;
+        overflow-y: auto;
+        /* Optional: style the scrollbar for a better look */
+        scrollbar-width: thin;
+        scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+    }
+
+    .scrollable-grid::-webkit-scrollbar {
+        width: 6px;
+    }
+
+    .scrollable-grid::-webkit-scrollbar-track {
+        background: transparent;
+    }
+
+    .scrollable-grid::-webkit-scrollbar-thumb {
+        background-color: rgba(255, 255, 255, 0.2);
+        border-radius: 10px;
+    }
+
     .border-yellow {
         border-color: var(--th-yellow) !important;
         border-width: 2px !important;
