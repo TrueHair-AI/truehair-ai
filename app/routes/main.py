@@ -21,6 +21,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import joinedload
 
 from app.models import (
+    Consent,
     ExperimentSession,
     GeneratedImage,
     Hairstyle,
@@ -548,18 +549,15 @@ def submit_consent():
     existing = Consent.query.filter_by(user_id=user_id).first()
 
     if existing:
-        return jsonify({
-            "status": "success",
-            "consented_at": existing.consented_at.isoformat()
-        })
+        return jsonify(
+            {"status": "success", "consented_at": existing.consented_at.isoformat()}
+        )
 
     user = db.session.get(User, user_id)
     experiment_group = user.experiment_group or "unknown"
 
     consent = Consent(
-        user_id=user_id,
-        full_name=full_name,
-        experiment_group=experiment_group
+        user_id=user_id, full_name=full_name, experiment_group=experiment_group
     )
     db.session.add(consent)
     try:
@@ -568,16 +566,14 @@ def submit_consent():
         db.session.rollback()
         existing = Consent.query.filter_by(user_id=user_id).first()
         if existing:
-            return jsonify({
-                "status": "success",
-                "consented_at": existing.consented_at.isoformat()
-            })
+            return jsonify(
+                {"status": "success", "consented_at": existing.consented_at.isoformat()}
+            )
         return jsonify({"error": "Unable to save consent"}), 500
 
-    return jsonify({
-        "status": "success",
-        "consented_at": consent.consented_at.isoformat()
-    })
+    return jsonify(
+        {"status": "success", "consented_at": consent.consented_at.isoformat()}
+    )
 
 
 SESSION_TIMEOUT_SECONDS = 300
@@ -591,15 +587,19 @@ def api_session_start():
     experiment_group = user.experiment_group or "unknown"
 
     # Check for existing active session
-    active_session = ExperimentSession.query.filter_by(
-        user_id=user_id, ended_at=None
-    ).order_by(ExperimentSession.started_at.desc()).first()
+    active_session = (
+        ExperimentSession.query.filter_by(user_id=user_id, ended_at=None)
+        .order_by(ExperimentSession.started_at.desc())
+        .first()
+    )
 
     now = datetime.utcnow()
 
     if active_session:
         # Check if it timed out server-side
-        if (now - active_session.last_ping_at).total_seconds() > SESSION_TIMEOUT_SECONDS:
+        if (
+            now - active_session.last_ping_at
+        ).total_seconds() > SESSION_TIMEOUT_SECONDS:
             active_session.ended_at = active_session.last_ping_at
             active_session.duration_seconds = int(
                 (active_session.ended_at - active_session.started_at).total_seconds()

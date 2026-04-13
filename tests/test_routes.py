@@ -653,6 +653,7 @@ def test_api_session_ping_updates_last_ping(auth_client, app):
         original_ping = session_record.last_ping_at
 
     import time
+
     time.sleep(0.1)
 
     ping_response = auth_client.post(

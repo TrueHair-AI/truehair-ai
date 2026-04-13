@@ -38,8 +38,12 @@ class ExperimentSession(db.Model):
     experiment_group = db.Column(db.String(20), nullable=False)
     started_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     last_ping_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
-    ended_at = db.Column(db.DateTime, nullable=True)  # NULL means session is still active
-    duration_seconds = db.Column(db.Integer, nullable=True)  # Computed when session ends
+    ended_at = db.Column(
+        db.DateTime, nullable=True
+    )  # NULL means session is still active
+    duration_seconds = db.Column(
+        db.Integer, nullable=True
+    )  # Computed when session ends
 
     user = db.relationship("User", backref=db.backref("experiment_sessions", lazy=True))
 
@@ -101,6 +105,18 @@ class Rating(db.Model):
         "GeneratedImage",
         backref=db.backref("rating", uselist=False, lazy=True),
     )
+
+
+class Consent(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(
+        db.Integer, db.ForeignKey("user.id"), nullable=False, unique=True
+    )
+    full_name = db.Column(db.String(255), nullable=False)
+    experiment_group = db.Column(db.String(20), nullable=False)
+    consented_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    user = db.relationship("User", backref=db.backref("consent", uselist=False))
 
 
 class Stylist(db.Model):
