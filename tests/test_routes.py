@@ -686,3 +686,166 @@ def test_api_session_end_computes_duration(auth_client, app):
         session_record = db.session.get(ExperimentSession, session_id)
         assert session_record.ended_at is not None
         assert session_record.duration_seconds is not None
+
+
+# ---------------------------------------------------------------------------
+# POST /api/recommend
+# ---------------------------------------------------------------------------
+
+
+def test_api_recommend_redirect_unauthenticated(client):
+    """Unauthenticated users cannot get recommendations (returns 302)."""
+    response = client.post(
+        "/api/recommend",
+        json={"user_image_id": 1},
+        content_type="application/json",
+    )
+    assert response.status_code == 302
+
+
+def test_api_recommend_control_group_forbidden(auth_client):
+    """Control group users get 403."""
+    with auth_client.session_transaction() as sess:
+        sess["experiment_group"] = "control"
+    response = auth_client.post(
+        "/api/recommend",
+        json={"user_image_id": 1},
+        content_type="application/json",
+    )
+    assert response.status_code == 403
+
+
+def test_api_recommend_missing_user_image(auth_client):
+    """Missing user_image_id returns 400."""
+    with auth_client.session_transaction() as sess:
+        sess["experiment_group"] = "experimental"
+    response = auth_client.post(
+        "/api/recommend",
+        json={},
+        content_type="application/json",
+    )
+    assert response.status_code == 400
+
+
+def test_api_recommend_wrong_user_403(auth_client, app):
+    """Recommending on another user's image returns 403."""
+    from app.models import User, UserImage, db
+
+    with app.app_context():
+        other = User(
+            email="recother@example.com",
+            username="recother",
+            first_name="O",
+            last_name="T",
+        )
+        db.session.add(other)
+        db.session.commit()
+        oi = UserImage(user_id=other.id, image_url="uploads/other_rec.jpg")
+        db.session.add(oi)
+        db.session.commit()
+        oi_id = oi.id
+
+    with auth_client.session_transaction() as sess:
+        sess["experiment_group"] = "experimental"
+
+    response = auth_client.post(
+        "/api/recommend",
+        json={"user_image_id": oi_id},
+        content_type="application/json",
+    )
+    assert response.status_code == 403
+
+
+@patch("app.services.r2.download_bytes")
+@patch("app.routes.main.get_genai_client")
+def test_api_recommend_no_gemini_key(
+    mock_get_client, mock_download, auth_client, user_image
+):
+    """API recommend returns 500 when Gemini API key is missing."""
+    with auth_client.session_transaction() as sess:
+        sess["experiment_group"] = "experimental"
+    mock_get_client.return_value = None
+    response = auth_client.post(
+        "/api/recommend",
+        json={"user_image_id": user_image.id},
+        content_type="application/json",
+    )
+    assert response.status_code == 500
+
+
+@patch("app.services.r2.download_bytes")
+@patch("app.routes.main.get_genai_client")
+@patch("app.routes.main.Image.open")
+def test_api_recommend_exception_returns_500(
+    mock_image_open, mock_get_client, mock_download, auth_client, user_image
+):
+    """API recommend returns 500 when Gemini raises."""
+    with auth_client.session_transaction() as sess:
+        sess["experiment_group"] = "experimental"
+    mock_download.return_value = b"fake-bytes"
+    mock_image_open.return_value = MagicMock()
+    mock_get_client.return_value = MagicMock()
+    mock_get_client.return_value.models.generate_content.side_effect = Exception(
+        "API error"
+    )
+    response = auth_client.post(
+        "/api/recommend",
+        json={"user_image_id": user_image.id},
+        content_type="application/json",
+    )
+    assert response.status_code == 500
+
+
+@patch("app.services.r2.download_bytes")
+@patch("app.routes.main.get_genai_client")
+@patch("app.routes.main.Image.open")
+def test_api_recommend_success(
+    mock_image_open,
+    mock_get_client,
+    mock_download,
+    auth_client,
+    user_image,
+    hairstyle,
+    app,
+):
+    """API recommend returns success and persists Recommendations."""
+    import json
+
+    with auth_client.session_transaction() as sess:
+        sess["experiment_group"] = "experimental"
+    mock_download.return_value = b"fake-bytes"
+    mock_image_open.return_value = MagicMock()
+    mock_client = MagicMock()
+
+    mock_response = MagicMock()
+    mock_response.text = json.dumps(
+        {
+            "recommendations": [
+                {
+                    "hairstyle_id": hairstyle.id,
+                    "reasoning": "This is a great style for you.",
+                }
+            ]
+        }
+    )
+    mock_client.models.generate_content.return_value = mock_response
+    mock_get_client.return_value = mock_client
+
+    response = auth_client.post(
+        "/api/recommend",
+        json={"user_image_id": user_image.id},
+        content_type="application/json",
+    )
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["status"] == "success"
+    assert len(data["recommendations"]) == 1
+    assert data["recommendations"][0]["hairstyle_id"] == hairstyle.id
+
+    from app.models import Recommendation
+
+    with app.app_context():
+        rec = Recommendation.query.filter_by(user_image_id=user_image.id).first()
+        assert rec is not None
+        assert rec.hairstyle_id == hairstyle.id
+        assert rec.reasoning == "This is a great style for you."
