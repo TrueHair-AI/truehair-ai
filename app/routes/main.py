@@ -302,6 +302,61 @@ def dashboard():
     visit_labels = list(mapped_vp.keys())
     visit_data = list(mapped_vp.values())
 
+    # ================================
+    # Experiment Metrics (Issue 8)
+    # ================================
+
+    # Get experiment users
+    experiment_users = User.query.filter(User.experiment_group.isnot(None)).all()
+
+    control_users = [u for u in experiment_users if u.experiment_group == "control"]
+    experimental_users = [
+        u for u in experiment_users if u.experiment_group == "experimental"
+    ]
+
+    control_count = len(control_users)
+    experimental_count = len(experimental_users)
+
+    # --- Ratings ---
+    def avg_rating(users):
+        ratings = []
+        for u in users:
+            if hasattr(u, "ratings") and u.ratings:
+                ratings.extend([r.rating for r in u.ratings])
+        return round(sum(ratings) / len(ratings), 1) if ratings else 0
+
+    control_avg_rating = avg_rating(control_users)
+    experimental_avg_rating = avg_rating(experimental_users)
+
+    # --- Visualizations ---
+    def avg_visualizations(users):
+        counts = []
+        for u in users:
+            if hasattr(u, "generated_images"):
+                counts.append(len(u.generated_images))
+        return round(sum(counts) / len(counts), 1) if counts else 0
+
+    control_avg_visualizations = avg_visualizations(control_users)
+    experimental_avg_visualizations = avg_visualizations(experimental_users)
+
+    # --- Session Duration (safe fallback) ---
+    def avg_duration(users):
+        durations = []
+        for u in users:
+            if hasattr(u, "experiment_sessions") and u.experiment_sessions:
+                session = sorted(u.experiment_sessions, key=lambda s: s.started_at)[-1]
+                if session.duration_seconds:
+                    durations.append(session.duration_seconds)
+        return round(sum(durations) / len(durations) / 60, 1) if durations else 0
+
+    control_avg_duration = avg_duration(control_users)
+    experimental_avg_duration = avg_duration(experimental_users)
+
+    # --- Consent (safe fallback) ---
+    consent_count = sum(
+        1 for u in experiment_users if hasattr(u, "consent") and u.consent
+    )
+
     return render_template(
         "dashboard.html",
         visits_today=visits_today,
@@ -319,6 +374,15 @@ def dashboard():
         generations_last_week=last_week_arr,
         visit_labels=visit_labels,
         visit_data=visit_data,
+        control_count=control_count,
+        experimental_count=experimental_count,
+        consent_count=consent_count,
+        control_avg_rating=control_avg_rating,
+        experimental_avg_rating=experimental_avg_rating,
+        control_avg_visualizations=control_avg_visualizations,
+        experimental_avg_visualizations=experimental_avg_visualizations,
+        control_avg_duration=control_avg_duration,
+        experimental_avg_duration=experimental_avg_duration,
     )
 
 
