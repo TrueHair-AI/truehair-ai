@@ -355,16 +355,31 @@ def export_data():
             }
         )
 
-    fmt = request.args.get("format", "csv")
+    fmt = request.args.get("format", "csv").lower()
+
+    if fmt not in ["json", "csv"]:
+        return jsonify({"error": "Invalid format. Use 'json' or 'csv'."}), 400
 
     if fmt == "json":
         return jsonify(rows)
 
     output = io.StringIO()
 
+    fieldnames = [
+        "participant_id",
+        "experiment_group",
+        "num_visualizations",
+        "avg_rating",
+        "num_ratings",
+        "session_duration_seconds",
+        "styles_selected",
+        "consented_at",
+    ]
+
+    writer = csv.DictWriter(output, fieldnames=fieldnames)
+    writer.writeheader()
+
     if rows:
-        writer = csv.DictWriter(output, fieldnames=rows[0].keys())
-        writer.writeheader()
         writer.writerows(rows)
 
     response = current_app.response_class(

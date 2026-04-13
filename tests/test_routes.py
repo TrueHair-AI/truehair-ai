@@ -116,13 +116,31 @@ def test_admin_export_json(app):
     data = response.get_json()
     assert isinstance(data, list)
 
-    if len(data) > 0:
-        row = data[0]
-        assert "participant_id" in row
-        assert "experiment_group" in row
-        assert "num_visualizations" in row
-        assert "avg_rating" in row
-        assert "num_ratings" in row
+    assert len(data) > 0
+
+    row = data[0]
+    assert "participant_id" in row
+    assert "experiment_group" in row
+    assert "num_visualizations" in row
+    assert "avg_rating" in row
+    assert "num_ratings" in row
+
+    # Ensure required fields exist
+    assert "session_duration_seconds" in row
+    assert "styles_selected" in row
+    assert "consented_at" in row
+
+    # Ensure default values are correct (placeholders)
+    assert row["avg_rating"] is None
+    assert row["num_ratings"] == 0
+    assert row["session_duration_seconds"] is None
+    assert row["consented_at"] is None
+
+    # Ensure no PII is exposed
+    assert "email" not in row
+    assert "username" not in row
+    assert "first_name" not in row
+    assert "last_name" not in row
 
 
 def test_admin_export_csv(app):
