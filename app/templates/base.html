@@ -131,6 +131,12 @@
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({ session_id: sessionId })
+                        }).then(res => {
+                            if (!res.ok) {
+                                sessionId = null;
+                                sessionStorage.removeItem('experiment_session_id');
+                                initSession();
+                            }
                         }).catch(err => console.warn('Ping failed:', err));
                     }
                 }, 30000);

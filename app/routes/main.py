@@ -494,7 +494,7 @@ def api_rate():
     try:
         gen_id = int(raw_gen_id)
         rating_val = int(raw_rating)
-    except TypeError, ValueError:
+    except (TypeError, ValueError):
         return jsonify({"error": "Invalid generated_image_id or rating"}), 400
 
     if rating_val < 1 or rating_val > 5:
@@ -576,7 +576,7 @@ def submit_consent():
     )
 
 
-SESSION_TIMEOUT_SECONDS = 300
+DEFAULT_SESSION_TIMEOUT_SECONDS = 300
 
 
 @main_bp.route("/api/session/start", methods=["POST"])
@@ -606,7 +606,10 @@ def api_session_start():
             started_at = started_at.replace(tzinfo=timezone.utc)
 
         # Check if it timed out server-side
-        if (now - last_ping_at).total_seconds() > SESSION_TIMEOUT_SECONDS:
+        timeout = current_app.config.get(
+            "SESSION_TIMEOUT_SECONDS", DEFAULT_SESSION_TIMEOUT_SECONDS
+        )
+        if (now - last_ping_at).total_seconds() > timeout:
             active_session.ended_at = last_ping_at
             active_session.duration_seconds = int(
                 (active_session.ended_at - started_at).total_seconds()
@@ -662,7 +665,6 @@ def api_session_ping():
 
 
 @main_bp.route("/api/session/end", methods=["POST"])
-@login_required
 def api_session_end():
     data = request.get_json(silent=True) or {}
     session_id = data.get("session_id")
@@ -670,8 +672,12 @@ def api_session_end():
         return jsonify({"error": "Missing session_id"}), 400
 
     exp_session = db.session.get(ExperimentSession, session_id)
-    if not exp_session or exp_session.user_id != session["user_id"]:
-        return jsonify({"error": "Session not found or forbidden"}), 404
+    if not exp_session:
+        return jsonify({"error": "Session not found"}), 404
+
+    user_id = session.get("user_id")
+    if not user_id or exp_session.user_id != user_id:
+        return jsonify({"error": "Forbidden"}), 403
 
     if exp_session.ended_at is None:
         now = datetime.now(timezone.utc)
