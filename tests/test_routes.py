@@ -3,6 +3,7 @@
 import io
 from unittest.mock import MagicMock, patch
 
+import pytest
 from PIL import Image
 
 from app.models import UserImage, db
@@ -619,3 +620,109 @@ def test_gallery_uses_r2_display_urls(mock_display, app):
     response = ac.get("/gallery")
     assert response.status_code == 200
     assert b"https://r2.example.com/display/gen_gal.webp" in response.data
+
+
+# ---------------------------------------------------------------------------
+# POST /api/rate
+# ---------------------------------------------------------------------------
+
+
+def test_api_rate_redirect_unauthenticated(client):
+    """Unauthenticated users cannot rate (returns 401)."""
+    response = client.post(
+        "/api/rate",
+        json={"generated_image_id": 1, "rating": 3},
+        content_type="application/json",
+    )
+    assert response.status_code == 401
+
+
+def test_api_rate_stores_rating(auth_client, generated_image, app):
+    """Valid 1–5 rating is stored for the user's generated image."""
+    response = auth_client.post(
+        "/api/rate",
+        json={"generated_image_id": generated_image.id, "rating": 5},
+        content_type="application/json",
+    )
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data == {"status": "success", "rating": 5}
+
+    from app.models import Rating
+
+    with app.app_context():
+        row = Rating.query.filter_by(generated_image_id=generated_image.id).one()
+        assert row.rating == 5
+        assert row.user_id == generated_image.user_id
+
+
+@pytest.mark.parametrize("bad_rating", [0, 6, -1])
+def test_api_rate_rejects_out_of_range(auth_client, generated_image, bad_rating):
+    """Ratings outside 1–5 return 400."""
+    response = auth_client.post(
+        "/api/rate",
+        json={"generated_image_id": generated_image.id, "rating": bad_rating},
+        content_type="application/json",
+    )
+    assert response.status_code == 400
+
+
+def test_api_rate_other_users_image_403(auth_client, generated_image, app, hairstyle):
+    """Rating another user's generated image returns 403."""
+    from app.models import User, UserImage, db
+
+    with app.app_context():
+        other = User(
+            email="rateother@example.com",
+            username="rateother",
+            first_name="O",
+            last_name="T",
+        )
+        db.session.add(other)
+        db.session.commit()
+        oi = UserImage(user_id=other.id, image_url="uploads/other_rate.jpg")
+        db.session.add(oi)
+        db.session.commit()
+        from app.models import GeneratedImage
+
+        theirs = GeneratedImage(
+            user_id=other.id,
+            user_image_id=oi.id,
+            hairstyle_id=hairstyle.id,
+            image_url="uploads/theirs.webp",
+        )
+        db.session.add(theirs)
+        db.session.commit()
+        their_id = theirs.id
+
+    response = auth_client.post(
+        "/api/rate",
+        json={"generated_image_id": their_id, "rating": 4},
+        content_type="application/json",
+    )
+    assert response.status_code == 403
+
+
+def test_api_rate_updates_existing(auth_client, generated_image, app):
+    """Re-rating the same image updates the row instead of creating a duplicate."""
+    from app.models import Rating
+
+    auth_client.post(
+        "/api/rate",
+        json={"generated_image_id": generated_image.id, "rating": 2},
+        content_type="application/json",
+    )
+    auth_client.post(
+        "/api/rate",
+        json={"generated_image_id": generated_image.id, "rating": 5},
+        content_type="application/json",
+    )
+
+    with app.app_context():
+        assert (
+            Rating.query.filter_by(generated_image_id=generated_image.id).count() == 1
+        )
+        assert (
+            Rating.query.filter_by(generated_image_id=generated_image.id).one().rating
+            == 5
+        )

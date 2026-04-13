@@ -1,7 +1,7 @@
 import pytest
 
 from app import create_app
-from app.models import Hairstyle, Stylist, User, UserImage, db
+from app.models import GeneratedImage, Hairstyle, Stylist, User, UserImage, db
 from config import Config
 
 
@@ -121,3 +121,18 @@ def user_image(app, user):
         db.session.commit()
         db.session.refresh(ui)
         return ui
+
+
+@pytest.fixture
+def generated_image(app, user, user_image, hairstyle):
+    with app.app_context():
+        gi = GeneratedImage(
+            user_id=user.id,
+            user_image_id=user_image.id,
+            hairstyle_id=hairstyle.id,
+            image_url="uploads/gen_test.webp",
+        )
+        db.session.add(gi)
+        db.session.commit()
+        db.session.refresh(gi)
+        return gi

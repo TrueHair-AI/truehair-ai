@@ -71,6 +71,26 @@ class GeneratedImage(db.Model):
     )
 
 
+class Rating(db.Model):
+    __table_args__ = (
+        db.CheckConstraint("rating >= 1 AND rating <= 5", name="ck_rating_range"),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
+    generated_image_id = db.Column(
+        db.Integer, db.ForeignKey("generated_image.id"), nullable=False, unique=True
+    )
+    rating = db.Column(db.Integer, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    user = db.relationship("User", backref=db.backref("ratings", lazy=True))
+    generated_image = db.relationship(
+        "GeneratedImage",
+        backref=db.backref("rating", uselist=False, lazy=True),
+    )
+
+
 class Stylist(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)

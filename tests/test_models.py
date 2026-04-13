@@ -2,6 +2,7 @@
 
 from app.models import (
     GeneratedImage,
+    Rating,
     Visit,
     db,
 )
@@ -51,3 +52,26 @@ def test_generated_image_relationships(app, user, user_image, hairstyle):
         db.session.commit()
         assert gen.user_id == user.id
         assert gen.hairstyle_id == hairstyle.id
+
+
+def test_generated_image_rating_relationship(app, user, user_image, hairstyle):
+    """Rating is reachable as generated_image.rating (single object)."""
+    with app.app_context():
+        gen = GeneratedImage(
+            user_id=user.id,
+            user_image_id=user_image.id,
+            hairstyle_id=hairstyle.id,
+            image_url="uploads/gen_rated.webp",
+        )
+        db.session.add(gen)
+        db.session.commit()
+        r = Rating(
+            user_id=user.id,
+            generated_image_id=gen.id,
+            rating=4,
+        )
+        db.session.add(r)
+        db.session.commit()
+        db.session.refresh(gen)
+        assert gen.rating is not None
+        assert gen.rating.rating == 4
