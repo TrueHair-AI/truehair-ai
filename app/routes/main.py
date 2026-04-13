@@ -17,8 +17,18 @@ from google import genai
 from google.genai import types
 from PIL import Image
 from sqlalchemy import func
+from sqlalchemy.orm import joinedload
 
-from app.models import GeneratedImage, Hairstyle, Stylist, User, UserImage, Visit, db
+from app.models import (
+    GeneratedImage,
+    Hairstyle,
+    Rating,
+    Stylist,
+    User,
+    UserImage,
+    Visit,
+    db,
+)
 from app.services import r2 as r2_service
 
 main_bp = Blueprint("main", __name__)
@@ -314,14 +324,19 @@ def dashboard():
 def result(image_id=None):
     log_visit("Results Page")
     if image_id:
-        gen_img = db.session.get(GeneratedImage, image_id)
+        gen_img = (
+            GeneratedImage.query.options(joinedload(GeneratedImage.rating))
+            .filter_by(id=image_id)
+            .first()
+        )
         if not gen_img:
             abort(404)
         if gen_img.user_id != session["user_id"]:
             abort(403)
     else:
         gen_img = (
-            GeneratedImage.query.filter_by(user_id=session["user_id"])
+            GeneratedImage.query.options(joinedload(GeneratedImage.rating))
+            .filter_by(user_id=session["user_id"])
             .order_by(GeneratedImage.created_at.desc())
             .first()
         )
@@ -340,7 +355,8 @@ def result(image_id=None):
 def gallery():
     log_visit("My Gallery")
     images = (
-        GeneratedImage.query.filter_by(user_id=session["user_id"])
+        GeneratedImage.query.options(joinedload(GeneratedImage.rating))
+        .filter_by(user_id=session["user_id"])
         .order_by(GeneratedImage.created_at.desc())
         .all()
     )
@@ -446,3 +462,45 @@ def generate():
         traceback.print_exc()
         current_app.logger.error(f"Gemini generation failed: {e}")
         return jsonify({"error": "Internal server error. Please try again later."}), 500
+
+
+@main_bp.route("/api/rate", methods=["POST"])
+@login_required
+def api_rate():
+    data = request.get_json(silent=True) or {}
+    raw_gen_id = data.get("generated_image_id")
+    raw_rating = data.get("rating")
+
+    if raw_gen_id is None or raw_rating is None:
+        return jsonify({"error": "Missing generated_image_id or rating"}), 400
+
+    try:
+        gen_id = int(raw_gen_id)
+        rating_val = int(raw_rating)
+    except (TypeError, ValueError):
+        return jsonify({"error": "Invalid generated_image_id or rating"}), 400
+
+    if rating_val < 1 or rating_val > 5:
+        return jsonify({"error": "rating must be between 1 and 5"}), 400
+
+    gen_img = db.session.get(GeneratedImage, gen_id)
+    if not gen_img:
+        return jsonify({"error": "Generated image not found"}), 404
+
+    if gen_img.user_id != session["user_id"]:
+        abort(403)
+
+    existing = Rating.query.filter_by(generated_image_id=gen_id).first()
+    if existing:
+        existing.rating = rating_val
+    else:
+        db.session.add(
+            Rating(
+                user_id=session["user_id"],
+                generated_image_id=gen_id,
+                rating=rating_val,
+            )
+        )
+    db.session.commit()
+
+    return jsonify({"status": "success", "rating": rating_val})
