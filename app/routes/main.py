@@ -1,3 +1,4 @@
+import csv
 import io
 from datetime import datetime, timedelta
 from functools import wraps
@@ -335,11 +336,34 @@ def export_data():
                 "participant_id": i,
                 "experiment_group": user.experiment_group,
                 "num_visualizations": num_visualizations,
+                "avg_rating": None,
+                "num_ratings": 0,
+                "session_duration_seconds": None,
                 "styles_selected": styles,
+                "consented_at": None,
             }
         )
 
-    return jsonify(rows)
+    fmt = request.args.get("format", "csv")
+
+    if fmt == "json":
+        return jsonify(rows)
+
+    output = io.StringIO()
+
+    if rows:
+        writer = csv.DictWriter(output, fieldnames=rows[0].keys())
+        writer.writeheader()
+        writer.writerows(rows)
+
+    response = current_app.response_class(
+        output.getvalue(),
+        mimetype="text/csv",
+    )
+
+    response.headers["Content-Disposition"] = "attachment; filename=experiment_data.csv"
+
+    return response
 
 
 @main_bp.route("/result")
