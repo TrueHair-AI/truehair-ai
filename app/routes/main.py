@@ -314,8 +314,32 @@ def dashboard():
 @main_bp.route("/api/admin/export")
 @admin_required
 def export_data():
-    """Admin endpoint to export experiment data (scaffold)."""
-    return jsonify({"status": "not implemented"})
+    """Admin endpoint to export experiment data (basic version)."""
+
+    users = User.query.filter(User.experiment_group.isnot(None)).all()
+
+    rows = []
+
+    for i, user in enumerate(users, 1):
+        # Get all generated images for this user
+        gen_images = GeneratedImage.query.filter_by(user_id=user.id).all()
+
+        # Count visualizations
+        num_visualizations = len(gen_images)
+
+        # Get unique styles
+        styles = ", ".join(set(gi.hairstyle.name for gi in gen_images if gi.hairstyle))
+
+        rows.append(
+            {
+                "participant_id": i,
+                "experiment_group": user.experiment_group,
+                "num_visualizations": num_visualizations,
+                "styles_selected": styles,
+            }
+        )
+
+    return jsonify(rows)
 
 
 @main_bp.route("/result")
