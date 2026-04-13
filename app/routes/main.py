@@ -311,6 +311,13 @@ def dashboard():
     )
 
 
+@main_bp.route("/api/admin/export")
+@admin_required
+def export_data():
+    """Admin endpoint to export experiment data (scaffold)."""
+    return jsonify({"status": "not implemented"})
+
+
 @main_bp.route("/result")
 @main_bp.route("/result/<int:image_id>")
 @login_required
