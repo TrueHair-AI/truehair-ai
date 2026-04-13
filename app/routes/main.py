@@ -319,11 +319,14 @@ def dashboard():
 
     # --- Ratings ---
     def avg_rating(users):
-        ratings = []
-        for u in users:
-            if hasattr(u, "ratings") and u.ratings:
-                ratings.extend([r.rating for r in u.ratings])
-        return round(sum(ratings) / len(ratings), 1) if ratings else 0
+        try:
+            ratings = []
+            for u in users:
+                if hasattr(u, "ratings") and u.ratings:
+                    ratings.extend(r.rating for r in u.ratings)
+            return round(sum(ratings) / len(ratings), 2) if ratings else 0
+        except Exception:
+            return 0
 
     control_avg_rating = avg_rating(control_users)
     experimental_avg_rating = avg_rating(experimental_users)
@@ -341,13 +344,18 @@ def dashboard():
 
     # --- Session Duration (safe fallback) ---
     def avg_duration(users):
-        durations = []
-        for u in users:
-            if hasattr(u, "experiment_sessions") and u.experiment_sessions:
-                session = sorted(u.experiment_sessions, key=lambda s: s.started_at)[-1]
-                if session.duration_seconds:
-                    durations.append(session.duration_seconds)
-        return round(sum(durations) / len(durations) / 60, 1) if durations else 0
+        try:
+            durations = []
+            for u in users:
+                if hasattr(u, "experiment_sessions") and u.experiment_sessions:
+                    session = sorted(u.experiment_sessions, key=lambda s: s.started_at)[
+                        -1
+                    ]
+                    if session.duration_seconds:
+                        durations.append(session.duration_seconds)
+            return round(sum(durations) / len(durations) / 60, 1) if durations else 0
+        except Exception:
+            return 0
 
     control_avg_duration = avg_duration(control_users)
     experimental_avg_duration = avg_duration(experimental_users)
@@ -355,6 +363,12 @@ def dashboard():
     # --- Consent (safe fallback) ---
     consent_count = sum(
         1 for u in experiment_users if hasattr(u, "consent") and u.consent
+    )
+    total_experiment_users = len(control_users) + len(experimental_users)
+    consent_rate = (
+        round((consent_count / total_experiment_users) * 100, 1)
+        if total_experiment_users
+        else 0
     )
 
     return render_template(
@@ -377,6 +391,7 @@ def dashboard():
         control_count=control_count,
         experimental_count=experimental_count,
         consent_count=consent_count,
+        consent_rate=consent_rate,
         control_avg_rating=control_avg_rating,
         experimental_avg_rating=experimental_avg_rating,
         control_avg_visualizations=control_avg_visualizations,
@@ -543,11 +558,13 @@ def api_rate():
     if raw_gen_id is None or raw_rating is None:
         return jsonify({"error": "Missing generated_image_id or rating"}), 400
 
+    # fmt: off
     try:
         gen_id = int(raw_gen_id)
         rating_val = int(raw_rating)
-    except TypeError, ValueError:
+    except (TypeError, ValueError):
         return jsonify({"error": "Invalid generated_image_id or rating"}), 400
+    # fmt: on
 
     if rating_val < 1 or rating_val > 5:
         return jsonify({"error": "rating must be between 1 and 5"}), 400

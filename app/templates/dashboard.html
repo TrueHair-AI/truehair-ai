@@ -65,7 +65,7 @@
         <div class="p-5 flex-grow-1" style="background-color: var(--th-bg-studio);">
 
             <!-- Metrics Row -->
-            <div class="row g-4 mb-5">
+            <div class="row g-4 mb-5 mt-2">
                 <!-- Card 1 -->
                 <div class="col-xl col-md-6">
                     <div class="card bg-card border border-secondary border-opacity-25 rounded-4 h-100 p-4 shadow-sm">
@@ -155,6 +155,166 @@
                         </div>
                     </div>
                 </div>
+            </div>
+
+            <!-- Experiment Overview Cards -->
+            {% if control_count == 0 and experimental_count == 0 %}
+                <div class="text-secondary">No experiment data yet</div>
+            {% endif %}
+            <h5 class="text-white fw-bold mb-3 d-flex align-items-center gap-2">
+                <i class="bi bi-clipboard-data text-yellow"></i>
+                Experiment Overview
+            </h5>
+            <div class="row g-4 mb-4">
+
+                <!-- Participants -->
+                <div class="col-lg-3 col-md-6">
+                    <div class="card bg-card border border-secondary border-opacity-25 rounded-4 p-4 shadow-sm h-100 d-flex flex-column justify-content-between" style="opacity: 0.95;">
+                        <div class="d-flex justify-content-between align-items-start mb-2">
+                            <span class="text-secondary fw-semibold">Participants</span>
+                            <i class="bi bi-people text-yellow"></i>
+                        </div>
+                        <h3 class="fw-bold text-white mt-2">
+                                {{ control_count }} / {{ experimental_count }}
+                        </h3>
+                            <div class="text-secondary small">
+                                Control / Experimental
+                            </div>
+                    </div>
+                </div>
+
+                <!-- Consent Rate -->
+                <div class="col-lg-3 col-md-6">
+                    <div class="card bg-card border border-secondary border-opacity-25 rounded-4 p-4 shadow-sm h-100 d-flex flex-column justify-content-between" style="opacity: 0.95;">
+                        <div class="d-flex justify-content-between align-items-start mb-2">
+                            <span class="text-secondary fw-semibold">Consent Rate</span>
+                            <i class="bi bi-check-circle text-yellow"></i>
+                        </div>
+                        <h3 class="fw-bold text-white mt-2">
+                            {{ consent_rate }}%
+                        </h3>
+                    </div>
+                </div>
+
+                <!-- Avg Rating Control -->
+                <div class="col-lg-3 col-md-6">
+                    <div class="card bg-card border border-secondary border-opacity-25 rounded-4 p-4 shadow-sm h-100 d-flex flex-column justify-content-between" style="opacity: 0.95;">
+                        <div class="d-flex justify-content-between align-items-start mb-2">
+                            <span class="text-secondary fw-semibold">Avg Rating (Control)</span>
+                            <i class="bi bi-star text-yellow"></i>
+                        </div>
+                        <h3 class="fw-bold text-white mt-2">
+                            {{ control_avg_rating if control_avg_rating is not none else "—" }}
+                        </h3>
+                    </div>
+                </div>
+
+                <!-- Avg Rating Experimental -->
+                <div class="col-lg-3 col-md-6">
+                    <div class="card bg-card border border-secondary border-opacity-25 rounded-4 p-4 shadow-sm h-100 d-flex flex-column justify-content-between" style="opacity: 0.95;">
+                        <div class="d-flex justify-content-between align-items-start mb-2">
+                            <span class="text-secondary fw-semibold">Avg Rating (Experimental)</span>
+                            <i class="bi bi-star text-yellow"></i>
+                        </div>
+                        <h3 class="fw-bold text-white mt-2 text-warning">
+                            {{ experimental_avg_rating if experimental_avg_rating is not none else "—" }}
+                        </h3>
+                    </div>
+                </div>
+
+            </div>
+
+            <h5 class="text-white fw-bold mb-3 mt-4 d-flex align-items-center gap-2">
+                <i class="bi bi-activity text-yellow"></i>
+                Behavior Metrics
+            </h5>
+            <div class="row g-4 mb-4">
+
+                <!-- Avg Visualizations Control -->
+                <div class="col-lg-3 col-md-6">
+                    <div class="card bg-card border border-secondary border-opacity-25 rounded-4 p-4 shadow-sm h-100 d-flex flex-column justify-content-between">
+                        <div class="d-flex justify-content-between align-items-start mb-2">
+                            <span class="text-secondary fw-semibold">Avg Visualizations (Control)</span>
+                            <i class="bi bi-image text-yellow"></i>
+                        </div>
+                        <h3 class="fw-bold text-white mt-2">
+                            {{ control_avg_visualizations if control_avg_visualizations is not none else "—" }}
+                        </h3>
+                    </div>
+                </div>
+
+                <!-- Avg Visualizations Experimental -->
+                <div class="col-lg-3 col-md-6">
+                    <div class="card bg-card border border-secondary border-opacity-25 rounded-4 p-4 shadow-sm h-100 d-flex flex-column justify-content-between">
+                        <div class="d-flex justify-content-between align-items-start mb-2">
+                            <span class="text-secondary fw-semibold">Avg Visualizations (Experimental)</span>
+                            <i class="bi bi-image text-yellow"></i>
+                        </div>
+                        <h3 class="fw-bold text-white mt-2 text-warning">
+                            {{ experimental_avg_visualizations if experimental_avg_visualizations is not none else "—" }}
+                        </h3>
+                    </div>
+                </div>
+
+                <!-- Avg Duration Control -->
+                <div class="col-lg-3 col-md-6">
+                    <div class="card bg-card border border-secondary border-opacity-25 rounded-4 p-4 shadow-sm h-100 d-flex flex-column justify-content-between">
+                        <div class="d-flex justify-content-between align-items-start mb-2">
+                            <span class="text-secondary fw-semibold">Avg Duration (Control)</span>
+                            <i class="bi bi-clock text-yellow"></i>
+                        </div>
+                        <h3 class="fw-bold text-white mt-2">
+                            {{ control_avg_duration if control_avg_duration is not none else "—" }}
+                        </h3>
+                    </div>
+                </div>
+
+                <!-- Avg Duration Experimental -->
+                <div class="col-lg-3 col-md-6">
+                    <div class="card bg-card border border-secondary border-opacity-25 rounded-4 p-4 shadow-sm h-100 d-flex flex-column justify-content-between">
+                        <div class="d-flex justify-content-between align-items-start mb-2">
+                            <span class="text-secondary fw-semibold">Avg Duration (Experimental)</span>
+                            <i class="bi bi-clock text-yellow"></i>
+                        </div>
+                        <h3 class="fw-bold text-white mt-2 text-warning">
+                            {{ experimental_avg_duration if experimental_avg_duration is not none else "—" }}
+                        </h3>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- Experiment Comparison Charts -->
+            <h5 class="text-white fw-bold mb-3 mt-4 d-flex align-items-center gap-2">
+                <i class="bi bi-bar-chart text-yellow"></i>
+                Group Comparison
+            </h5>
+            <div class="row g-4 mb-5">
+
+                <!-- Avg Rating Chart -->
+                <div class="col-md-4">
+                    <div class="card bg-card border border-secondary border-opacity-25 rounded-4 p-4 shadow-sm h-100">
+                        <h6 class="text-secondary mb-3">Avg Rating by Group</h6>
+                        <canvas id="ratingChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Avg Visualizations Chart -->
+                <div class="col-md-4">
+                    <div class="card bg-card border border-secondary border-opacity-25 rounded-4 p-4 shadow-sm h-100">
+                        <h6 class="text-secondary mb-3">Visualizations per User</h6>
+                        <canvas id="visualizationsChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Avg Duration Chart -->
+                <div class="col-md-4">
+                    <div class="card bg-card border border-secondary border-opacity-25 rounded-4 p-4 shadow-sm h-100">
+                        <h6 class="text-secondary mb-3">Session Duration (min)</h6>
+                        <canvas id="durationChart"></canvas>
+                    </div>
+                </div>
+
             </div>
 
             <!-- Charts -->
@@ -371,6 +531,88 @@
                 ctx.restore();
             }
         }]
+    });
+
+    // ============================
+    // Experiment Charts
+    // ============================
+
+    const controlColor = "#4b4b53";      // gray
+    const experimentalColor = "#f8cd24"; // yellow
+
+    // 1. Avg Rating Chart
+    new Chart(document.getElementById("ratingChart"), {
+        type: "bar",
+        data: {
+            labels: ["Control", "Experimental"],
+            datasets: [{
+                data: [
+                    {{ control_avg_rating if control_avg_rating is not none else 0 }},
+                    {{ experimental_avg_rating if experimental_avg_rating is not none else 0 }}
+                ],
+                backgroundColor: [controlColor, experimentalColor],
+                borderRadius: 6,
+            }]
+        },
+        options: {
+            plugins: { legend: { display: false } },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: { stepSize: 1 }
+                }
+            }
+        }
+    });
+
+    // 2. Visualizations Chart
+    new Chart(document.getElementById("visualizationsChart"), {
+        type: "bar",
+        data: {
+            labels: ["Control", "Experimental"],
+            datasets: [{
+                data: [
+                    {{ control_avg_visualizations if control_avg_visualizations is not none else 0 }},
+                    {{ experimental_avg_visualizations if experimental_avg_visualizations is not none else 0 }}
+                ],
+                backgroundColor: [controlColor, experimentalColor],
+                borderRadius: 6,
+            }]
+        },
+        options: {
+            plugins: { legend: { display: false } },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: { stepSize: 1 }
+                }
+            }
+        }
+    });
+
+    // 3. Duration Chart
+    new Chart(document.getElementById("durationChart"), {
+        type: "bar",
+        data: {
+            labels: ["Control", "Experimental"],
+            datasets: [{
+                data: [
+                    {{ control_avg_duration if control_avg_duration is not none else 0 }},
+                    {{ experimental_avg_duration if experimental_avg_duration is not none else 0 }}
+                ],
+                backgroundColor: [controlColor, experimentalColor],
+                borderRadius: 6,
+            }]
+        },
+        options: {
+            plugins: { legend: { display: false } },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: { stepSize: 1 }
+                }
+            }
+        }
     });
     });
 </script>

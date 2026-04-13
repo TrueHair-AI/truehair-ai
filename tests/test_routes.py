@@ -77,6 +77,51 @@ def test_dashboard_non_admin_forbidden(auth_client):
     assert response.status_code == 403
 
 
+def test_dashboard_contains_experiment_sections(admin_client):
+    """Dashboard should render experiment-specific sections."""
+    response = admin_client.get("/dashboard")
+
+    assert response.status_code == 200
+
+    html = response.data.decode()
+
+    assert "Experiment Overview" in html
+    assert "Behavior Metrics" in html
+    assert "Group Comparison" in html
+
+
+def test_dashboard_handles_empty_experiment_data(app):
+    """Dashboard should not crash when no experiment data exists."""
+    from app.models import User, db
+
+    client = app.test_client()
+
+    with app.app_context():
+        admin = User(
+            email="empty_dashboard@test.com",
+            username="empty_dashboard",
+            first_name="Empty",
+            last_name="Admin",
+            is_admin=True,
+            experiment_group=None,  # no experiment users
+        )
+        db.session.add(admin)
+        db.session.commit()
+        admin_id = admin.id
+
+    with client.session_transaction() as sess:
+        sess["user_id"] = admin_id
+
+    response = client.get("/dashboard")
+
+    assert response.status_code == 200
+
+    html = response.data.decode()
+
+    # This is key: ensures your fallback logic works
+    assert "No experiment data yet" in html
+
+
 def test_result_redirect_unauthenticated(client):
     """Result page redirects when not logged in."""
     response = client.get("/result")
