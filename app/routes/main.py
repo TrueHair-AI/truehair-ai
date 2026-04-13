@@ -600,7 +600,7 @@ def api_session_start():
         last_ping_at = active_session.last_ping_at
         if last_ping_at and last_ping_at.tzinfo is None:
             last_ping_at = last_ping_at.replace(tzinfo=timezone.utc)
-            
+
         started_at = active_session.started_at
         if started_at and started_at.tzinfo is None:
             started_at = started_at.replace(tzinfo=timezone.utc)
@@ -675,15 +675,13 @@ def api_session_end():
 
     if exp_session.ended_at is None:
         now = datetime.now(timezone.utc)
-        
+
         started_at = exp_session.started_at
         if started_at and started_at.tzinfo is None:
             started_at = started_at.replace(tzinfo=timezone.utc)
-            
+
         exp_session.ended_at = now
-        exp_session.duration_seconds = int(
-            (now - started_at).total_seconds()
-        )
+        exp_session.duration_seconds = int((now - started_at).total_seconds())
         db.session.commit()
 
     return jsonify({"status": "success"})
