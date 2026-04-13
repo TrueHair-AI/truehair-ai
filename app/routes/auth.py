@@ -64,7 +64,7 @@ def auth_google():
             first_name=user_info.get("given_name", ""),
             last_name=user_info.get("family_name", ""),
             profile_picture=user_info.get("picture", ""),
-            experiment_group=random.choice(["control", "experimental"]),  
+            experiment_group=random.choice(["control", "experimental"]),
         )
         db.session.add(user)
         db.session.commit()
@@ -74,7 +74,7 @@ def auth_google():
         db.session.commit()
 
     session["user_id"] = user.id
-    session["experiment_group"] = user.experiment_group  
+    session["experiment_group"] = user.experiment_group
 
     return redirect(url_for("main.style_studio"))
 
