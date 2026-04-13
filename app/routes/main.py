@@ -1,5 +1,5 @@
 import io
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from functools import wraps
 
 from flask import (
@@ -593,7 +593,7 @@ def api_session_start():
         .first()
     )
 
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
 
     if active_session:
         # Check if it timed out server-side
@@ -645,7 +645,7 @@ def api_session_ping():
     if exp_session.ended_at is not None:
         return jsonify({"error": "Session already ended"}), 400
 
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     # If ping is too late, we could end it here, but let's just update last_ping_at
     # and let the timeout logic handle it later or when a new session starts.
     exp_session.last_ping_at = now
@@ -667,7 +667,7 @@ def api_session_end():
         return jsonify({"error": "Session not found or forbidden"}), 404
 
     if exp_session.ended_at is None:
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         exp_session.ended_at = now
         exp_session.duration_seconds = int(
             (now - exp_session.started_at).total_seconds()
