@@ -91,6 +91,17 @@ class Rating(db.Model):
     )
 
 
+class Recommendation(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
+    user_image_id = db.Column(
+        db.Integer, db.ForeignKey("user_image.id"), nullable=False
+    )
+    hairstyle_id = db.Column(db.Integer, db.ForeignKey("hairstyle.id"), nullable=False)
+    reasoning = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+
 class Stylist(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)
