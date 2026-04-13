@@ -509,13 +509,13 @@ def test_gallery_uses_r2_display_urls(mock_display, app):
 
 
 def test_api_rate_redirect_unauthenticated(client):
-    """Unauthenticated users cannot rate (redirect to login)."""
+    """Unauthenticated users cannot rate (returns 401)."""
     response = client.post(
         "/api/rate",
         json={"generated_image_id": 1, "rating": 3},
         content_type="application/json",
     )
-    assert response.status_code == 302
+    assert response.status_code == 401
 
 
 def test_api_rate_stores_rating(auth_client, generated_image, app):
