@@ -596,13 +596,20 @@ def api_session_start():
     now = datetime.now(timezone.utc)
 
     if active_session:
+        # Ensure datetimes are timezone-aware (SQLite might return naive datetimes)
+        last_ping_at = active_session.last_ping_at
+        if last_ping_at and last_ping_at.tzinfo is None:
+            last_ping_at = last_ping_at.replace(tzinfo=timezone.utc)
+            
+        started_at = active_session.started_at
+        if started_at and started_at.tzinfo is None:
+            started_at = started_at.replace(tzinfo=timezone.utc)
+
         # Check if it timed out server-side
-        if (
-            now - active_session.last_ping_at
-        ).total_seconds() > SESSION_TIMEOUT_SECONDS:
-            active_session.ended_at = active_session.last_ping_at
+        if (now - last_ping_at).total_seconds() > SESSION_TIMEOUT_SECONDS:
+            active_session.ended_at = last_ping_at
             active_session.duration_seconds = int(
-                (active_session.ended_at - active_session.started_at).total_seconds()
+                (active_session.ended_at - started_at).total_seconds()
             )
             # Create a new session
             new_session = ExperimentSession(
@@ -668,9 +675,14 @@ def api_session_end():
 
     if exp_session.ended_at is None:
         now = datetime.now(timezone.utc)
+        
+        started_at = exp_session.started_at
+        if started_at and started_at.tzinfo is None:
+            started_at = started_at.replace(tzinfo=timezone.utc)
+            
         exp_session.ended_at = now
         exp_session.duration_seconds = int(
-            (now - exp_session.started_at).total_seconds()
+            (now - started_at).total_seconds()
         )
         db.session.commit()
 
