@@ -79,15 +79,17 @@ def test_generated_image_rating_relationship(app, user, user_image, hairstyle):
 
 def test_experiment_session_relationships(app, user):
     """ExperimentSession is reachable via user.experiment_sessions."""
-    from app.models import ExperimentSession
+    from app.models import ExperimentSession, User
 
     with app.app_context():
+        # Re-fetch user in the current session
+        u = db.session.get(User, user.id)
         sess = ExperimentSession(
-            user_id=user.id,
+            user_id=u.id,
             experiment_group="treatment",
         )
         db.session.add(sess)
         db.session.commit()
-        db.session.refresh(user)
-        assert len(user.experiment_sessions) == 1
-        assert user.experiment_sessions[0].experiment_group == "treatment"
+        db.session.refresh(u)
+        assert len(u.experiment_sessions) == 1
+        assert u.experiment_sessions[0].experiment_group == "treatment"
