@@ -75,3 +75,21 @@ def test_generated_image_rating_relationship(app, user, user_image, hairstyle):
         db.session.refresh(gen)
         assert gen.rating is not None
         assert gen.rating.rating == 4
+
+
+def test_experiment_session_relationships(app, user):
+    """ExperimentSession is reachable via user.experiment_sessions."""
+    from app.models import ExperimentSession, User
+
+    with app.app_context():
+        # Re-fetch user in the current session
+        u = db.session.get(User, user.id)
+        sess = ExperimentSession(
+            user_id=u.id,
+            experiment_group="treatment",
+        )
+        db.session.add(sess)
+        db.session.commit()
+        db.session.refresh(u)
+        assert len(u.experiment_sessions) == 1
+        assert u.experiment_sessions[0].experiment_group == "treatment"

@@ -609,6 +609,85 @@ def test_api_rate_updates_existing(auth_client, generated_image, app):
         )
 
 
+def test_api_session_start_unauthenticated(client):
+    """Session start requires login."""
+    response = client.post("/api/session/start")
+    assert response.status_code == 302
+
+
+def test_api_session_start_creates_session(auth_client, app):
+    """Session start creates a new session."""
+    from app.models import ExperimentSession, db
+
+    response = auth_client.post("/api/session/start")
+    assert response.status_code == 200
+    data = response.get_json()
+    assert "session_id" in data
+
+    with app.app_context():
+        session_record = db.session.get(ExperimentSession, data["session_id"])
+        assert session_record is not None
+        assert session_record.ended_at is None
+
+
+def test_api_session_start_returns_existing(auth_client, app):
+    """Session start returns existing active session."""
+    response1 = auth_client.post("/api/session/start")
+    data1 = response1.get_json()
+
+    response2 = auth_client.post("/api/session/start")
+    data2 = response2.get_json()
+
+    assert data1["session_id"] == data2["session_id"]
+
+
+def test_api_session_ping_updates_last_ping(auth_client, app):
+    """Ping updates last_ping_at."""
+    from app.models import ExperimentSession, db
+
+    start_response = auth_client.post("/api/session/start")
+    session_id = start_response.get_json()["session_id"]
+
+    with app.app_context():
+        session_record = db.session.get(ExperimentSession, session_id)
+        original_ping = session_record.last_ping_at
+
+    import time
+
+    time.sleep(0.1)
+
+    ping_response = auth_client.post(
+        "/api/session/ping",
+        json={"session_id": session_id},
+        content_type="application/json",
+    )
+    assert ping_response.status_code == 200
+
+    with app.app_context():
+        session_record = db.session.get(ExperimentSession, session_id)
+        assert session_record.last_ping_at > original_ping
+
+
+def test_api_session_end_computes_duration(auth_client, app):
+    """End session computes duration and sets ended_at."""
+    from app.models import ExperimentSession, db
+
+    start_response = auth_client.post("/api/session/start")
+    session_id = start_response.get_json()["session_id"]
+
+    end_response = auth_client.post(
+        "/api/session/end",
+        json={"session_id": session_id},
+        content_type="application/json",
+    )
+    assert end_response.status_code == 200
+
+    with app.app_context():
+        session_record = db.session.get(ExperimentSession, session_id)
+        assert session_record.ended_at is not None
+        assert session_record.duration_seconds is not None
+
+
 # ---------------------------------------------------------------------------
 # POST /api/recommend
 # ---------------------------------------------------------------------------

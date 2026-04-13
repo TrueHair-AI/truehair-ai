@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 
 from flask_sqlalchemy import SQLAlchemy
 
@@ -14,7 +14,9 @@ class User(db.Model):
     profile_picture = db.Column(db.String(255))
     is_admin = db.Column(db.Boolean, default=False)
     experiment_group = db.Column(db.String(20), nullable=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(
+        db.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
 
     def __repr__(self):
         return f"<User {self.username}>"
@@ -24,12 +26,38 @@ class Visit(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     page = db.Column(db.String(200), nullable=False)
     user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=True)
-    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
+    timestamp = db.Column(
+        db.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
 
     user = db.relationship("User", backref=db.backref("visits", lazy=True))
 
     def __repr__(self):
         return f"<Visit id={self.id} page='{self.page}' timestamp={self.timestamp}>"
+
+
+class ExperimentSession(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
+    experiment_group = db.Column(db.String(20), nullable=False)
+    started_at = db.Column(
+        db.DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(timezone.utc),
+    )
+    last_ping_at = db.Column(
+        db.DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(timezone.utc),
+    )
+    ended_at = db.Column(
+        db.DateTime(timezone=True), nullable=True
+    )  # NULL means session is still active
+    duration_seconds = db.Column(
+        db.Integer, nullable=True
+    )  # Computed when session ends
+
+    user = db.relationship("User", backref=db.backref("experiment_sessions", lazy=True))
 
 
 class Hairstyle(db.Model):
@@ -47,7 +75,9 @@ class UserImage(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
     image_url = db.Column(db.String(255), nullable=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(
+        db.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
 
     user = db.relationship("User", backref=db.backref("images", lazy=True))
 
@@ -60,7 +90,9 @@ class GeneratedImage(db.Model):
     )
     hairstyle_id = db.Column(db.Integer, db.ForeignKey("hairstyle.id"), nullable=False)
     image_url = db.Column(db.String(255), nullable=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(
+        db.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
 
     user = db.relationship("User", backref=db.backref("generated_images", lazy=True))
     user_image = db.relationship(
@@ -82,13 +114,29 @@ class Rating(db.Model):
         db.Integer, db.ForeignKey("generated_image.id"), nullable=False, unique=True
     )
     rating = db.Column(db.Integer, nullable=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(
+        db.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
 
     user = db.relationship("User", backref=db.backref("ratings", lazy=True))
     generated_image = db.relationship(
         "GeneratedImage",
         backref=db.backref("rating", uselist=False, lazy=True),
     )
+
+
+class Consent(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(
+        db.Integer, db.ForeignKey("user.id"), nullable=False, unique=True
+    )
+    full_name = db.Column(db.String(255), nullable=False)
+    experiment_group = db.Column(db.String(20), nullable=False)
+    consented_at = db.Column(
+        db.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+
+    user = db.relationship("User", backref=db.backref("consent", uselist=False))
 
 
 class Recommendation(db.Model):
@@ -99,7 +147,9 @@ class Recommendation(db.Model):
     )
     hairstyle_id = db.Column(db.Integer, db.ForeignKey("hairstyle.id"), nullable=False)
     reasoning = db.Column(db.Text)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(
+        db.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
 
 
 class Stylist(db.Model):
