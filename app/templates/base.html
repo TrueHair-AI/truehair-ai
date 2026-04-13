@@ -119,6 +119,61 @@
     <!-- Custom JS -->
     <script src="{{ url_for('static', filename='js/main.js') }}"></script>
 
+    {% if current_user %}
+    <script>
+        (function() {
+            let sessionId = sessionStorage.getItem('experiment_session_id');
+
+            function startHeartbeat() {
+                setInterval(() => {
+                    if (sessionId) {
+                        fetch('{{ url_for("main.api_session_ping") }}', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ session_id: sessionId })
+                        }).then(res => {
+                            if (!res.ok) {
+                                sessionId = null;
+                                sessionStorage.removeItem('experiment_session_id');
+                                initSession();
+                            }
+                        }).catch(err => console.warn('Ping failed:', err));
+                    }
+                }, 30000);
+            }
+
+            function initSession() {
+                fetch('{{ url_for("main.api_session_start") }}', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.session_id) {
+                        sessionId = data.session_id;
+                        sessionStorage.setItem('experiment_session_id', sessionId);
+                        startHeartbeat();
+                    }
+                })
+                .catch(err => console.warn('Session start failed:', err));
+            }
+
+            if (!sessionId) {
+                initSession();
+            } else {
+                startHeartbeat();
+            }
+
+            window.addEventListener('beforeunload', () => {
+                if (sessionId) {
+                    const data = JSON.stringify({ session_id: sessionId });
+                    navigator.sendBeacon('{{ url_for("main.api_session_end") }}', new Blob([data], { type: 'application/json' }));
+                }
+            });
+        })();
+    </script>
+    {% endif %}
+
     {% block extra_scripts %}{% endblock %}
 </body>
 

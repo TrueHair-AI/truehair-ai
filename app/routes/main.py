@@ -1,6 +1,6 @@
 import csv
 import io
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from functools import wraps
 
 from flask import (
@@ -22,9 +22,12 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import joinedload
 
 from app.models import (
+    Consent,
+    ExperimentSession,
     GeneratedImage,
     Hairstyle,
     Rating,
+    Recommendation,
     Stylist,
     User,
     UserImage,
@@ -97,7 +100,17 @@ def log_visit(page_name):
 def style_studio():
     log_visit("Style Studio")
     hairstyles = Hairstyle.query.all()
-    return render_template("style_studio.html", hairstyles=hairstyles)
+    categories = sorted(
+        list(
+            set(
+                (h.category.upper() if h.category else "UNCATEGORIZED")
+                for h in hairstyles
+            )
+        )
+    )
+    return render_template(
+        "style_studio.html", hairstyles=hairstyles, categories=categories
+    )
 
 
 @main_bp.route("/api/upload/presign", methods=["POST"])
@@ -339,6 +352,29 @@ def export_data():
         # Count visualizations
         num_visualizations = len(gen_images)
 
+        ratings = Rating.query.filter_by(user_id=user.id).all()
+        avg_rating = (
+            round(sum(r.rating for r in ratings) / len(ratings), 2) if ratings else None
+        )
+        num_ratings = len(ratings)
+
+        session_obj = (
+            ExperimentSession.query.filter_by(user_id=user.id)
+            .order_by(ExperimentSession.started_at.desc())
+            .first()
+        )
+
+        duration = None
+        if session_obj:
+            if session_obj.duration_seconds:
+                duration = session_obj.duration_seconds
+            elif session_obj.last_ping_at and session_obj.started_at:
+                duration = int(
+                    (session_obj.last_ping_at - session_obj.started_at).total_seconds()
+                )
+
+        consented_at = user.consent.consented_at.isoformat() if user.consent else None
+
         # Get unique styles
         styles = ", ".join(
             sorted({gi.hairstyle.name for gi in gen_images if gi.hairstyle})
@@ -349,11 +385,11 @@ def export_data():
                 "participant_id": i,
                 "experiment_group": user.experiment_group,
                 "num_visualizations": num_visualizations,
-                "avg_rating": None,
-                "num_ratings": 0,
-                "session_duration_seconds": None,
+                "avg_rating": avg_rating,
+                "num_ratings": num_ratings,
+                "session_duration_seconds": duration,
                 "styles_selected": styles,
-                "consented_at": None,
+                "consented_at": consented_at,
             }
         )
 
@@ -450,6 +486,121 @@ def terms():
 @main_bp.route("/privacy")
 def privacy():
     return render_template("privacy.html")
+
+
+@main_bp.route("/api/recommend", methods=["POST"])
+@login_required
+def recommend():
+    import json
+
+    if session.get("experiment_group") != "experimental":
+        abort(403)
+
+    data = request.json
+    user_image_id = data.get("user_image_id")
+    if not user_image_id:
+        return jsonify({"error": "Missing user_image_id"}), 400
+
+    user_image = db.session.get(UserImage, user_image_id)
+    if not user_image:
+        return jsonify({"error": "Invalid user_image_id"}), 400
+
+    if user_image.user_id != session["user_id"]:
+        abort(403)
+
+    client = get_genai_client()
+    if not client:
+        return jsonify({"error": "Internal server error. Please try again later."}), 500
+
+    try:
+        photo_bytes = r2_service.download_bytes(user_image.image_url)
+        user_photo = Image.open(io.BytesIO(photo_bytes))
+
+        hairstyles = Hairstyle.query.all()
+        catalog_list = [
+            {"id": h.id, "name": h.name, "description": h.description}
+            for h in hairstyles
+        ]
+        json_catalog = json.dumps(catalog_list)
+
+        prompt_text = f"""You are a professional hairstylist and image consultant. Analyze the person in this photo 
+and recommend the best matching hairstyles from the catalog below.
+
+Consider:
+- Face shape (oval, round, square, heart, oblong, diamond)
+- Apparent hair texture and current hair characteristics
+- Overall facial features and proportions
+
+HAIRSTYLE CATALOG:
+{json_catalog}
+
+Recommend exactly 5 to 8 hairstyles from the catalog. For each recommendation, explain 
+specifically why this style would suit this person based on your visual analysis.
+
+Respond with a JSON object in this exact format:
+{{
+  "recommendations": [
+    {{
+      "hairstyle_id": <int>,
+      "reasoning": "<2-3 sentences explaining why this style suits this person>"
+    }}
+  ]
+}}"""
+
+        response = client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=[prompt_text, user_photo],
+            config=types.GenerateContentConfig(
+                response_mime_type="application/json",
+            ),
+        )
+
+        response_json = json.loads(response.text)
+        recs = response_json.get("recommendations", [])
+
+        hairstyle_dict = {h.id: h for h in hairstyles}
+
+        valid_recommendations = []
+        for rec in recs:
+            h_id = rec.get("hairstyle_id")
+            reasoning = rec.get("reasoning")
+            if h_id in hairstyle_dict:
+                h = hairstyle_dict[h_id]
+                valid_recommendations.append(
+                    {
+                        "hairstyle_id": h.id,
+                        "name": h.name,
+                        "description": h.description,
+                        "image_url": h.image_url,
+                        "reasoning": reasoning,
+                    }
+                )
+
+                db_rec = Recommendation(
+                    user_id=session["user_id"],
+                    user_image_id=user_image.id,
+                    hairstyle_id=h.id,
+                    reasoning=reasoning,
+                )
+                db.session.add(db_rec)
+
+        if not valid_recommendations:
+            raise Exception("No valid recommendations returned.")
+
+        db.session.commit()
+
+        return jsonify({"status": "success", "recommendations": valid_recommendations})
+
+    except Exception as e:
+        import traceback
+
+        traceback.print_exc()
+        current_app.logger.error(f"Gemini recommendation failed: {e}")
+        return jsonify(
+            {
+                "error": "AI recommendation could not be generated. This session cannot proceed. Please try again later."
+            }
+        ), 500
 
 
 @main_bp.route("/api/generate", methods=["POST"])
@@ -555,7 +706,7 @@ def api_rate():
     try:
         gen_id = int(raw_gen_id)
         rating_val = int(raw_rating)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError):  # fmt: skip
         return jsonify({"error": "Invalid generated_image_id or rating"}), 400
     # fmt: on
 
@@ -596,3 +747,160 @@ def api_rate():
         db.session.commit()
 
     return jsonify({"status": "success", "rating": rating_val})
+
+
+@main_bp.route("/api/consent", methods=["POST"])
+@login_required
+def submit_consent():
+    data = request.get_json(silent=True) or {}
+    full_name = data.get("full_name", "").strip()
+
+    if not full_name or len(full_name) < 2:
+        return jsonify({"error": "Full name must be at least 2 characters"}), 400
+
+    user_id = session["user_id"]
+    existing = Consent.query.filter_by(user_id=user_id).first()
+
+    if existing:
+        return jsonify(
+            {"status": "success", "consented_at": existing.consented_at.isoformat()}
+        )
+
+    user = db.session.get(User, user_id)
+    experiment_group = user.experiment_group or "unknown"
+
+    consent = Consent(
+        user_id=user_id, full_name=full_name, experiment_group=experiment_group
+    )
+    db.session.add(consent)
+    try:
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        existing = Consent.query.filter_by(user_id=user_id).first()
+        if existing:
+            return jsonify(
+                {"status": "success", "consented_at": existing.consented_at.isoformat()}
+            )
+        return jsonify({"error": "Unable to save consent"}), 500
+
+    return jsonify(
+        {"status": "success", "consented_at": consent.consented_at.isoformat()}
+    )
+
+
+DEFAULT_SESSION_TIMEOUT_SECONDS = 300
+
+
+@main_bp.route("/api/session/start", methods=["POST"])
+@login_required
+def api_session_start():
+    user_id = session["user_id"]
+    user = db.session.get(User, user_id)
+    experiment_group = user.experiment_group or "unknown"
+
+    # Check for existing active session
+    active_session = (
+        ExperimentSession.query.filter_by(user_id=user_id, ended_at=None)
+        .order_by(ExperimentSession.started_at.desc())
+        .first()
+    )
+
+    now = datetime.now(timezone.utc)
+
+    if active_session:
+        # Ensure datetimes are timezone-aware (SQLite might return naive datetimes)
+        last_ping_at = active_session.last_ping_at
+        if last_ping_at and last_ping_at.tzinfo is None:
+            last_ping_at = last_ping_at.replace(tzinfo=timezone.utc)
+
+        started_at = active_session.started_at
+        if started_at and started_at.tzinfo is None:
+            started_at = started_at.replace(tzinfo=timezone.utc)
+
+        # Check if it timed out server-side
+        timeout = current_app.config.get(
+            "SESSION_TIMEOUT_SECONDS", DEFAULT_SESSION_TIMEOUT_SECONDS
+        )
+        if (now - last_ping_at).total_seconds() > timeout:
+            active_session.ended_at = last_ping_at
+            active_session.duration_seconds = int(
+                (active_session.ended_at - started_at).total_seconds()
+            )
+            # Create a new session
+            new_session = ExperimentSession(
+                user_id=user_id,
+                experiment_group=experiment_group,
+                started_at=now,
+                last_ping_at=now,
+            )
+            db.session.add(new_session)
+            db.session.commit()
+            return jsonify({"session_id": new_session.id})
+        else:
+            # Return existing session
+            return jsonify({"session_id": active_session.id})
+
+    # Create new session
+    new_session = ExperimentSession(
+        user_id=user_id,
+        experiment_group=experiment_group,
+        started_at=now,
+        last_ping_at=now,
+    )
+    db.session.add(new_session)
+    db.session.commit()
+    return jsonify({"session_id": new_session.id})
+
+
+@main_bp.route("/api/session/ping", methods=["POST"])
+@login_required
+def api_session_ping():
+    data = request.get_json(silent=True) or {}
+    session_id = data.get("session_id")
+    if not session_id:
+        return jsonify({"error": "Missing session_id"}), 400
+
+    exp_session = db.session.get(ExperimentSession, session_id)
+    if not exp_session or exp_session.user_id != session["user_id"]:
+        return jsonify({"error": "Session not found or forbidden"}), 404
+
+    if exp_session.ended_at is not None:
+        return jsonify({"error": "Session already ended"}), 400
+
+    now = datetime.now(timezone.utc)
+    # If ping is too late, we could end it here, but let's just update last_ping_at
+    # and let the timeout logic handle it later or when a new session starts.
+    exp_session.last_ping_at = now
+    db.session.commit()
+
+    return jsonify({"status": "ok"})
+
+
+@main_bp.route("/api/session/end", methods=["POST"])
+def api_session_end():
+    data = request.get_json(silent=True) or {}
+    session_id = data.get("session_id")
+    if not session_id:
+        return jsonify({"error": "Missing session_id"}), 400
+
+    exp_session = db.session.get(ExperimentSession, session_id)
+    if not exp_session:
+        return jsonify({"error": "Session not found"}), 404
+
+    user_id = session.get("user_id")
+    if not user_id or exp_session.user_id != user_id:
+        return jsonify({"error": "Forbidden"}), 403
+
+    if exp_session.ended_at is None:
+        now = datetime.now(timezone.utc)
+
+        started_at = exp_session.started_at
+        if started_at and started_at.tzinfo is None:
+            started_at = started_at.replace(tzinfo=timezone.utc)
+
+        exp_session.ended_at = now
+        exp_session.duration_seconds = int((now - started_at).total_seconds())
+        db.session.commit()
+
+    return jsonify({"status": "success"})
