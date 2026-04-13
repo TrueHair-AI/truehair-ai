@@ -494,7 +494,7 @@ def api_rate():
     try:
         gen_id = int(raw_gen_id)
         rating_val = int(raw_rating)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError):  # fmt: skip
         return jsonify({"error": "Invalid generated_image_id or rating"}), 400
 
     if rating_val < 1 or rating_val > 5:
