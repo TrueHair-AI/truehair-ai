@@ -35,6 +35,29 @@ body {
     color: var(--th-yellow) !important;
 }
 
+.th-star-rating .th-star-btn {
+    line-height: 1;
+    cursor: pointer;
+    color: inherit;
+}
+
+.th-star-rating .th-star-icon {
+    font-size: 1.5rem;
+    color: var(--th-border);
+    transition: color 0.15s ease, transform 0.12s ease;
+}
+
+.th-star-rating .th-star-btn:hover .th-star-icon,
+.th-star-rating .bi-star-fill.th-star-icon {
+    color: var(--th-yellow);
+}
+
+.th-star-rating .th-star-btn:focus-visible {
+    outline: 2px solid var(--th-yellow);
+    outline-offset: 2px;
+    border-radius: 4px;
+}
+
 .btn-primary {
     background-color: var(--th-yellow);
     border-color: var(--th-yellow);

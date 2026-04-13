@@ -36,6 +36,34 @@
                 {% endif %}
             </div>
 
+            {% if latest_gen %}
+            <div class="bg-card rounded-4 border border-secondary border-opacity-25 p-4 mt-1"
+                id="rating-widget"
+                data-rate-url="{{ url_for('main.api_rate') }}"
+                data-generated-image-id="{{ latest_gen.id }}"
+                data-initial-rating="{% if latest_gen.rating %}{{ latest_gen.rating.rating }}{% endif %}">
+                <div class="d-flex flex-wrap align-items-center gap-3 justify-content-between">
+                    <div>
+                        <h6 class="text-white fw-bold mb-1">How do you like this look?</h6>
+                        <p class="text-secondary small mb-0">Tap a star to rate (1–5)</p>
+                    </div>
+                    <div class="d-flex align-items-center gap-2 flex-wrap">
+                        <div class="th-star-rating d-flex align-items-center gap-1" role="group"
+                            aria-label="Rate from 1 to 5 stars">
+                            {% for i in range(1, 6) %}
+                            <button type="button" class="th-star-btn bg-transparent p-0 border-0"
+                                data-star-value="{{ i }}" aria-label="{{ i }} star{% if i != 1 %}s{% endif %}">
+                                <i class="bi bi-star th-star-icon" aria-hidden="true"></i>
+                            </button>
+                            {% endfor %}
+                        </div>
+                        <span id="rating-feedback" class="text-yellow small fw-semibold opacity-0"
+                            style="min-width: 4rem; transition: opacity 0.2s;">Rated!</span>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
             <!-- Action Buttons -->
             <div class="bg-card rounded-4 border border-secondary border-opacity-25 p-3 d-flex gap-3 mt-1">
                 <a href="{{ url_for('main.style_studio') }}"
@@ -115,4 +143,67 @@
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_scripts %}
+{% if latest_gen %}
+<script>
+(function () {
+    var root = document.getElementById('rating-widget');
+    if (!root) return;
+    var url = root.getAttribute('data-rate-url');
+    var genId = parseInt(root.getAttribute('data-generated-image-id'), 10);
+    var initial = root.getAttribute('data-initial-rating');
+    var current = initial ? parseInt(initial, 10) : 0;
+    var buttons = root.querySelectorAll('.th-star-btn');
+    var feedback = document.getElementById('rating-feedback');
+    var hideTimer;
+
+    function paintStars(value) {
+        buttons.forEach(function (btn, idx) {
+            var n = idx + 1;
+            var icon = btn.querySelector('.th-star-icon');
+            if (value >= n) {
+                icon.classList.remove('bi-star');
+                icon.classList.add('bi-star-fill');
+            } else {
+                icon.classList.remove('bi-star-fill');
+                icon.classList.add('bi-star');
+            }
+        });
+    }
+
+    function showFeedback() {
+        if (hideTimer) clearTimeout(hideTimer);
+        feedback.classList.remove('opacity-0');
+        hideTimer = setTimeout(function () {
+            feedback.classList.add('opacity-0');
+        }, 2200);
+    }
+
+    if (current >= 1 && current <= 5) paintStars(current);
+
+    buttons.forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            var v = parseInt(btn.getAttribute('data-star-value'), 10);
+            paintStars(v);
+            fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ generated_image_id: genId, rating: v })
+            }).then(function (res) {
+                if (res.ok) {
+                    current = v;
+                    showFeedback();
+                } else {
+                    paintStars(current);
+                }
+            }).catch(function () {
+                paintStars(current);
+            });
+        });
+    });
+})();
+</script>
+{% endif %}
 {% endblock %}
