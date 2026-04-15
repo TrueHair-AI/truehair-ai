@@ -13,6 +13,7 @@ auth_bp = Blueprint("auth", __name__)
 
 
 def log_visit(page_name):
+    """Log a user's visit to a specific page."""
     user_id = session.get("user_id")
     visit = Visit(page=page_name, user_id=user_id)
     db.session.add(visit)
@@ -21,6 +22,7 @@ def log_visit(page_name):
 
 @auth_bp.route("/")
 def login():
+    """Render the login page or redirect to the style studio if already logged in."""
     log_visit("Home")
     if "user_id" in session:
         return redirect(url_for("main.style_studio"))
@@ -29,6 +31,7 @@ def login():
 
 @auth_bp.route("/login/google")
 def google_login():
+    """Initiate Google OAuth2 login."""
     from app import oauth
 
     google = oauth.google
@@ -38,6 +41,7 @@ def google_login():
 
 @auth_bp.route("/auth/google")
 def auth_google():
+    """Handle the Google OAuth2 callback and authenticate or register the user."""
     from app import oauth
 
     google = oauth.google
@@ -81,6 +85,7 @@ def auth_google():
 
 @auth_bp.route("/logout")
 def logout():
+    """Log out the current user and clear the session."""
     session.pop("user_id", None)
     session.pop("experiment_group", None)
     return redirect(url_for("auth.login"))

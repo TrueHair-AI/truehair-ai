@@ -55,6 +55,8 @@ def get_genai_client():
 
 
 def login_required(f):
+    """Decorator to require login for accessing a route."""
+
     @wraps(f)
     def decorated_function(*args, **kwargs):
         if "user_id" not in session:
@@ -65,6 +67,8 @@ def login_required(f):
 
 
 def admin_required(f):
+    """Decorator to require admin privileges for accessing a route."""
+
     @wraps(f)
     def decorated_function(*args, **kwargs):
         if "user_id" not in session:
@@ -79,6 +83,7 @@ def admin_required(f):
 
 @main_bp.app_context_processor
 def inject_user():
+    """Inject the current user and their experiment group into the template context."""
     user = None
     if "user_id" in session:
         user = db.session.get(User, session["user_id"])
@@ -89,6 +94,7 @@ def inject_user():
 
 
 def log_visit(page_name):
+    """Log a user's visit to a specific page within the main blueprint."""
     user_id = session.get("user_id")
     visit = Visit(page=page_name, user_id=user_id)
     db.session.add(visit)
@@ -98,6 +104,7 @@ def log_visit(page_name):
 @main_bp.route("/style-studio")
 @login_required
 def style_studio():
+    """Render the style studio where users can select hairstyles."""
     log_visit("Style Studio")
     hairstyles = Hairstyle.query.all()
     categories = sorted(
@@ -159,6 +166,7 @@ def upload_confirm():
 @main_bp.route("/stylists")
 @login_required
 def stylists():
+    """Render the directory of stylists, optionally filtered by search query."""
     log_visit("Stylist Directory")
     query = request.args.get("q", "").strip()
 
@@ -179,6 +187,7 @@ def stylists():
 @main_bp.route("/dashboard")
 @admin_required
 def dashboard():
+    """Render the admin KPI dashboard with analytics metrics."""
     log_visit("KPI Dashboard")
 
     now = datetime.now()
@@ -434,6 +443,7 @@ def export_data():
 @main_bp.route("/result/<int:image_id>")
 @login_required
 def result(image_id=None):
+    """Render the result of an AI hairstyle generation."""
     log_visit("Results Page")
     if image_id:
         gen_img = (
@@ -465,6 +475,7 @@ def result(image_id=None):
 @main_bp.route("/gallery")
 @login_required
 def gallery():
+    """Render the user's gallery of past generated hairstyles."""
     log_visit("My Gallery")
     images = (
         GeneratedImage.query.options(joinedload(GeneratedImage.rating))
@@ -480,17 +491,20 @@ def gallery():
 
 @main_bp.route("/terms")
 def terms():
+    """Render the Terms of Service page."""
     return render_template("terms.html")
 
 
 @main_bp.route("/privacy")
 def privacy():
+    """Render the Privacy Policy page."""
     return render_template("privacy.html")
 
 
 @main_bp.route("/api/recommend", methods=["POST"])
 @login_required
 def recommend():
+    """Generate hairstyle recommendations for a user based on their image."""
     import json
 
     if session.get("experiment_group") != "experimental":
@@ -606,6 +620,7 @@ Respond with a JSON object in this exact format:
 @main_bp.route("/api/generate", methods=["POST"])
 @login_required
 def generate():
+    """Generate a new image with the selected hairstyle using Gemini."""
     data = request.json
     user_image_id = data.get("user_image_id")
     hairstyle_id = data.get("hairstyle_id")
@@ -733,6 +748,7 @@ def generate():
 
 @main_bp.route("/api/rate", methods=["POST"])
 def api_rate():
+    """Submit or update a rating for a generated image."""
     if "user_id" not in session:
         return jsonify({"error": "Authentication required"}), 401
     data = request.get_json(silent=True) or {}
@@ -792,6 +808,7 @@ def api_rate():
 @main_bp.route("/api/consent", methods=["POST"])
 @login_required
 def submit_consent():
+    """Record user consent for the experiment."""
     data = request.get_json(silent=True) or {}
     full_name = data.get("full_name", "").strip()
 
@@ -835,6 +852,7 @@ DEFAULT_SESSION_TIMEOUT_SECONDS = 300
 @main_bp.route("/api/session/start", methods=["POST"])
 @login_required
 def api_session_start():
+    """Start or resume an experiment session."""
     user_id = session["user_id"]
     user = db.session.get(User, user_id)
     experiment_group = user.experiment_group or "unknown"
@@ -896,6 +914,7 @@ def api_session_start():
 @main_bp.route("/api/session/ping", methods=["POST"])
 @login_required
 def api_session_ping():
+    """Ping an active experiment session to keep it alive."""
     data = request.get_json(silent=True) or {}
     session_id = data.get("session_id")
     if not session_id:
@@ -919,6 +938,7 @@ def api_session_ping():
 
 @main_bp.route("/api/session/end", methods=["POST"])
 def api_session_end():
+    """End an active experiment session."""
     data = request.get_json(silent=True) or {}
     session_id = data.get("session_id")
     if not session_id:
