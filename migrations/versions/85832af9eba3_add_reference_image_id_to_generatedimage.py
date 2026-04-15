@@ -23,12 +23,19 @@ def upgrade():
             sa.Column("reference_image_id", sa.Integer(), nullable=True)
         )
         batch_op.alter_column("hairstyle_id", existing_type=sa.INTEGER(), nullable=True)
-        batch_op.create_foreign_key("fk_generated_image_reference_image_id", "user_image", ["reference_image_id"], ["id"])
+        batch_op.create_foreign_key(
+            "fk_generated_image_reference_image_id",
+            "user_image",
+            ["reference_image_id"],
+            ["id"],
+        )
 
 
 def downgrade():
     with op.batch_alter_table("generated_image", schema=None) as batch_op:
-        batch_op.drop_constraint("fk_generated_image_reference_image_id", type_="foreignkey")
+        batch_op.drop_constraint(
+            "fk_generated_image_reference_image_id", type_="foreignkey"
+        )
         batch_op.alter_column(
             "hairstyle_id", existing_type=sa.INTEGER(), nullable=False
         )
