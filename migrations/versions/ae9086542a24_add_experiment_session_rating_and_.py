@@ -8,6 +8,7 @@ Create Date: 2026-04-13 12:07:11.892684
 
 from alembic import op
 import sqlalchemy as sa
+from sqlalchemy.engine.reflection import Inspector
 
 
 # revision identifiers, used by Alembic.
@@ -18,6 +19,36 @@ depends_on = None
 
 
 def upgrade():
+    bind = op.get_bind()
+    existing_tables = Inspector.from_engine(bind).get_table_names()
+
+    if "consent" not in existing_tables:
+        op.create_table(
+            "consent",
+            sa.Column("id", sa.Integer(), nullable=False),
+            sa.Column("user_id", sa.Integer(), nullable=False),
+            sa.Column("full_name", sa.String(length=255), nullable=False),
+            sa.Column("experiment_group", sa.String(length=20), nullable=False),
+            sa.Column("consented_at", sa.DateTime(timezone=True), nullable=True),
+            sa.ForeignKeyConstraint(["user_id"], ["user.id"]),
+            sa.PrimaryKeyConstraint("id"),
+            sa.UniqueConstraint("user_id"),
+        )
+
+    if "experiment_session" not in existing_tables:
+        op.create_table(
+            "experiment_session",
+            sa.Column("id", sa.Integer(), nullable=False),
+            sa.Column("user_id", sa.Integer(), nullable=False),
+            sa.Column("experiment_group", sa.String(length=20), nullable=False),
+            sa.Column("started_at", sa.DateTime(timezone=True), nullable=False),
+            sa.Column("last_ping_at", sa.DateTime(timezone=True), nullable=False),
+            sa.Column("ended_at", sa.DateTime(timezone=True), nullable=True),
+            sa.Column("duration_seconds", sa.Integer(), nullable=True),
+            sa.ForeignKeyConstraint(["user_id"], ["user.id"]),
+            sa.PrimaryKeyConstraint("id"),
+        )
+
     op.create_table(
         "rating",
         sa.Column("id", sa.Integer(), nullable=False),
@@ -41,3 +72,5 @@ def upgrade():
 
 def downgrade():
     op.drop_table("rating")
+    op.drop_table("experiment_session")
+    op.drop_table("consent")
