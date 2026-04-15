@@ -97,6 +97,7 @@ stylists_data = [
 
 
 def seed_database():
+    """Seed the database with a directory of initial stylists."""
     app = create_app()
     with app.app_context():
         db.create_all()

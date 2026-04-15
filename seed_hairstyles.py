@@ -135,6 +135,7 @@ HAIRSTYLES_DATA = [
 
 
 def seed_hairstyles():
+    """Seed the database with initial hairstyle catalog data."""
     app = create_app()
     with app.app_context():
         db.create_all()
