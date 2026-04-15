@@ -7,6 +7,7 @@ db = SQLAlchemy()
 
 class User(db.Model):
     """Represents a user of the TrueHair AI platform."""
+
     id = db.Column(db.Integer, primary_key=True)
     email = db.Column(db.String(120), unique=True, nullable=False)
     username = db.Column(db.String(120), unique=True, nullable=False)
@@ -25,6 +26,7 @@ class User(db.Model):
 
 class Visit(db.Model):
     """Records a page visit for analytics."""
+
     id = db.Column(db.Integer, primary_key=True)
     page = db.Column(db.String(200), nullable=False)
     user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=True)
@@ -40,6 +42,7 @@ class Visit(db.Model):
 
 class ExperimentSession(db.Model):
     """Tracks a user's session during an A/B test or experiment."""
+
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
     experiment_group = db.Column(db.String(20), nullable=False)
@@ -65,6 +68,7 @@ class ExperimentSession(db.Model):
 
 class Hairstyle(db.Model):
     """Defines a hairstyle option available in the catalog."""
+
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)
     description = db.Column(db.Text)
@@ -77,6 +81,7 @@ class Hairstyle(db.Model):
 
 class UserImage(db.Model):
     """Stores metadata for a source image uploaded by the user."""
+
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
     image_url = db.Column(db.String(255), nullable=False)
@@ -89,6 +94,7 @@ class UserImage(db.Model):
 
 class GeneratedImage(db.Model):
     """Stores the generated AI hairstyle image and its associations."""
+
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
     user_image_id = db.Column(
@@ -117,6 +123,7 @@ class GeneratedImage(db.Model):
 
 class Rating(db.Model):
     """Records user ratings for generated images."""
+
     __table_args__ = (
         db.CheckConstraint("rating >= 1 AND rating <= 5", name="ck_rating_range"),
     )
@@ -140,6 +147,7 @@ class Rating(db.Model):
 
 class Consent(db.Model):
     """Records user consent for participation in experiments."""
+
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(
         db.Integer, db.ForeignKey("user.id"), nullable=False, unique=True
@@ -155,6 +163,7 @@ class Consent(db.Model):
 
 class Recommendation(db.Model):
     """Stores AI-generated hairstyle recommendations for a user's image."""
+
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
     user_image_id = db.Column(
@@ -169,6 +178,7 @@ class Recommendation(db.Model):
 
 class Stylist(db.Model):
     """Represents a stylist in the directory."""
+
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)
     phone = db.Column(db.String(20))

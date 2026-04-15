@@ -56,6 +56,7 @@ def get_genai_client():
 
 def login_required(f):
     """Decorator to require login for accessing a route."""
+
     @wraps(f)
     def decorated_function(*args, **kwargs):
         if "user_id" not in session:
@@ -67,6 +68,7 @@ def login_required(f):
 
 def admin_required(f):
     """Decorator to require admin privileges for accessing a route."""
+
     @wraps(f)
     def decorated_function(*args, **kwargs):
         if "user_id" not in session:

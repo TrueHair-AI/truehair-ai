@@ -7,6 +7,7 @@ load_dotenv()
 
 class Config:
     """Base configuration class for the Flask application."""
+
     SECRET_KEY = os.environ.get("FLASK_SECRET_KEY", "super-secret-default-key")
     SQLALCHEMY_DATABASE_URI = (
         os.environ.get("DATABASE_URL") or "sqlite:///truehair.db"
