@@ -49,25 +49,26 @@ def upgrade():
             sa.PrimaryKeyConstraint("id"),
         )
 
-    op.create_table(
-        "rating",
-        sa.Column("id", sa.Integer(), nullable=False),
-        sa.Column("user_id", sa.Integer(), nullable=False),
-        sa.Column("generated_image_id", sa.Integer(), nullable=False),
-        sa.Column("rating", sa.Integer(), nullable=False),
-        sa.Column("created_at", sa.DateTime(timezone=True), nullable=True),
-        sa.CheckConstraint("rating >= 1 AND rating <= 5", name="ck_rating_range"),
-        sa.ForeignKeyConstraint(
-            ["generated_image_id"],
-            ["generated_image.id"],
-        ),
-        sa.ForeignKeyConstraint(
-            ["user_id"],
-            ["user.id"],
-        ),
-        sa.PrimaryKeyConstraint("id"),
-        sa.UniqueConstraint("generated_image_id"),
-    )
+    if "rating" not in existing_tables:
+        op.create_table(
+            "rating",
+            sa.Column("id", sa.Integer(), nullable=False),
+            sa.Column("user_id", sa.Integer(), nullable=False),
+            sa.Column("generated_image_id", sa.Integer(), nullable=False),
+            sa.Column("rating", sa.Integer(), nullable=False),
+            sa.Column("created_at", sa.DateTime(timezone=True), nullable=True),
+            sa.CheckConstraint("rating >= 1 AND rating <= 5", name="ck_rating_range"),
+            sa.ForeignKeyConstraint(
+                ["generated_image_id"],
+                ["generated_image.id"],
+            ),
+            sa.ForeignKeyConstraint(
+                ["user_id"],
+                ["user.id"],
+            ),
+            sa.PrimaryKeyConstraint("id"),
+            sa.UniqueConstraint("generated_image_id"),
+        )
 
 
 def downgrade():
