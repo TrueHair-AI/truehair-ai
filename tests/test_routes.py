@@ -63,6 +63,18 @@ def test_get_genai_client_returns_none_if_no_project(app):
     assert client is None
 
 
+def test_get_genai_client_returns_none_on_client_init_error(app):
+    """get_genai_client returns None when client initialization raises."""
+    with app.app_context():
+        app.config["GOOGLE_CLOUD_PROJECT"] = "test-project"
+        app.config["GOOGLE_CLOUD_LOCATION"] = "us-central1"
+
+        with patch("app.routes.main.genai.Client", side_effect=Exception("boom")):
+            client = get_genai_client()
+
+    assert client is None
+
+
 # ---------------------------------------------------------------------------
 # Index / consent gating
 # ---------------------------------------------------------------------------
