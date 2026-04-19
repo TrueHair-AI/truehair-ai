@@ -58,7 +58,11 @@ def get_genai_client():
         current_app.logger.error("GOOGLE_CLOUD_PROJECT is not set")
         return None
 
-    return genai.Client(vertexai=True, project=project, location=location)
+    try:
+        return genai.Client(vertexai=True, project=project, location=location)
+    except Exception as e:
+        current_app.logger.error(f"Failed to initialize Vertex AI client: {e}")
+        return None
 
 
 @main_bp.app_context_processor
