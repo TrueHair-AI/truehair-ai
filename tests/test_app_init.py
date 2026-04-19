@@ -53,8 +53,16 @@ def test_setup_gcp_credentials_creates_file_and_registers_cleanup(monkeypatch):
 
 def test_setup_gcp_credentials_reuses_existing_temp_file(monkeypatch, tmp_path):
     existing_path = tmp_path / "existing-test-creds.json"
+    existing_path.write_text('{"type": "service_account"}', encoding="utf-8")
     app_module._creds_path = str(existing_path)
-    monkeypatch.setenv("GOOGLE_APPLICATION_CREDENTIALS_JSON", "ignored-when-reusing")
+    payload = {
+        "type": "service_account",
+        "project_id": "test-project",
+        "private_key_id": "abc123",
+    }
+    monkeypatch.setenv(
+        "GOOGLE_APPLICATION_CREDENTIALS_JSON", _encode_credentials(payload)
+    )
 
     mkstemp_called = {"called": False}
 
@@ -70,6 +78,28 @@ def test_setup_gcp_credentials_reuses_existing_temp_file(monkeypatch, tmp_path):
 
     assert os.environ["GOOGLE_APPLICATION_CREDENTIALS"] == str(existing_path)
     assert mkstemp_called["called"] is False
+
+
+def test_setup_gcp_credentials_recreates_when_cached_path_is_missing(
+    monkeypatch, tmp_path
+):
+    missing_path = tmp_path / "missing-test-creds.json"
+    app_module._creds_path = str(missing_path)
+    payload = {
+        "type": "service_account",
+        "project_id": "test-project",
+        "private_key_id": "abc123",
+    }
+    monkeypatch.setenv(
+        "GOOGLE_APPLICATION_CREDENTIALS_JSON", _encode_credentials(payload)
+    )
+
+    app_module._setup_gcp_credentials()
+
+    new_path = os.environ["GOOGLE_APPLICATION_CREDENTIALS"]
+    assert new_path != str(missing_path)
+    assert os.path.exists(new_path)
+    assert app_module._creds_path == new_path
 
 
 def test_setup_gcp_credentials_raises_on_invalid_payload(monkeypatch):

@@ -22,7 +22,7 @@ def _setup_gcp_credentials():
         return
 
     global _creds_path
-    if _creds_path:
+    if _creds_path and os.path.exists(_creds_path):
         os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = _creds_path
         return
 

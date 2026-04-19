@@ -50,7 +50,11 @@ def _day_of_week(date_column):
 
 
 def get_genai_client():
-    """Return a google.genai Client configured for Vertex AI (IRB-compliant, ZDR)."""
+    """Return a google.genai Client configured for Vertex AI.
+
+    Required by IRB Section 4.1 to ensure Zero Data Retention (ZDR).
+    Do not replace with Gemini Developer API.
+    """
     project = current_app.config.get("GOOGLE_CLOUD_PROJECT")
     location = current_app.config.get("GOOGLE_CLOUD_LOCATION", "us-central1")
 
@@ -602,7 +606,7 @@ Respond with a JSON object in this exact format:
 }}"""
 
         response = client.models.generate_content(
-            model="gemini-2.5-flash",
+            model="gemini-3-flash",
             contents=[prompt_text, user_photo],
             config=types.GenerateContentConfig(
                 response_mime_type="application/json",
