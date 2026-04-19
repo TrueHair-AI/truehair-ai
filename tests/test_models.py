@@ -1,6 +1,7 @@
 """Tests for app models (repr and basic usage for coverage)."""
 
 from app.models import (
+    ExperimentSession,
     GeneratedImage,
     Rating,
     Visit,
@@ -8,13 +9,9 @@ from app.models import (
 )
 
 
-def test_user_repr(app, user):
-    assert "testuser" in repr(user)
-
-
-def test_visit_repr(app, user):
+def test_visit_repr(app, session_id):
     with app.app_context():
-        v = Visit(page="Home", user_id=user.id)
+        v = Visit(page="Home", session_id=session_id)
         db.session.add(v)
         db.session.commit()
         assert "Home" in repr(v)
@@ -29,36 +26,30 @@ def test_stylist_repr(app, stylist):
     assert "Jane Stylist" in repr(stylist)
 
 
-def test_user_image_relationship(app, user, user_image):
-    """User.images backref includes user_image."""
-    with app.app_context():
-        from app.models import User, db
-
-        u = db.session.get(User, user.id)
-        assert u is not None
-        assert user_image.user_id == u.id
-        assert any(img.id == user_image.id for img in u.images)
+def test_user_image_created(app, session_id, user_image):
+    """UserImage is persisted with the consenting session id."""
+    assert user_image.session_id == session_id
 
 
-def test_generated_image_relationships(app, user, user_image, hairstyle):
+def test_generated_image_relationships(app, session_id, user_image, hairstyle):
     with app.app_context():
         gen = GeneratedImage(
-            user_id=user.id,
+            session_id=session_id,
             user_image_id=user_image.id,
             hairstyle_id=hairstyle.id,
             image_url="uploads/gen.webp",
         )
         db.session.add(gen)
         db.session.commit()
-        assert gen.user_id == user.id
+        assert gen.session_id == session_id
         assert gen.hairstyle_id == hairstyle.id
 
 
-def test_generated_image_rating_relationship(app, user, user_image, hairstyle):
+def test_generated_image_rating_relationship(app, session_id, user_image, hairstyle):
     """Rating is reachable as generated_image.rating (single object)."""
     with app.app_context():
         gen = GeneratedImage(
-            user_id=user.id,
+            session_id=session_id,
             user_image_id=user_image.id,
             hairstyle_id=hairstyle.id,
             image_url="uploads/gen_rated.webp",
@@ -66,7 +57,7 @@ def test_generated_image_rating_relationship(app, user, user_image, hairstyle):
         db.session.add(gen)
         db.session.commit()
         r = Rating(
-            user_id=user.id,
+            session_id=session_id,
             generated_image_id=gen.id,
             rating=4,
         )
@@ -77,19 +68,9 @@ def test_generated_image_rating_relationship(app, user, user_image, hairstyle):
         assert gen.rating.rating == 4
 
 
-def test_experiment_session_relationships(app, user):
-    """ExperimentSession is reachable via user.experiment_sessions."""
-    from app.models import ExperimentSession, User
-
+def test_experiment_session_lookup_by_session_id(app, session_id):
+    """ExperimentSession is queryable by session_id (the primary identity key)."""
     with app.app_context():
-        # Re-fetch user in the current session
-        u = db.session.get(User, user.id)
-        sess = ExperimentSession(
-            user_id=u.id,
-            experiment_group="treatment",
-        )
-        db.session.add(sess)
-        db.session.commit()
-        db.session.refresh(u)
-        assert len(u.experiment_sessions) == 1
-        assert u.experiment_sessions[0].experiment_group == "treatment"
+        rows = ExperimentSession.query.filter_by(session_id=session_id).all()
+        assert len(rows) == 1
+        assert rows[0].experiment_group == "control"

@@ -1,0 +1,34 @@
+{% extends 'base.html' %}
+{% block title %}Informed Consent — TrueHair AI Study{% endblock %}
+{% block main_class %}py-5{% endblock %}
+
+{% block navbar %}
+<nav class="navbar py-3 px-4 w-100">
+  <a class="navbar-brand d-flex align-items-center gap-2" href="{{ url_for('main.consent_page') }}">
+    <img src="{{ url_for('static', filename='images/truehair-logo.png') }}" alt="TrueHair Logo" height="32">
+    <span class="text-white fw-bold">TrueHair AI</span>
+  </a>
+</nav>
+{% endblock %}
+
+{% block content %}
+<div class="container" style="max-width: 800px;">
+  <div class="bg-card rounded-4 border border-secondary border-opacity-25 p-4 p-md-5">
+    <div class="text-center mb-4">
+      <h1 class="fw-bold mt-3 mb-1">Informed Consent Disclosure</h1>
+      <p class="text-secondary mb-0">TrueHair AI Hairstyle Visualization Study</p>
+    </div>
+
+    <p class="text-secondary">
+      Placeholder consent page. The full IRB-approved disclosure text will be rendered here
+      as part of issue #4 (dedicated consent route). By proceeding, you agree to participate.
+    </p>
+
+    <form method="POST" action="{{ url_for('main.submit_consent') }}" class="mt-4 pt-4 border-top border-secondary border-opacity-25">
+      <button type="submit" class="btn btn-primary fw-bold w-100 py-3 rounded-3">
+        I Agree — Begin Study
+      </button>
+    </form>
+  </div>
+</div>
+{% endblock %}

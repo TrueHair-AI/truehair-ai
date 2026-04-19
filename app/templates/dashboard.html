@@ -42,23 +42,6 @@
                 <i class="bi bi-grid-3x3-gap-fill text-white fs-4"></i>
                 <h3 class="fw-bold mb-0 text-white">KPI Dashboard</h3>
             </div>
-            {% if current_user %}
-            <div class="d-flex align-items-center gap-4 ps-4 ms-2">
-                <div class="nav-separator"></div>
-                <div class="d-flex align-items-center gap-3">
-                    <div class="text-end">
-                        <div class="text-white fw-bold text-sm">{{ current_user.first_name }} {{
-                            current_user.last_name }}</div>
-                        <div class="text-secondary" style="font-size: 0.7rem; font-weight: 600;">SUPER ADMIN</div>
-                    </div>
-                    <img src="{% if current_user.profile_picture %}{{ current_user.profile_picture }}{% else %}https://placehold.co/40x40/f8cd24/000000?text={{ current_user.first_name[0] }}{{ current_user.last_name[0] }}{% endif %}"
-                        class="rounded-circle" alt="Profile" width="40" height="40">
-                </div>
-                <a href="{{ url_for('auth.logout') }}" class="logout-btn fs-4" title="Logout">
-                    <i class="bi bi-box-arrow-right"></i>
-                </a>
-            </div>
-            {% endif %}
         </div>
 
         <!-- Dashboard Content -->
