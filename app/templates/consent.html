@@ -12,23 +12,376 @@
 {% endblock %}
 
 {% block content %}
-<div class="container" style="max-width: 800px;">
+<div class="container" style="max-width: 820px;">
   <div class="bg-card rounded-4 border border-secondary border-opacity-25 p-4 p-md-5">
+
     <div class="text-center mb-4">
-      <h1 class="fw-bold mt-3 mb-1">Informed Consent Disclosure</h1>
+      <div class="consent-hero-icon mb-3">
+        <i class="bi bi-shield-check"></i>
+      </div>
+      <h1 class="fw-extrabold mb-2" style="font-size: 2rem;">Informed Consent Disclosure</h1>
       <p class="text-secondary mb-0">TrueHair AI Hairstyle Visualization Study</p>
+      <p class="text-secondary small mb-0"><em>Colby College — Department of Computer Science — CS422</em></p>
     </div>
 
-    <p class="text-secondary">
-      Placeholder consent page. The full IRB-approved disclosure text will be rendered here
-      as part of issue #4 (dedicated consent route). By proceeding, you agree to participate.
-    </p>
+    <div class="consent-important-banner mb-4">
+      <i class="bi bi-info-circle-fill"></i>
+      <div>
+        <div class="fw-bold mb-1">Please read carefully before participating</div>
+        <div class="text-secondary small mb-0">
+          This is an IRB-approved research study. Your participation is entirely voluntary.
+        </div>
+      </div>
+    </div>
 
-    <form method="POST" action="{{ url_for('main.submit_consent') }}" class="mt-4 pt-4 border-top border-secondary border-opacity-25">
-      <button type="submit" class="btn btn-primary fw-bold w-100 py-3 rounded-3">
-        I Agree — Begin Study
-      </button>
-    </form>
+    <section id="section-1" class="consent-section">
+      <div class="consent-section-heading">
+        <span class="consent-section-number">1</span>
+        <h2 class="consent-section-title">Purpose of This Research</h2>
+      </div>
+      <p>
+        You are being invited to participate in a research study conducted by
+        students in CS422 at Colby College, under the supervision of Prof. Naser
+        Al Madi. The purpose of this study is to investigate whether AI-powered
+        personalized hairstyle recommendations improve user engagement and
+        perceived output quality on the TrueHair AI platform compared to a
+        standard hairstyle catalog.
+      </p>
+      <p class="mb-0">
+        Participation is entirely voluntary. Please read this disclosure
+        carefully before deciding whether to participate.
+      </p>
+    </section>
+
+    <section id="section-2" class="consent-section">
+      <div class="consent-section-heading">
+        <span class="consent-section-number">2</span>
+        <h2 class="consent-section-title">Research Team</h2>
+      </div>
+      <div class="table-responsive mb-3">
+        <table class="consent-team-table">
+          <thead>
+            <tr>
+              <th scope="col">Name</th>
+              <th scope="col">Role</th>
+              <th scope="col">Email</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Simon Lartey</td>
+              <td>Student Researcher</td>
+              <td><a href="mailto:slarte27@colby.edu">slarte27@colby.edu</a></td>
+            </tr>
+            <tr>
+              <td>Rose Agyapong</td>
+              <td>Student Researcher</td>
+              <td><a href="mailto:rfagya27@colby.edu">rfagya27@colby.edu</a></td>
+            </tr>
+            <tr>
+              <td>Samuel Offei</td>
+              <td>Student Researcher</td>
+              <td><a href="mailto:shoffe26@colby.edu">shoffe26@colby.edu</a></td>
+            </tr>
+            <tr>
+              <td>Francis O'Hara Aidoo</td>
+              <td>Student Researcher</td>
+              <td><a href="mailto:fohara27@colby.edu">fohara27@colby.edu</a></td>
+            </tr>
+            <tr>
+              <td>Prof. Naser Al Madi</td>
+              <td>Faculty Supervisor</td>
+              <td><a href="mailto:nsalmadi@colby.edu">nsalmadi@colby.edu</a></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="mb-0">
+        Questions? You may contact the research team at any time at the emails
+        above, or reach the Colby IRB at
+        <a href="mailto:institutionalreviewboard@colby.edu">institutionalreviewboard@colby.edu</a>.
+      </p>
+    </section>
+
+    <section id="section-3" class="consent-section">
+      <div class="consent-section-heading">
+        <span class="consent-section-number">3</span>
+        <h2 class="consent-section-title">What You Will Be Asked To Do</h2>
+      </div>
+      <p>If you agree to participate, you will:</p>
+      <ul>
+        <li>
+          Access the TrueHair AI web application at
+          <a href="https://truehair-ai-c77120f7a186.herokuapp.com/">https://truehair-ai-c77120f7a186.herokuapp.com/</a>.
+        </li>
+        <li>
+          Be randomly assigned to one of two study conditions:
+          <ul>
+            <li>a <strong>control group</strong> that browses a catalog of predefined hairstyles, or</li>
+            <li>an <strong>experimental group</strong> that receives AI-powered personalized hairstyle recommendations highlighted within the same full catalog, with AI-generated reasoning for each recommendation.</li>
+          </ul>
+        </li>
+        <li>Upload a front-facing portrait photograph of yourself for hairstyle visualization.</li>
+        <li>Generate one or more hairstyle visualizations using the interface available to your assigned group.</li>
+        <li>Rate each AI-generated visualization on a 1-5 star scale.</li>
+        <li>Complete the session at your own pace. Expected duration is approximately 10-15 minutes.</li>
+      </ul>
+      <p class="mb-0">
+        The platform will automatically record your session duration, the number
+        of visualizations you generate, the hairstyles you select, your star
+        ratings, and (for the experimental group) whether each hairstyle you
+        selected was AI-recommended. You will not be asked to complete any
+        additional surveys or interviews.
+      </p>
+    </section>
+
+    <section id="section-4" class="consent-section">
+      <div class="consent-section-heading">
+        <span class="consent-section-number">4</span>
+        <h2 class="consent-section-title">Information We Will and Will Not Collect</h2>
+      </div>
+      <p>
+        This is a fully anonymous research study. The research team will not
+        collect any personally identifiable information about you.
+      </p>
+
+      <div class="row g-3 mb-3">
+        <div class="col-md-6">
+          <div class="consent-callout consent-callout-danger h-100">
+            <div class="consent-callout-heading">
+              <i class="bi bi-x-circle-fill"></i>
+              Specifically, we will NOT collect
+            </div>
+            <ul>
+              <li>Your name</li>
+              <li>Your email address</li>
+              <li>Any account or login information</li>
+              <li>Your IP address (stripped from server logs)</li>
+              <li>Any persistent record of your photograph or generated visualizations</li>
+            </ul>
+          </div>
+        </div>
+        <div class="col-md-6">
+          <div class="consent-callout consent-callout-success h-100">
+            <div class="consent-callout-heading">
+              <i class="bi bi-check-circle-fill"></i>
+              We WILL record
+            </div>
+            <ul>
+              <li>An anonymous session identifier (a random code with no link to your identity)</li>
+              <li>Which experimental condition you were assigned to</li>
+              <li>Which hairstyles you visualized (catalog identifiers only), and whether each was AI-recommended (experimental group only)</li>
+              <li>Your 1-5 star ratings of each visualization</li>
+              <li>How long you spent on the platform</li>
+              <li>How many visualizations you generated</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <p class="mb-0">
+        Your photograph is required to generate the hairstyle visualization, but
+        it is processed in server memory only and is never saved to any
+        database, cloud storage, or log file. Once your visualization is
+        generated, your photograph and the generated image are immediately
+        discarded from the server.
+      </p>
+    </section>
+
+    <section id="section-5" class="consent-section">
+      <div class="consent-section-heading">
+        <span class="consent-section-number">5</span>
+        <h2 class="consent-section-title">Use of AI Technology and Third-Party Processing</h2>
+      </div>
+      <p>
+        This study uses Google's Gemini models via the Vertex AI API to
+        generate hairstyle visualizations and personalized recommendations from
+        your uploaded photograph. By participating, you acknowledge that your
+        photograph will be transmitted to Google's API servers for processing.
+        The following protections apply:
+      </p>
+      <ul>
+        <li>Google's paid-tier terms of service prohibit using API request data to train Google's AI models.</li>
+        <li>
+          Google retains API request data for up to 90 days for abuse monitoring
+          before automatic deletion (see Google Cloud's abuse monitoring
+          policy:
+          <a href="https://cloud.google.com/vertex-ai/generative-ai/docs/learn/abuse-monitoring">https://cloud.google.com/vertex-ai/generative-ai/docs/learn/abuse-monitoring</a>).
+          The research team has taken steps to achieve Zero Data Retention (ZDR)
+          as documented in Google Cloud's data governance policy
+          (<a href="https://cloud.google.com/vertex-ai/generative-ai/docs/data-governance">https://cloud.google.com/vertex-ai/generative-ai/docs/data-governance</a>):
+          <blockquote class="disclosure-blockquote mt-2 mb-2">
+            data caching has been disabled so your photo is not stored beyond the
+            immediate request, and an exception from prompt logging for abuse
+            monitoring has been applied for, which upon approval will ensure your
+            photo is not logged at all.
+          </blockquote>
+        </li>
+        <li>The API call carries no information about you (no name, no email, no account identifier). Google has no means of associating the photograph with you as an individual.</li>
+      </ul>
+      <p class="mb-0">
+        If you have concerns about Google's handling of API data, you can
+        review Google Cloud's data governance policy at
+        <a href="https://cloud.google.com/vertex-ai/generative-ai/docs/data-governance">https://cloud.google.com/vertex-ai/generative-ai/docs/data-governance</a>.
+      </p>
+    </section>
+
+    <section id="section-6" class="consent-section">
+      <div class="consent-section-heading">
+        <span class="consent-section-number">6</span>
+        <h2 class="consent-section-title">Potential Risks</h2>
+      </div>
+      <p>The risks associated with this study are minimal:</p>
+      <ul class="mb-0">
+        <li>Minor emotional discomfort related to self-image when viewing AI-generated visualizations of yourself with different hairstyles.</li>
+        <li>Minimal privacy considerations associated with briefly transmitting your photograph to Google's Vertex AI API. Mitigations are described in Section 5 above.</li>
+        <li>Please upload only photographs of yourself, or photographs of others for which you have explicit permission from the person depicted. Do not upload images of others without their consent.</li>
+      </ul>
+    </section>
+
+    <section id="section-7" class="consent-section">
+      <div class="consent-section-heading">
+        <span class="consent-section-number">7</span>
+        <h2 class="consent-section-title">Potential Benefits</h2>
+      </div>
+      <p class="mb-0">
+        You may personally benefit from exploring hairstyle options through the
+        platform. More broadly, this study contributes to research on AI
+        personalization and the design of human-centered AI systems. There is no
+        direct financial compensation for participation.
+      </p>
+    </section>
+
+    <section id="section-8" class="consent-section">
+      <div class="consent-section-heading">
+        <span class="consent-section-number">8</span>
+        <h2 class="consent-section-title">Voluntary Participation and Right to Withdraw</h2>
+      </div>
+      <p>
+        Your participation in this study is completely voluntary. You may
+        withdraw at any time during your session by simply closing the browser
+        window. No penalty or consequence will result from withdrawing.
+      </p>
+      <p class="mb-0">
+        Important: Because this study is fully anonymous and we collect no
+        information that could identify you, we cannot identify your specific
+        data within our records after your session ends. As a result, we are
+        unable to honor requests to delete data after the fact, because we have
+        no way to determine which records belong to you. If you do not wish your
+        data to be included in the study, please withdraw before completing the
+        session by closing the browser.
+      </p>
+    </section>
+
+    <section id="section-9" class="consent-section">
+      <div class="consent-section-heading">
+        <span class="consent-section-number">9</span>
+        <h2 class="consent-section-title">Confidentiality</h2>
+      </div>
+      <p class="mb-0">
+        Confidentiality is preserved by design: the research team has no
+        technical means to identify any participant. No identifying information
+        will appear in any published reports, presentations, or academic work,
+        because no identifying information has ever been collected. All
+        published findings will use anonymous, aggregate data only.
+      </p>
+    </section>
+
+    <section id="section-10" class="consent-section">
+      <div class="consent-section-heading">
+        <span class="consent-section-number">10</span>
+        <h2 class="consent-section-title">Eligibility</h2>
+      </div>
+      <p class="mb-0">
+        You are eligible to participate if you are 18 years of age or older.
+        This study does not restrict participation based on gender, race,
+        ethnicity, or any other demographic characteristic.
+      </p>
+    </section>
+
+    <section id="section-11" class="consent-section">
+      <div class="consent-section-heading">
+        <span class="consent-section-number">11</span>
+        <h2 class="consent-section-title">Agreement</h2>
+      </div>
+      <p>By clicking the "I agree" button on the platform, you confirm that:</p>
+      <ul>
+        <li>You have read and understood the information in this consent disclosure.</li>
+        <li>You are 18 years of age or older.</li>
+        <li>You voluntarily agree to participate in this research study.</li>
+        <li>You understand that your participation is voluntary and that you may withdraw at any time during the session by closing the browser.</li>
+        <li>You understand that because the study is anonymous, your data cannot be identified or removed after your session ends.</li>
+        <li>You have had the opportunity to ask questions before agreeing.</li>
+      </ul>
+      <p class="mb-0">
+        No name, signature, or email address is required to indicate your
+        agreement. Clicking "I agree" constitutes your consent.
+      </p>
+    </section>
+
+    <div id="consent-bottom-sentinel" aria-hidden="true"></div>
+
+    <div class="consent-agreement-box">
+      <form method="POST" action="{{ url_for('main.submit_consent') }}">
+        <button id="consent-agree-btn" type="submit" disabled aria-disabled="true"
+                class="btn btn-primary fw-bold w-100 py-3 rounded-3 d-flex align-items-center justify-content-center gap-2">
+          <i class="bi bi-check2-circle"></i>
+          <span class="consent-btn-label">I Agree — Begin Study</span>
+        </button>
+        <p id="consent-scroll-hint" class="text-secondary small text-center mt-3 mb-0">
+          <i class="bi bi-arrow-down-circle me-1"></i>
+          Please scroll to the end of the disclosure to enable this button.
+        </p>
+        <p id="consent-ready-hint" class="text-secondary small text-center mt-3 mb-0 d-none">
+          By clicking "I Agree," you confirm you have read the information above,
+          are 18 or older, and voluntarily consent to participate.
+        </p>
+      </form>
+    </div>
+
+    <div class="consent-footer-meta">
+      <p class="mb-1">
+        Colby College Institutional Review Board |
+        <a href="mailto:institutionalreviewboard@colby.edu">institutionalreviewboard@colby.edu</a>
+      </p>
+      <p class="mb-0">TrueHair AI Research Study — CS422 — Colby College — Spring 2026</p>
+    </div>
+
   </div>
 </div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+  (function () {
+    var btn = document.getElementById('consent-agree-btn');
+    var sentinel = document.getElementById('consent-bottom-sentinel');
+    var scrollHint = document.getElementById('consent-scroll-hint');
+    var readyHint = document.getElementById('consent-ready-hint');
+
+    if (!btn || !sentinel) return;
+
+    function unlock() {
+      btn.disabled = false;
+      btn.setAttribute('aria-disabled', 'false');
+      if (scrollHint) scrollHint.classList.add('d-none');
+      if (readyHint) readyHint.classList.remove('d-none');
+    }
+
+    if ('IntersectionObserver' in window) {
+      var observer = new IntersectionObserver(function (entries) {
+        entries.forEach(function (entry) {
+          if (entry.isIntersecting) {
+            unlock();
+            observer.disconnect();
+          }
+        });
+      }, { rootMargin: '0px 0px -10% 0px', threshold: 0 });
+      observer.observe(sentinel);
+    } else {
+      // Fallback: no IntersectionObserver — enable immediately
+      unlock();
+    }
+  })();
+</script>
 {% endblock %}
