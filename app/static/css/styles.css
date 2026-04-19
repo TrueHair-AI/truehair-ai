@@ -243,7 +243,8 @@ a.logout-btn:hover, a.logout-btn:focus, a.logout-btn:active {
 .consent-section a {
     color: var(--th-yellow);
     text-decoration: none;
-    word-break: break-word;
+    overflow-wrap: anywhere;
+    word-break: normal;
 }
 
 .consent-section a:hover {
