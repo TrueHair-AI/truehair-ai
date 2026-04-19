@@ -1,4 +1,5 @@
 import os
+from datetime import timedelta
 
 from dotenv import load_dotenv
 
@@ -14,9 +15,13 @@ class Config:
     ).replace("postgres://", "postgresql://", 1)
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     AUTO_CREATE_SCHEMA = True
-    GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID")
-    GOOGLE_CLIENT_SECRET = os.environ.get("GOOGLE_CLIENT_SECRET")
-    SERVER_METADATA_URL = "https://accounts.google.com/.well-known/openid-configuration"
+
+    # Anonymous session cookie (IRB-compliant identity; see app/services/session_identity.py)
+    PERMANENT_SESSION_LIFETIME = timedelta(hours=2)
+    SESSION_COOKIE_SECURE = True
+    SESSION_COOKIE_HTTPONLY = True
+    SESSION_COOKIE_SAMESITE = "Lax"
+
     GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 
     R2_ACCOUNT_ID = os.environ.get("R2_ACCOUNT_ID")

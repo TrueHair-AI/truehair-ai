@@ -3,7 +3,6 @@ name = "truehair-mvp-2"
 version = "0.1.0"
 requires-python = ">=3.14"
 dependencies = [
-    "authlib>=1.6.9",
     "flask>=3.1.3",
     "flask-migrate>=4.1.0",
     "flask-sqlalchemy>=3.1.1",

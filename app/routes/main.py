@@ -1,7 +1,7 @@
 import csv
 import io
+import random
 from datetime import datetime, timedelta, timezone
-from functools import wraps
 
 from flask import (
     Blueprint,
@@ -11,7 +11,6 @@ from flask import (
     redirect,
     render_template,
     request,
-    session,
     url_for,
 )
 from google import genai
@@ -29,12 +28,16 @@ from app.models import (
     Rating,
     Recommendation,
     Stylist,
-    User,
     UserImage,
     Visit,
     db,
 )
 from app.services import r2 as r2_service
+from app.services.session_identity import (
+    consent_required,
+    get_session_id,
+    new_session_id,
+)
 
 main_bp = Blueprint("main", __name__)
 
@@ -54,55 +57,82 @@ def get_genai_client():
     return genai.Client(api_key=api_key)
 
 
-def login_required(f):
-    """Decorator to require login for accessing a route."""
-
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        if "user_id" not in session:
-            return redirect(url_for("auth.login", next=request.url))
-        return f(*args, **kwargs)
-
-    return decorated_function
-
-
-def admin_required(f):
-    """Decorator to require admin privileges for accessing a route."""
-
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        if "user_id" not in session:
-            return redirect(url_for("auth.login", next=request.url))
-        user = db.session.get(User, session["user_id"])
-        if not user or not user.is_admin:
-            abort(403)
-        return f(*args, **kwargs)
-
-    return decorated_function
-
-
 @main_bp.app_context_processor
-def inject_user():
-    """Inject the current user and their experiment group into the template context."""
-    user = None
-    if "user_id" in session:
-        user = db.session.get(User, session["user_id"])
-    return {
-        "current_user": user,
-        "experiment_group": session.get("experiment_group"),
-    }
+def inject_experiment_group():
+    sid = get_session_id()
+    experiment_group = None
+    if sid:
+        exp = (
+            ExperimentSession.query.filter_by(session_id=sid)
+            .order_by(ExperimentSession.started_at.desc())
+            .first()
+        )
+        if exp:
+            experiment_group = exp.experiment_group
+    return {"experiment_group": experiment_group}
 
 
 def log_visit(page_name):
-    """Log a user's visit to a specific page within the main blueprint."""
-    user_id = session.get("user_id")
-    visit = Visit(page=page_name, user_id=user_id)
+    visit = Visit(page=page_name, session_id=get_session_id())
     db.session.add(visit)
     db.session.commit()
 
 
+@main_bp.route("/")
+def index():
+    log_visit("Home")
+    sid = get_session_id()
+    if sid and Consent.query.filter_by(session_id=sid).first():
+        return redirect(url_for("main.style_studio"))
+    return redirect(url_for("main.consent_page"))
+
+
+# ---------------------------------------------------------------------------
+# Consent (minimal PR1 stub — issue #4 replaces this with IRB-verbatim content)
+# ---------------------------------------------------------------------------
+
+
+@main_bp.route("/consent", methods=["GET"])
+def consent_page():
+    sid = get_session_id()
+    if sid and Consent.query.filter_by(session_id=sid).first():
+        return redirect(url_for("main.style_studio"))
+    return render_template("consent.html")
+
+
+@main_bp.route("/consent", methods=["POST"])
+def submit_consent():
+    sid = get_session_id() or new_session_id()
+
+    existing = Consent.query.filter_by(session_id=sid).first()
+    if existing:
+        return redirect(url_for("main.style_studio"))
+
+    group = random.choice(["control", "experimental"])
+
+    consent = Consent(session_id=sid, full_name="", experiment_group=group)
+    exp_session = ExperimentSession(
+        session_id=sid,
+        experiment_group=group,
+        started_at=datetime.now(timezone.utc),
+        last_ping_at=datetime.now(timezone.utc),
+    )
+    db.session.add_all([consent, exp_session])
+    try:
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+
+    return redirect(url_for("main.style_studio"))
+
+
+# ---------------------------------------------------------------------------
+# Study routes
+# ---------------------------------------------------------------------------
+
+
 @main_bp.route("/style-studio")
-@login_required
+@consent_required
 def style_studio():
     """Render the style studio where users can select hairstyles."""
     log_visit("Style Studio")
@@ -121,7 +151,7 @@ def style_studio():
 
 
 @main_bp.route("/api/upload/presign", methods=["POST"])
-@login_required
+@consent_required
 def upload_presign():
     """Return a presigned PUT URL so the client can upload directly to R2."""
     data = request.get_json(silent=True) or {}
@@ -138,7 +168,7 @@ def upload_presign():
 
 
 @main_bp.route("/api/upload/confirm", methods=["POST"])
-@login_required
+@consent_required
 def upload_confirm():
     """Confirm a client-side R2 upload and create the DB record."""
     data = request.get_json(silent=True) or {}
@@ -148,7 +178,7 @@ def upload_confirm():
         return jsonify({"error": "Invalid upload_key"}), 400
 
     user_image = UserImage(
-        user_id=session["user_id"],
+        session_id=get_session_id(),
         image_url=upload_key,
     )
     db.session.add(user_image)
@@ -164,7 +194,7 @@ def upload_confirm():
 
 
 @main_bp.route("/stylists")
-@login_required
+@consent_required
 def stylists():
     """Render the directory of stylists, optionally filtered by search query."""
     log_visit("Stylist Directory")
@@ -184,8 +214,13 @@ def stylists():
     return render_template("stylists.html", stylists=stylists_list, search_query=query)
 
 
+# ---------------------------------------------------------------------------
+# Admin dashboard / export — ungated pending issue #16 (decision: drop or gate).
+# Queries rewritten to use ExperimentSession/session_id instead of the removed User model.
+# ---------------------------------------------------------------------------
+
+
 @main_bp.route("/dashboard")
-@admin_required
 def dashboard():
     """Render the admin KPI dashboard with analytics metrics."""
     log_visit("KPI Dashboard")
@@ -211,62 +246,67 @@ def dashboard():
     elif visits_today > 0:
         visit_change = 100
 
-    new_users = User.query.filter(User.created_at >= week_ago).count()
-    new_users_last_week = User.query.filter(
-        User.created_at >= two_weeks_ago, User.created_at < week_ago
+    # Each consented participant gets one ExperimentSession row at consent time,
+    # so started_at is our "participant joined at" signal.
+    new_participants = ExperimentSession.query.filter(
+        ExperimentSession.started_at >= week_ago
+    ).count()
+    new_participants_last_week = ExperimentSession.query.filter(
+        ExperimentSession.started_at >= two_weeks_ago,
+        ExperimentSession.started_at < week_ago,
     ).count()
 
     user_change = 0
-    if new_users_last_week > 0:
-        user_change = ((new_users - new_users_last_week) / new_users_last_week) * 100
-    elif new_users > 0:
+    if new_participants_last_week > 0:
+        user_change = (
+            (new_participants - new_participants_last_week) / new_participants_last_week
+        ) * 100
+    elif new_participants > 0:
         user_change = 100
 
-    total_users = User.query.count()
-    users_before_this_week = total_users - new_users
+    total_participants = ExperimentSession.query.count()
+    participants_before_this_week = total_participants - new_participants
     total_users_change = 0
-    if users_before_this_week > 0:
-        total_users_change = (new_users / users_before_this_week) * 100
-    elif total_users > 0:
+    if participants_before_this_week > 0:
+        total_users_change = (new_participants / participants_before_this_week) * 100
+    elif total_participants > 0:
         total_users_change = 100
 
-    activated_users_count = db.session.query(GeneratedImage.user_id).distinct().count()
+    activated_count = db.session.query(GeneratedImage.session_id).distinct().count()
     activation_rate = (
-        int(activated_users_count / total_users * 100) if total_users > 0 else 0
+        int(activated_count / total_participants * 100) if total_participants > 0 else 0
     )
 
-    # Activation Rate Trend (based on state 7 days ago)
     activated_before_week_ago = (
-        db.session.query(GeneratedImage.user_id)
+        db.session.query(GeneratedImage.session_id)
         .filter(GeneratedImage.created_at < week_ago)
         .distinct()
         .count()
     )
-    users_before_week_ago = User.query.filter(User.created_at < week_ago).count()
+    participants_before_week_ago = ExperimentSession.query.filter(
+        ExperimentSession.started_at < week_ago
+    ).count()
     activation_rate_last_week = (
-        int(activated_before_week_ago / users_before_week_ago * 100)
-        if users_before_week_ago > 0
+        int(activated_before_week_ago / participants_before_week_ago * 100)
+        if participants_before_week_ago > 0
         else 0
     )
     activation_change = activation_rate - activation_rate_last_week
 
-    retained_users_count = (
-        db.session.query(GeneratedImage.user_id)
-        .group_by(GeneratedImage.user_id)
+    retained_count = (
+        db.session.query(GeneratedImage.session_id)
+        .group_by(GeneratedImage.session_id)
         .having(func.count(GeneratedImage.id) > 1)
         .count()
     )
     retention_rate = (
-        int(retained_users_count / activated_users_count * 100)
-        if activated_users_count > 0
-        else 0
+        int(retained_count / activated_count * 100) if activated_count > 0 else 0
     )
 
-    # Retention Rate Trend (based on state 7 days ago)
     retained_before_week_ago_query = (
-        db.session.query(GeneratedImage.user_id)
+        db.session.query(GeneratedImage.session_id)
         .filter(GeneratedImage.created_at < week_ago)
-        .group_by(GeneratedImage.user_id)
+        .group_by(GeneratedImage.session_id)
         .having(func.count(GeneratedImage.id) > 1)
     )
     retained_before_week_ago_count = db.session.query(
@@ -329,13 +369,13 @@ def dashboard():
         "dashboard.html",
         visits_today=visits_today,
         visit_change=round(visit_change, 1),
-        new_users=new_users,
+        new_users=new_participants,
         user_change=round(user_change, 1),
         activation_rate=activation_rate,
         activation_change=activation_change,
         retention_rate=retention_rate,
         retention_change=retention_change,
-        total_users=total_users,
+        total_users=total_participants,
         total_users_change=round(total_users_change, 1),
         today_gen_count=today_gen_count,
         generations_this_week=this_week_arr,
@@ -346,45 +386,30 @@ def dashboard():
 
 
 @main_bp.route("/api/admin/export")
-@admin_required
 def export_data():
-    """Admin endpoint to export experiment data (basic version)."""
-
-    users = User.query.filter(User.experiment_group.isnot(None)).all()
+    """Export anonymized experiment data. Iterates ExperimentSession (one row per consented participant)."""
+    sessions = ExperimentSession.query.order_by(ExperimentSession.started_at).all()
 
     rows = []
 
-    for i, user in enumerate(users, 1):
-        # Get all generated images for this user
-        gen_images = GeneratedImage.query.filter_by(user_id=user.id).all()
-
-        # Count visualizations
+    for i, sess in enumerate(sessions, 1):
+        sid = sess.session_id
+        gen_images = GeneratedImage.query.filter_by(session_id=sid).all()
         num_visualizations = len(gen_images)
 
-        ratings = Rating.query.filter_by(user_id=user.id).all()
+        ratings = Rating.query.filter_by(session_id=sid).all()
         avg_rating = (
             round(sum(r.rating for r in ratings) / len(ratings), 2) if ratings else None
         )
         num_ratings = len(ratings)
 
-        session_obj = (
-            ExperimentSession.query.filter_by(user_id=user.id)
-            .order_by(ExperimentSession.started_at.desc())
-            .first()
-        )
+        duration = sess.duration_seconds
+        if duration is None and sess.last_ping_at and sess.started_at:
+            duration = int((sess.last_ping_at - sess.started_at).total_seconds())
 
-        duration = None
-        if session_obj:
-            if session_obj.duration_seconds:
-                duration = session_obj.duration_seconds
-            elif session_obj.last_ping_at and session_obj.started_at:
-                duration = int(
-                    (session_obj.last_ping_at - session_obj.started_at).total_seconds()
-                )
+        consent = Consent.query.filter_by(session_id=sid).first()
+        consented_at = consent.consented_at.isoformat() if consent else None
 
-        consented_at = user.consent.consented_at.isoformat() if user.consent else None
-
-        # Get unique styles
         styles = ", ".join(
             sorted({gi.hairstyle.name for gi in gen_images if gi.hairstyle})
         )
@@ -392,7 +417,7 @@ def export_data():
         rows.append(
             {
                 "participant_id": i,
-                "experiment_group": user.experiment_group,
+                "experiment_group": sess.experiment_group,
                 "num_visualizations": num_visualizations,
                 "avg_rating": avg_rating,
                 "num_ratings": num_ratings,
@@ -441,10 +466,11 @@ def export_data():
 
 @main_bp.route("/result")
 @main_bp.route("/result/<int:image_id>")
-@login_required
+@consent_required
 def result(image_id=None):
     """Render the result of an AI hairstyle generation."""
     log_visit("Results Page")
+    sid = get_session_id()
     if image_id:
         gen_img = (
             GeneratedImage.query.options(joinedload(GeneratedImage.rating))
@@ -453,12 +479,12 @@ def result(image_id=None):
         )
         if not gen_img:
             abort(404)
-        if gen_img.user_id != session["user_id"]:
+        if gen_img.session_id != sid:
             abort(403)
     else:
         gen_img = (
             GeneratedImage.query.options(joinedload(GeneratedImage.rating))
-            .filter_by(user_id=session["user_id"])
+            .filter_by(session_id=sid)
             .order_by(GeneratedImage.created_at.desc())
             .first()
         )
@@ -473,13 +499,13 @@ def result(image_id=None):
 
 
 @main_bp.route("/gallery")
-@login_required
+@consent_required
 def gallery():
     """Render the user's gallery of past generated hairstyles."""
     log_visit("My Gallery")
     images = (
         GeneratedImage.query.options(joinedload(GeneratedImage.rating))
-        .filter_by(user_id=session["user_id"])
+        .filter_by(session_id=get_session_id())
         .order_by(GeneratedImage.created_at.desc())
         .all()
     )
@@ -502,12 +528,18 @@ def privacy():
 
 
 @main_bp.route("/api/recommend", methods=["POST"])
-@login_required
+@consent_required
 def recommend():
     """Generate hairstyle recommendations for a user based on their image."""
     import json
 
-    if session.get("experiment_group") != "experimental":
+    sid = get_session_id()
+    exp = (
+        ExperimentSession.query.filter_by(session_id=sid)
+        .order_by(ExperimentSession.started_at.desc())
+        .first()
+    )
+    if not exp or exp.experiment_group != "experimental":
         abort(403)
 
     data = request.json
@@ -519,7 +551,7 @@ def recommend():
     if not user_image:
         return jsonify({"error": "Invalid user_image_id"}), 400
 
-    if user_image.user_id != session["user_id"]:
+    if user_image.session_id != sid:
         abort(403)
 
     client = get_genai_client()
@@ -537,7 +569,7 @@ def recommend():
         ]
         json_catalog = json.dumps(catalog_list)
 
-        prompt_text = f"""You are a professional hairstylist and image consultant. Analyze the person in this photo 
+        prompt_text = f"""You are a professional hairstylist and image consultant. Analyze the person in this photo
 and recommend the best matching hairstyles from the catalog below.
 
 Consider:
@@ -548,7 +580,7 @@ Consider:
 HAIRSTYLE CATALOG:
 {json_catalog}
 
-Recommend exactly 5 to 8 hairstyles from the catalog. For each recommendation, explain 
+Recommend exactly 5 to 8 hairstyles from the catalog. For each recommendation, explain
 specifically why this style would suit this person based on your visual analysis.
 
 Respond with a JSON object in this exact format:
@@ -591,7 +623,7 @@ Respond with a JSON object in this exact format:
                 )
 
                 db_rec = Recommendation(
-                    user_id=session["user_id"],
+                    session_id=sid,
                     user_image_id=user_image.id,
                     hairstyle_id=h.id,
                     reasoning=reasoning,
@@ -618,9 +650,10 @@ Respond with a JSON object in this exact format:
 
 
 @main_bp.route("/api/generate", methods=["POST"])
-@login_required
+@consent_required
 def generate():
     """Generate a new image with the selected hairstyle using Gemini."""
+    sid = get_session_id()
     data = request.json
     user_image_id = data.get("user_image_id")
     hairstyle_id = data.get("hairstyle_id")
@@ -635,7 +668,7 @@ def generate():
     user_image = db.session.get(UserImage, user_image_id)
     if not user_image:
         return jsonify({"error": "Invalid selection"}), 400
-    if user_image.user_id != session["user_id"]:
+    if user_image.session_id != sid:
         abort(403)
 
     hairstyle = db.session.get(Hairstyle, hairstyle_id) if hairstyle_id else None
@@ -647,7 +680,7 @@ def generate():
         reference_image = db.session.get(UserImage, reference_image_id)
         if not reference_image:
             return jsonify({"error": "Invalid reference image"}), 400
-        if reference_image.user_id != session["user_id"]:
+        if reference_image.session_id != sid:
             abort(403)
 
     client = get_genai_client()
@@ -722,7 +755,7 @@ def generate():
         result_url = result_key
 
         gen_img = GeneratedImage(
-            user_id=session["user_id"],
+            session_id=sid,
             user_image_id=user_image.id,
             hairstyle_id=hairstyle.id if hairstyle else None,
             reference_image_id=reference_image.id if reference_image else None,
@@ -749,7 +782,8 @@ def generate():
 @main_bp.route("/api/rate", methods=["POST"])
 def api_rate():
     """Submit or update a rating for a generated image."""
-    if "user_id" not in session:
+    sid = get_session_id()
+    if not sid:
         return jsonify({"error": "Authentication required"}), 401
     data = request.get_json(silent=True) or {}
     raw_gen_id = data.get("generated_image_id")
@@ -773,7 +807,7 @@ def api_rate():
     if not gen_img:
         return jsonify({"error": "Generated image not found"}), 404
 
-    if gen_img.user_id != session["user_id"]:
+    if gen_img.session_id != sid:
         abort(403)
 
     try:
@@ -783,7 +817,7 @@ def api_rate():
         else:
             db.session.add(
                 Rating(
-                    user_id=session["user_id"],
+                    session_id=sid,
                     generated_image_id=gen_id,
                     rating=rating_val,
                 )
@@ -791,7 +825,6 @@ def api_rate():
         db.session.commit()
     except IntegrityError:
         db.session.rollback()
-        # Handle race condition: another request created the rating first
         existing = Rating.query.filter_by(generated_image_id=gen_id).first()
         if not existing:
             current_app.logger.exception(
@@ -805,61 +838,20 @@ def api_rate():
     return jsonify({"status": "success", "rating": rating_val})
 
 
-@main_bp.route("/api/consent", methods=["POST"])
-@login_required
-def submit_consent():
-    """Record user consent for the experiment."""
-    data = request.get_json(silent=True) or {}
-    full_name = data.get("full_name", "").strip()
-
-    if not full_name or len(full_name) < 2:
-        return jsonify({"error": "Full name must be at least 2 characters"}), 400
-
-    user_id = session["user_id"]
-    existing = Consent.query.filter_by(user_id=user_id).first()
-
-    if existing:
-        return jsonify(
-            {"status": "success", "consented_at": existing.consented_at.isoformat()}
-        )
-
-    user = db.session.get(User, user_id)
-    experiment_group = user.experiment_group or "unknown"
-
-    consent = Consent(
-        user_id=user_id, full_name=full_name, experiment_group=experiment_group
-    )
-    db.session.add(consent)
-    try:
-        db.session.commit()
-    except IntegrityError:
-        db.session.rollback()
-        existing = Consent.query.filter_by(user_id=user_id).first()
-        if existing:
-            return jsonify(
-                {"status": "success", "consented_at": existing.consented_at.isoformat()}
-            )
-        return jsonify({"error": "Unable to save consent"}), 500
-
-    return jsonify(
-        {"status": "success", "consented_at": consent.consented_at.isoformat()}
-    )
-
-
 DEFAULT_SESSION_TIMEOUT_SECONDS = 300
 
 
 @main_bp.route("/api/session/start", methods=["POST"])
-@login_required
+@consent_required
 def api_session_start():
     """Start or resume an experiment session."""
-    user_id = session["user_id"]
-    user = db.session.get(User, user_id)
-    experiment_group = user.experiment_group or "unknown"
+    sid = get_session_id()
 
-    # Check for existing active session
+    latest_consent = Consent.query.filter_by(session_id=sid).first()
+    experiment_group = latest_consent.experiment_group if latest_consent else "unknown"
+
     active_session = (
-        ExperimentSession.query.filter_by(user_id=user_id, ended_at=None)
+        ExperimentSession.query.filter_by(session_id=sid, ended_at=None)
         .order_by(ExperimentSession.started_at.desc())
         .first()
     )
@@ -867,7 +859,6 @@ def api_session_start():
     now = datetime.now(timezone.utc)
 
     if active_session:
-        # Ensure datetimes are timezone-aware (SQLite might return naive datetimes)
         last_ping_at = active_session.last_ping_at
         if last_ping_at and last_ping_at.tzinfo is None:
             last_ping_at = last_ping_at.replace(tzinfo=timezone.utc)
@@ -876,7 +867,6 @@ def api_session_start():
         if started_at and started_at.tzinfo is None:
             started_at = started_at.replace(tzinfo=timezone.utc)
 
-        # Check if it timed out server-side
         timeout = current_app.config.get(
             "SESSION_TIMEOUT_SECONDS", DEFAULT_SESSION_TIMEOUT_SECONDS
         )
@@ -885,9 +875,8 @@ def api_session_start():
             active_session.duration_seconds = int(
                 (active_session.ended_at - started_at).total_seconds()
             )
-            # Create a new session
             new_session = ExperimentSession(
-                user_id=user_id,
+                session_id=sid,
                 experiment_group=experiment_group,
                 started_at=now,
                 last_ping_at=now,
@@ -896,12 +885,10 @@ def api_session_start():
             db.session.commit()
             return jsonify({"session_id": new_session.id})
         else:
-            # Return existing session
             return jsonify({"session_id": active_session.id})
 
-    # Create new session
     new_session = ExperimentSession(
-        user_id=user_id,
+        session_id=sid,
         experiment_group=experiment_group,
         started_at=now,
         last_ping_at=now,
@@ -912,7 +899,7 @@ def api_session_start():
 
 
 @main_bp.route("/api/session/ping", methods=["POST"])
-@login_required
+@consent_required
 def api_session_ping():
     """Ping an active experiment session to keep it alive."""
     data = request.get_json(silent=True) or {}
@@ -921,15 +908,13 @@ def api_session_ping():
         return jsonify({"error": "Missing session_id"}), 400
 
     exp_session = db.session.get(ExperimentSession, session_id)
-    if not exp_session or exp_session.user_id != session["user_id"]:
+    if not exp_session or exp_session.session_id != get_session_id():
         return jsonify({"error": "Session not found or forbidden"}), 404
 
     if exp_session.ended_at is not None:
         return jsonify({"error": "Session already ended"}), 400
 
     now = datetime.now(timezone.utc)
-    # If ping is too late, we could end it here, but let's just update last_ping_at
-    # and let the timeout logic handle it later or when a new session starts.
     exp_session.last_ping_at = now
     db.session.commit()
 
@@ -948,8 +933,8 @@ def api_session_end():
     if not exp_session:
         return jsonify({"error": "Session not found"}), 404
 
-    user_id = session.get("user_id")
-    if not user_id or exp_session.user_id != user_id:
+    sid = get_session_id()
+    if not sid or exp_session.session_id != sid:
         return jsonify({"error": "Forbidden"}), 403
 
     if exp_session.ended_at is None:

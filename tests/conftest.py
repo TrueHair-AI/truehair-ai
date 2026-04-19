@@ -1,7 +1,18 @@
+import uuid
+from datetime import datetime, timezone
+
 import pytest
 
 from app import create_app
-from app.models import GeneratedImage, Hairstyle, Stylist, User, UserImage, db
+from app.models import (
+    Consent,
+    ExperimentSession,
+    GeneratedImage,
+    Hairstyle,
+    Stylist,
+    UserImage,
+    db,
+)
 from config import Config
 
 
@@ -9,8 +20,7 @@ class TestConfig(Config):
     TESTING = True
     SQLALCHEMY_DATABASE_URI = "sqlite:///:memory:"
     WTF_CSRF_ENABLED = False
-    GOOGLE_CLIENT_ID = "test-id"
-    GOOGLE_CLIENT_SECRET = "test-secret"
+    SESSION_COOKIE_SECURE = False
     GEMINI_API_KEY = "test-gemini-key"
     R2_ACCOUNT_ID = "test-account-id"
     R2_ACCESS_KEY_ID = "test-access-key"
@@ -39,49 +49,48 @@ def runner(app):
     return app.test_cli_runner()
 
 
-@pytest.fixture
-def user(app):
+def _make_consented_session(app, experiment_group="control"):
+    """Create a Consent + ExperimentSession row and return the session_id."""
+    sid = str(uuid.uuid4())
     with app.app_context():
-        u = User(
-            email="test@example.com",
-            username="testuser",
-            first_name="Test",
-            last_name="User",
+        db.session.add(
+            Consent(session_id=sid, full_name="", experiment_group=experiment_group)
         )
-        db.session.add(u)
+        db.session.add(
+            ExperimentSession(
+                session_id=sid,
+                experiment_group=experiment_group,
+                started_at=datetime.now(timezone.utc),
+                last_ping_at=datetime.now(timezone.utc),
+            )
+        )
         db.session.commit()
-        db.session.refresh(u)
-        return u
+    return sid
 
 
 @pytest.fixture
-def admin_user(app):
-    with app.app_context():
-        u = User(
-            email="admin@example.com",
-            username="adminuser",
-            first_name="Admin",
-            last_name="User",
-            is_admin=True,
-        )
-        db.session.add(u)
-        db.session.commit()
-        db.session.refresh(u)
-        return u
+def session_id(app):
+    """Create a consented session and return the session_id."""
+    return _make_consented_session(app)
 
 
 @pytest.fixture
-def auth_client(client, user):
+def auth_client(app, session_id):
+    """Test client with a consented session cookie set."""
+    client = app.test_client()
     with client.session_transaction() as sess:
-        sess["user_id"] = user.id
+        sess["session_id"] = session_id
     return client
 
 
 @pytest.fixture
-def admin_client(client, admin_user):
+def experimental_client(app):
+    """Test client consented into the experimental group."""
+    sid = _make_consented_session(app, experiment_group="experimental")
+    client = app.test_client()
     with client.session_transaction() as sess:
-        sess["user_id"] = admin_user.id
-    return client
+        sess["session_id"] = sid
+    return client, sid
 
 
 @pytest.fixture
@@ -114,9 +123,9 @@ def stylist(app):
 
 
 @pytest.fixture
-def user_image(app, user):
+def user_image(app, session_id):
     with app.app_context():
-        ui = UserImage(user_id=user.id, image_url="uploads/test_photo.jpg")
+        ui = UserImage(session_id=session_id, image_url="uploads/test_photo.jpg")
         db.session.add(ui)
         db.session.commit()
         db.session.refresh(ui)
@@ -124,10 +133,10 @@ def user_image(app, user):
 
 
 @pytest.fixture
-def generated_image(app, user, user_image, hairstyle):
+def generated_image(app, session_id, user_image, hairstyle):
     with app.app_context():
         gi = GeneratedImage(
-            user_id=user.id,
+            session_id=session_id,
             user_image_id=user_image.id,
             hairstyle_id=hairstyle.id,
             image_url="uploads/gen_test.webp",
