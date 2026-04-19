@@ -51,9 +51,9 @@ def test_setup_gcp_credentials_creates_file_and_registers_cleanup(monkeypatch):
     assert not os.path.exists(path)
 
 
-def test_setup_gcp_credentials_reuses_existing_temp_file(monkeypatch):
-    existing_path = "/tmp/existing-test-creds.json"
-    app_module._creds_path = existing_path
+def test_setup_gcp_credentials_reuses_existing_temp_file(monkeypatch, tmp_path):
+    existing_path = tmp_path / "existing-test-creds.json"
+    app_module._creds_path = str(existing_path)
     monkeypatch.setenv("GOOGLE_APPLICATION_CREDENTIALS_JSON", "ignored-when-reusing")
 
     mkstemp_called = {"called": False}
@@ -68,7 +68,7 @@ def test_setup_gcp_credentials_reuses_existing_temp_file(monkeypatch):
 
     app_module._setup_gcp_credentials()
 
-    assert os.environ["GOOGLE_APPLICATION_CREDENTIALS"] == existing_path
+    assert os.environ["GOOGLE_APPLICATION_CREDENTIALS"] == str(existing_path)
     assert mkstemp_called["called"] is False
 
 
