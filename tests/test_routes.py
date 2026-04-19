@@ -20,9 +20,7 @@ def _consent_and_login(app, client, experiment_group="control"):
     """Helper: create a Consent + ExperimentSession and attach the session_id to client."""
     sid = str(uuid.uuid4())
     with app.app_context():
-        db.session.add(
-            Consent(session_id=sid, full_name="", experiment_group=experiment_group)
-        )
+        db.session.add(Consent(session_id=sid, experiment_group=experiment_group))
         db.session.add(
             ExperimentSession(
                 session_id=sid,

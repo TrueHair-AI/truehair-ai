@@ -110,7 +110,7 @@ def submit_consent():
 
     group = random.choice(["control", "experimental"])
 
-    consent = Consent(session_id=sid, full_name="", experiment_group=group)
+    consent = Consent(session_id=sid, experiment_group=group)
     exp_session = ExperimentSession(
         session_id=sid,
         experiment_group=group,

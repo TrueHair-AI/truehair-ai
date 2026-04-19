@@ -119,7 +119,6 @@ class Consent(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
     session_id = db.Column(db.String(36), nullable=False, unique=True)
-    full_name = db.Column(db.String(255), nullable=False)
     experiment_group = db.Column(db.String(20), nullable=False)
     consented_at = db.Column(
         db.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
