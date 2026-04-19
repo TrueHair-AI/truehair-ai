@@ -50,11 +50,19 @@ def _day_of_week(date_column):
 
 
 def get_genai_client():
-    """Return a google.genai Client configured with the API key, or None."""
-    api_key = current_app.config.get("GEMINI_API_KEY")
-    if not api_key:
+    """Return a google.genai Client configured for Vertex AI (IRB-compliant, ZDR)."""
+    project = current_app.config.get("GOOGLE_CLOUD_PROJECT")
+    location = current_app.config.get("GOOGLE_CLOUD_LOCATION", "us-central1")
+
+    if not project:
+        current_app.logger.error("GOOGLE_CLOUD_PROJECT is not set")
         return None
-    return genai.Client(api_key=api_key)
+
+    return genai.Client(
+        vertexai=True,
+        project=project,
+        location=location
+    )
 
 
 @main_bp.app_context_processor
