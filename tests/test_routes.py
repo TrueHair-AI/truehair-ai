@@ -8,6 +8,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from PIL import Image
 
+from app.routes.main import get_genai_client
 from app.models import (
     Consent,
     ExperimentSession,
@@ -33,6 +34,33 @@ def _consent_and_login(app, client, experiment_group="control"):
     with client.session_transaction() as sess:
         sess["session_id"] = sid
     return sid
+
+
+def test_get_genai_client_uses_vertex_ai_config(app):
+    """get_genai_client configures Vertex AI using the Flask app config."""
+    with app.app_context():
+        app.config["GOOGLE_CLOUD_PROJECT"] = "test-project"
+        app.config["GOOGLE_CLOUD_LOCATION"] = "europe-west4"
+
+        with patch("app.routes.main.genai.Client") as mock_client:
+            client = get_genai_client()
+
+            mock_client.assert_called_once_with(
+                vertexai=True,
+                project="test-project",
+                location="europe-west4",
+            )
+            assert client is mock_client.return_value
+
+
+def test_get_genai_client_returns_none_if_no_project(app):
+    """get_genai_client returns None when the project is missing."""
+    with app.app_context():
+        app.config["GOOGLE_CLOUD_PROJECT"] = None
+
+        client = get_genai_client()
+
+    assert client is None
 
 
 # ---------------------------------------------------------------------------

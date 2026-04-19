@@ -58,11 +58,7 @@ def get_genai_client():
         current_app.logger.error("GOOGLE_CLOUD_PROJECT is not set")
         return None
 
-    return genai.Client(
-        vertexai=True,
-        project=project,
-        location=location
-    )
+    return genai.Client(vertexai=True, project=project, location=location)
 
 
 @main_bp.app_context_processor
