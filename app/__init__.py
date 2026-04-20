@@ -67,8 +67,11 @@ def create_app(config_class=Config):
     # so HTTPS and host detection still work for url_for(..., _external=True).
     app.wsgi_app = ProxyFix(app.wsgi_app, x_for=0, x_proto=1, x_host=1)
 
+    from app.routes.admin import admin_bp, google_bp
     from app.routes.main import main_bp
 
     app.register_blueprint(main_bp)
+    app.register_blueprint(google_bp, url_prefix="/login")
+    app.register_blueprint(admin_bp)
 
     return app
