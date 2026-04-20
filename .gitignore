@@ -11,4 +11,4 @@ __pycache__
 
 # app-generated files
 app/static/uploads
-instance/
+instance/app.db

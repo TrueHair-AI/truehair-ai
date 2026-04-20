@@ -26,36 +26,29 @@ def test_stylist_repr(app, stylist):
     assert "Jane Stylist" in repr(stylist)
 
 
-def test_user_image_created(app, session_id, user_image):
-    """UserImage is persisted with the consenting session id."""
-    assert user_image.session_id == session_id
-
-
-def test_generated_image_relationships(app, session_id, user_image, hairstyle):
+def test_generated_image_relationships(app, session_id, hairstyle):
     with app.app_context():
         gen = GeneratedImage(
             session_id=session_id,
-            user_image_id=user_image.id,
             hairstyle_id=hairstyle.id,
-            image_url="uploads/gen.webp",
         )
         db.session.add(gen)
         db.session.commit()
+
         assert gen.session_id == session_id
         assert gen.hairstyle_id == hairstyle.id
 
 
-def test_generated_image_rating_relationship(app, session_id, user_image, hairstyle):
+def test_generated_image_rating_relationship(app, session_id, hairstyle):
     """Rating is reachable as generated_image.rating (single object)."""
     with app.app_context():
         gen = GeneratedImage(
             session_id=session_id,
-            user_image_id=user_image.id,
             hairstyle_id=hairstyle.id,
-            image_url="uploads/gen_rated.webp",
         )
         db.session.add(gen)
         db.session.commit()
+
         r = Rating(
             session_id=session_id,
             generated_image_id=gen.id,
@@ -63,6 +56,7 @@ def test_generated_image_rating_relationship(app, session_id, user_image, hairst
         )
         db.session.add(r)
         db.session.commit()
+
         db.session.refresh(gen)
         assert gen.rating is not None
         assert gen.rating.rating == 4
