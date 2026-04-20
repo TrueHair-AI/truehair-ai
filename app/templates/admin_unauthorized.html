@@ -1,30 +1,35 @@
 {% extends 'base.html' %}
 
 {% block title %}Access denied - TrueHair AI{% endblock %}
-
-{% block navbar %}{% endblock %}
+{% block main_class %}py-5{% endblock %}
 
 {% block content %}
-<div class="container py-5">
-    <div class="row justify-content-center">
-        <div class="col-md-8 col-lg-6">
-            <div class="card bg-dark border-secondary">
-                <div class="card-body p-5 text-center">
-                    <i class="bi bi-shield-lock-fill text-warning" style="font-size: 3rem;"></i>
-                    <h1 class="h3 text-white mt-3 mb-3">Access denied</h1>
-                    <p class="text-secondary mb-2">
-                        The Google account <strong class="text-white">{{ email }}</strong>
-                        is not on the admin allowlist.
-                    </p>
-                    <p class="text-secondary small mb-4">
-                        If you believe you should have access, contact the study administrator.
-                    </p>
-                    <a href="{{ url_for('admin.logout') }}" class="btn btn-outline-light">
-                        Sign out
-                    </a>
-                </div>
-            </div>
-        </div>
+<div class="container" style="max-width: 560px;">
+  <div class="bg-card rounded-4 shadow-lg border border-secondary border-opacity-25 p-4 p-md-5 text-center">
+    <div class="text-yellow mb-3">
+      <i class="bi bi-shield-lock-fill" style="font-size: 3rem;"></i>
     </div>
+    <h1 class="fw-bold h3 mb-3">Access denied</h1>
+    <p class="text-secondary mb-2">
+      The Google account <strong class="text-white">{{ email }}</strong>
+      is not on the admin allowlist.
+    </p>
+    <p class="text-secondary small mb-4">
+      If you believe you should have access, contact the study administrator.
+    </p>
+    <a href="{{ url_for('admin.logout') }}"
+       class="btn btn-outline-yellow fw-bold w-100 py-3 rounded-3">
+      Sign out
+    </a>
+  </div>
 </div>
+{% endblock %}
+
+{% block navbar %}
+<nav class="navbar py-3 px-4 w-100">
+  <a class="navbar-brand d-flex align-items-center gap-2" href="{{ url_for('main.index') }}">
+    <img src="{{ url_for('static', filename='images/truehair-logo.png') }}" alt="TrueHair Logo" height="32">
+    <span class="text-white fw-bold">TrueHair AI</span>
+  </a>
+</nav>
 {% endblock %}

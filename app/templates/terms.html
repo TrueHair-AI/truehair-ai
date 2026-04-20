@@ -7,7 +7,7 @@
     <div class="row justify-content-center">
         <div class="col-lg-7">
             <h1 class="fw-bold display-5 text-white mb-2">Terms &amp; Educational Disclaimer</h1>
-            <p class="text-secondary mb-5">Last updated March 14, 2026</p>
+            <p class="text-secondary mb-5">Last updated April 2026</p>
 
             <div class="card bg-card border border-secondary border-opacity-25 rounded-4 overflow-hidden">
 
@@ -19,8 +19,14 @@
                         </div>
                         <h5 class="fw-bold text-white mb-0">Educational Prototype Disclaimer</h5>
                     </div>
+                    <p class="text-secondary mb-3" style="line-height:1.75;">
+                        TrueHair.ai is an experimental prototype built as part of a university software engineering course project at Colby College. It is also being used as the platform for an IRB-approved research study on AI-generated hairstyle recommendations.
+                    </p>
                     <p class="text-secondary mb-0" style="line-height:1.75;">
-                        TrueHair.ai is an experimental prototype built as part of a university software engineering course project.
+                        If you are participating as a research subject, the
+                        <a href="{{ url_for('main.consent_page') }}" class="text-yellow">consent disclosure</a>
+                        and <a href="{{ url_for('main.privacy') }}" class="text-yellow">privacy notice</a>
+                        describe exactly what is and isn&rsquo;t recorded during a session.
                     </p>
                 </div>
 
