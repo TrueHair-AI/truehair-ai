@@ -525,6 +525,130 @@ def test_api_generate_success(mock_get_client, app, auth_client, hairstyle):
 
 
 # ---------------------------------------------------------------------------
+# was_ai_recommended flag on GeneratedImage (IRB primary metric)
+# ---------------------------------------------------------------------------
+
+
+def _mock_generate_client():
+    """Build a mocked genai client whose generate_content returns a tiny PNG."""
+    from PIL import Image
+
+    img = Image.new("RGB", (10, 10))
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+
+    mock_part = MagicMock()
+    mock_part.inline_data = MagicMock(data=buf.getvalue(), mime_type="image/png")
+
+    mock_client = MagicMock()
+    mock_client.models.generate_content.return_value = MagicMock(parts=[mock_part])
+    return mock_client
+
+
+@patch("app.routes.main.get_genai_client")
+def test_api_generate_sets_was_ai_recommended_null_for_control(
+    mock_get_client, app, auth_client, hairstyle
+):
+    """Control-group sessions store was_ai_recommended as NULL (not applicable)."""
+    mock_get_client.return_value = _mock_generate_client()
+
+    response = auth_client.post(
+        "/api/generate",
+        data={
+            "photo": (make_test_image(), "test.jpg"),
+            "hairstyle_id": str(hairstyle.id),
+        },
+        content_type="multipart/form-data",
+    )
+
+    assert response.status_code == 200
+    gen_id = int(response.headers["X-Generated-Image-Id"])
+    with app.app_context():
+        gen_img = db.session.get(GeneratedImage, gen_id)
+        assert gen_img.was_ai_recommended is None
+
+
+@patch("app.routes.main.get_genai_client")
+def test_api_generate_sets_was_ai_recommended_true_when_style_was_recommended(
+    mock_get_client, app, experimental_client, hairstyle
+):
+    """Experimental group + selected style in Recommendation rows → True."""
+    from app.models import Recommendation
+
+    client, sid = experimental_client
+    with app.app_context():
+        db.session.add(
+            Recommendation(
+                session_id=sid,
+                hairstyle_id=hairstyle.id,
+                reasoning="Suits your face shape.",
+            )
+        )
+        db.session.commit()
+
+    mock_get_client.return_value = _mock_generate_client()
+
+    response = client.post(
+        "/api/generate",
+        data={
+            "photo": (make_test_image(), "test.jpg"),
+            "hairstyle_id": str(hairstyle.id),
+        },
+        content_type="multipart/form-data",
+    )
+
+    assert response.status_code == 200
+    gen_id = int(response.headers["X-Generated-Image-Id"])
+    with app.app_context():
+        gen_img = db.session.get(GeneratedImage, gen_id)
+        assert gen_img.was_ai_recommended is True
+
+
+@patch("app.routes.main.get_genai_client")
+def test_api_generate_sets_was_ai_recommended_false_when_style_not_recommended(
+    mock_get_client, app, experimental_client, hairstyle
+):
+    """Experimental group + selected style absent from Recommendation rows → False."""
+    from app.models import Hairstyle, Recommendation
+
+    client, sid = experimental_client
+    with app.app_context():
+        other = Hairstyle(
+            name="Other Cut",
+            description="Not recommended here",
+            category="MODERN",
+            image_url="/static/other.png",
+        )
+        db.session.add(other)
+        db.session.commit()
+        db.session.add(
+            Recommendation(
+                session_id=sid,
+                hairstyle_id=other.id,
+                reasoning="A different suggestion.",
+            )
+        )
+        db.session.commit()
+
+    mock_get_client.return_value = _mock_generate_client()
+
+    response = client.post(
+        "/api/generate",
+        data={
+            "photo": (make_test_image(), "test.jpg"),
+            "hairstyle_id": str(hairstyle.id),
+        },
+        content_type="multipart/form-data",
+    )
+
+    assert response.status_code == 200
+    gen_id = int(response.headers["X-Generated-Image-Id"])
+    with app.app_context():
+        gen_img = db.session.get(GeneratedImage, gen_id)
+        assert gen_img.was_ai_recommended is False
+
+
+# ---------------------------------------------------------------------------
 # Upload validation (size / MIME / corruption) for /api/generate and /api/recommend
 # ---------------------------------------------------------------------------
 

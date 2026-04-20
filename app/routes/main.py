@@ -398,16 +398,15 @@ def export_data():
         gen_images = GeneratedImage.query.filter_by(session_id=sid).all()
         num_visualizations = len(gen_images)
 
-        ai_recommended_count = (
-            GeneratedImage.query
-            .filter_by(session_id=sid, was_ai_recommended=True)
-            .count()
-        )
-        
+        ai_recommended_count = GeneratedImage.query.filter_by(
+            session_id=sid, was_ai_recommended=True
+        ).count()
+
         if sess.experiment_group == "experimental":
             ai_recommended_selection_rate = (
                 round(ai_recommended_count / num_visualizations, 3)
-                if num_visualizations > 0 else None
+                if num_visualizations > 0
+                else None
             )
         else:
             ai_recommended_count = None
@@ -687,7 +686,11 @@ def generate():
     if not client:
         return jsonify({"error": "Internal server error"}), 500
 
-    exp = ExperimentSession.query.filter_by(session_id=sid).order_by(ExperimentSession.started_at.desc()).first()
+    exp = (
+        ExperimentSession.query.filter_by(session_id=sid)
+        .order_by(ExperimentSession.started_at.desc())
+        .first()
+    )
 
     was_ai_recommended = None
     if exp and exp.experiment_group == "experimental":
@@ -695,7 +698,7 @@ def generate():
             session_id=sid,
             hairstyle_id=hairstyle_id,
         ).first()
-        was_ai_recommended = bool(rec_exists)
+        was_ai_recommended = rec_exists is not None
 
     try:
         prompt = (
