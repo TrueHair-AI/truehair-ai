@@ -606,7 +606,7 @@ Respond with a JSON object in this exact format:
 }}"""
 
         response = client.models.generate_content(
-            model="gemini-3-flash",
+            model="gemini-2.5-flash",
             contents=[prompt_text, user_photo],
             config=types.GenerateContentConfig(
                 response_mime_type="application/json",
