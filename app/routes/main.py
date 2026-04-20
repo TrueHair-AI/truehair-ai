@@ -1,6 +1,7 @@
 import csv
 import io
 import random
+from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 
 from flask import (
@@ -31,6 +32,7 @@ from app.models import (
     Visit,
     db,
 )
+from app.routes.admin import admin_required
 from app.services.session_identity import (
     consent_required,
     get_session_id,
@@ -216,12 +218,13 @@ def stylists():
 
 
 # ---------------------------------------------------------------------------
-# Admin dashboard / export — ungated pending issue #16 (decision: drop or gate).
-# Queries rewritten to use ExperimentSession/session_id instead of the removed User model.
+# Admin dashboard / export — gated by Google OAuth email allowlist (issue #63).
+# See app/routes/admin.py for the allowlist and decorator.
 # ---------------------------------------------------------------------------
 
 
 @main_bp.route("/dashboard")
+@admin_required
 def dashboard():
     """Render the admin KPI dashboard with analytics metrics."""
     log_visit("KPI Dashboard")
@@ -387,14 +390,39 @@ def dashboard():
 
 
 @main_bp.route("/api/admin/export")
+@admin_required
 def export_data():
-    """Export anonymized experiment data. Iterates ExperimentSession (one row per consented participant)."""
-    sessions = ExperimentSession.query.order_by(ExperimentSession.started_at).all()
+    """Export anonymized experiment data, aggregated per participant (session_id).
+
+    A single participant may have multiple ExperimentSession rows if they timed
+    out and resumed (see api_session_start). Iterating ExperimentSession
+    directly produces duplicate participant rows and double-counts images and
+    ratings (which are queried by session_id, not ExperimentSession.id).
+    """
+    all_sessions = ExperimentSession.query.order_by(ExperimentSession.started_at).all()
+
+    by_sid = defaultdict(list)
+    for s in all_sessions:
+        by_sid[s.session_id].append(s)
+
+    ordered_sids = sorted(by_sid.keys(), key=lambda sid: by_sid[sid][0].started_at)
 
     rows = []
+    for i, sid in enumerate(ordered_sids, 1):
+        sess_rows = by_sid[sid]
+        experiment_group = sess_rows[0].experiment_group
 
-    for i, sess in enumerate(sessions, 1):
-        sid = sess.session_id
+        total_duration = 0
+        have_any_duration = False
+        for sr in sess_rows:
+            if sr.duration_seconds is not None:
+                total_duration += sr.duration_seconds
+                have_any_duration = True
+            elif sr.last_ping_at and sr.started_at:
+                total_duration += int((sr.last_ping_at - sr.started_at).total_seconds())
+                have_any_duration = True
+        duration = total_duration if have_any_duration else None
+
         gen_images = GeneratedImage.query.filter_by(session_id=sid).all()
         num_visualizations = len(gen_images)
 
@@ -403,10 +431,6 @@ def export_data():
             round(sum(r.rating for r in ratings) / len(ratings), 2) if ratings else None
         )
         num_ratings = len(ratings)
-
-        duration = sess.duration_seconds
-        if duration is None and sess.last_ping_at and sess.started_at:
-            duration = int((sess.last_ping_at - sess.started_at).total_seconds())
 
         consent = Consent.query.filter_by(session_id=sid).first()
         consented_at = consent.consented_at.isoformat() if consent else None
@@ -418,7 +442,7 @@ def export_data():
         rows.append(
             {
                 "participant_id": i,
-                "experiment_group": sess.experiment_group,
+                "experiment_group": experiment_group,
                 "num_visualizations": num_visualizations,
                 "avg_rating": avg_rating,
                 "num_ratings": num_ratings,
