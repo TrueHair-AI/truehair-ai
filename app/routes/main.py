@@ -469,7 +469,13 @@ def export_data():
 @main_bp.route("/result/<int:image_id>")
 @consent_required
 def result(image_id=None):
-    """Render the result of an AI hairstyle generation."""
+    """Render the result page for an AI hairstyle generation.
+
+    The generated image bytes are never persisted server-side (IRB Section 6.1);
+    the client holds the only copy in sessionStorage after /api/generate streams
+    the WebP back. This view renders metadata only (hairstyle name, rating state);
+    the template hydrates the <img> src from sessionStorage on load.
+    """
     log_visit("Results Page")
     sid = get_session_id()
     if image_id:
@@ -490,11 +496,7 @@ def result(image_id=None):
             .first()
         )
 
-    image_display_url = None
-
-    return render_template(
-        "result.html", latest_gen=gen_img, image_display_url=image_display_url
-    )
+    return render_template("result.html", latest_gen=gen_img)
 
 
 @main_bp.route("/gallery")

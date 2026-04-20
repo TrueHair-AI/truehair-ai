@@ -27,13 +27,10 @@
             <!-- Image Card -->
             <div class="position-relative rounded-4 overflow-hidden border border-secondary border-opacity-25 shadow"
                 style="background-color: #1c1c1e;">
-                {% if latest_gen and image_display_url %}
-                <img src="{{ image_display_url }}" class="img-fluid w-100"
+                <img id="result-image"
+                    src="{{ url_for('static', filename='images/classic-fade-result.png') }}"
+                    class="img-fluid w-100"
                     style="object-fit: cover; aspect-ratio: 16/10;" alt="Generated Profile">
-                {% else %}
-                <img src="{{ url_for('static', filename='images/classic-fade-result.png') }}" class="img-fluid w-100"
-                    style="object-fit: cover; aspect-ratio: 16/10;" alt="Generated Profile">
-                {% endif %}
 
                 <!-- Fullscreen Overlay Button -->
                 <button type="button" class="btn btn-dark border-secondary border-opacity-50 text-white position-absolute bottom-0 end-0 m-3 rounded-circle"
@@ -82,20 +79,13 @@
                     style="background-color: #2a2a2d;" onclick="window.location.href='{{ url_for('main.gallery') }}';">
                     <i class="bi bi-images text-secondary"></i> My Gallery
                 </button>
-                {% if latest_gen and image_display_url %}
-                <a href="{{ image_display_url }}"
-                    download="truehair_{{ latest_gen.hairstyle.name | replace(' ', '_') }}_{{ latest_gen.id }}.webp"
-                    class="btn btn-dark border border-secondary border-opacity-50 rounded-3 d-flex align-items-center justify-content-center px-4 py-3"
-                    style="background-color: #2a2a2d;" title="Download Result">
+                <a id="result-download"
+                    href="#"
+                    {% if latest_gen %}data-download-filename="truehair_{{ latest_gen.hairstyle.name | replace(' ', '_') }}_{{ latest_gen.id }}.webp"{% endif %}
+                    class="btn btn-dark border border-secondary border-opacity-50 rounded-3 d-flex align-items-center justify-content-center px-4 py-3 opacity-50 pointer-events-none"
+                    style="background-color: #2a2a2d;" title="Download Result" aria-disabled="true">
                     <i class="bi bi-download text-white fs-5"></i>
                 </a>
-                {% else %}
-                <button
-                    class="btn btn-dark border border-secondary border-opacity-50 rounded-3 d-flex align-items-center justify-content-center px-4 py-3 opacity-50 pointer-events-none"
-                    style="background-color: #2a2a2d;" disabled>
-                    <i class="bi bi-download text-white fs-5"></i>
-                </button>
-                {% endif %}
                 <button
                     class="btn btn-dark border border-secondary border-opacity-50 rounded-3 d-flex align-items-center justify-content-center px-4 py-3 opacity-50"
                     style="background-color: #2a2a2d; cursor: not-allowed;" disabled title="Sharing coming soon">
@@ -162,11 +152,10 @@
                     </button>
                 </div>
                 <div class="modal-body text-center p-0 d-flex justify-content-center align-items-center">
-                    {% if latest_gen and image_display_url %}
-                    <img src="{{ image_display_url }}" class="img-fluid rounded-4 shadow-lg" alt="Generated Profile Fullscreen" style="max-height: 90vh; object-fit: contain; cursor: default;">
-                    {% else %}
-                    <img src="{{ url_for('static', filename='images/classic-fade-result.png') }}" class="img-fluid rounded-4 shadow-lg" alt="Generated Profile Fullscreen" style="max-height: 90vh; object-fit: contain; cursor: default;">
-                    {% endif %}
+                    <img id="result-image-modal"
+                        src="{{ url_for('static', filename='images/classic-fade-result.png') }}"
+                        class="img-fluid rounded-4 shadow-lg" alt="Generated Profile Fullscreen"
+                        style="max-height: 90vh; object-fit: contain; cursor: default;">
                 </div>
             </div>
         </div>
@@ -188,6 +177,32 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 });
+</script>
+<script>
+// Hydrate the result image from sessionStorage. The generated WebP is never
+// persisted server-side (IRB Section 6.1); the client holds the only copy.
+(function () {
+    var dataUrl = sessionStorage.getItem('generated_image');
+    var storedId = sessionStorage.getItem('generated_image_id');
+    if (!dataUrl) return;
+
+    var expectedId = {{ latest_gen.id if latest_gen else 'null' }};
+    if (expectedId !== null && storedId && String(expectedId) !== String(storedId)) return;
+
+    var img = document.getElementById('result-image');
+    var modalImg = document.getElementById('result-image-modal');
+    if (img) img.src = dataUrl;
+    if (modalImg) modalImg.src = dataUrl;
+
+    var download = document.getElementById('result-download');
+    if (download) {
+        download.href = dataUrl;
+        var filename = download.getAttribute('data-download-filename');
+        if (filename) download.setAttribute('download', filename);
+        download.classList.remove('opacity-50', 'pointer-events-none');
+        download.removeAttribute('aria-disabled');
+    }
+})();
 </script>
 {% if latest_gen %}
 <script>
