@@ -5,8 +5,11 @@ import json
 import os
 
 import pytest
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 import app as app_module
+from app import create_app
+from tests.conftest import TestConfig
 
 
 def _encode_credentials(payload):
@@ -110,3 +113,18 @@ def test_setup_gcp_credentials_raises_on_invalid_payload(monkeypatch):
         RuntimeError, match="Invalid GOOGLE_APPLICATION_CREDENTIALS_JSON format"
     ):
         app_module._setup_gcp_credentials()
+
+
+def test_create_app_wraps_wsgi_in_proxyfix_with_x_for_zero():
+    """IRB compliance (sections 2.1, 6.5): X-Forwarded-For must not be trusted.
+
+    With x_for=0, request.remote_addr resolves to Heroku's internal router IP
+    rather than the client's public IP. This test locks in the invariant so a
+    future refactor cannot silently re-enable X-Forwarded-For trust.
+    """
+    app = create_app(TestConfig)
+
+    assert isinstance(app.wsgi_app, ProxyFix)
+    assert app.wsgi_app.x_for == 0
+    assert app.wsgi_app.x_proto == 1
+    assert app.wsgi_app.x_host == 1
