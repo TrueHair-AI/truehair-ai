@@ -519,7 +519,10 @@ def recommend():
     if len(photo_bytes) > 10 * 1024 * 1024:
         return jsonify({"error": "Photo too large"}), 400
 
-    user_photo = Image.open(io.BytesIO(photo_bytes))
+    try:
+        user_photo = Image.open(io.BytesIO(photo_bytes))
+    except Exception:
+        return jsonify({"error": "Invalid or corrupted image"}), 400
 
     client = get_genai_client()
     if not client:
@@ -641,7 +644,10 @@ def generate():
     if len(photo_bytes) > 10 * 1024 * 1024:
         return jsonify({"error": "Photo too large (10MB max)"}), 400
 
-    user_photo = Image.open(io.BytesIO(photo_bytes))
+    try:
+        user_photo = Image.open(io.BytesIO(photo_bytes))
+    except Exception:
+        return jsonify({"error": "Invalid or corrupted image"}), 400
 
     client = get_genai_client()
     if not client:
