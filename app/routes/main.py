@@ -398,6 +398,21 @@ def export_data():
         gen_images = GeneratedImage.query.filter_by(session_id=sid).all()
         num_visualizations = len(gen_images)
 
+        ai_recommended_count = (
+            GeneratedImage.query
+            .filter_by(session_id=sid, was_ai_recommended=True)
+            .count()
+        )
+        
+        if sess.experiment_group == "experimental":
+            ai_recommended_selection_rate = (
+                round(ai_recommended_count / num_visualizations, 3)
+                if num_visualizations > 0 else None
+            )
+        else:
+            ai_recommended_count = None
+            ai_recommended_selection_rate = None
+
         ratings = Rating.query.filter_by(session_id=sid).all()
         avg_rating = (
             round(sum(r.rating for r in ratings) / len(ratings), 2) if ratings else None
@@ -420,6 +435,8 @@ def export_data():
                 "participant_id": i,
                 "experiment_group": sess.experiment_group,
                 "num_visualizations": num_visualizations,
+                "ai_recommended_visualizations": ai_recommended_count,
+                "ai_recommended_selection_rate": ai_recommended_selection_rate,
                 "avg_rating": avg_rating,
                 "num_ratings": num_ratings,
                 "session_duration_seconds": duration,
@@ -442,6 +459,8 @@ def export_data():
         "participant_id",
         "experiment_group",
         "num_visualizations",
+        "ai_recommended_visualizations",
+        "ai_recommended_selection_rate",
         "avg_rating",
         "num_ratings",
         "session_duration_seconds",
@@ -668,6 +687,16 @@ def generate():
     if not client:
         return jsonify({"error": "Internal server error"}), 500
 
+    exp = ExperimentSession.query.filter_by(session_id=sid).order_by(ExperimentSession.started_at.desc()).first()
+
+    was_ai_recommended = None
+    if exp and exp.experiment_group == "experimental":
+        rec_exists = Recommendation.query.filter_by(
+            session_id=sid,
+            hairstyle_id=hairstyle_id,
+        ).first()
+        was_ai_recommended = bool(rec_exists)
+
     try:
         prompt = (
             f"Edit this person's photo to give them a '{hairstyle.name}' hairstyle. "
@@ -700,6 +729,7 @@ def generate():
         gen_img = GeneratedImage(
             session_id=sid,
             hairstyle_id=hairstyle.id,
+            was_ai_recommended=was_ai_recommended,
         )
         db.session.add(gen_img)
         db.session.commit()
