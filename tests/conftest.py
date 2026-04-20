@@ -10,7 +10,6 @@ from app.models import (
     GeneratedImage,
     Hairstyle,
     Stylist,
-    UserImage,
     db,
 )
 from config import Config
@@ -21,7 +20,8 @@ class TestConfig(Config):
     SQLALCHEMY_DATABASE_URI = "sqlite:///:memory:"
     WTF_CSRF_ENABLED = False
     SESSION_COOKIE_SECURE = False
-    GEMINI_API_KEY = "test-gemini-key"
+    GOOGLE_CLOUD_PROJECT = "test-project"
+    GOOGLE_CLOUD_LOCATION = "us-central1"
     R2_ACCOUNT_ID = "test-account-id"
     R2_ACCESS_KEY_ID = "test-access-key"
     R2_SECRET_ACCESS_KEY = "test-secret-key"
@@ -121,23 +121,11 @@ def stylist(app):
 
 
 @pytest.fixture
-def user_image(app, session_id):
-    with app.app_context():
-        ui = UserImage(session_id=session_id, image_url="uploads/test_photo.jpg")
-        db.session.add(ui)
-        db.session.commit()
-        db.session.refresh(ui)
-        return ui
-
-
-@pytest.fixture
-def generated_image(app, session_id, user_image, hairstyle):
+def generated_image(app, session_id, hairstyle):
     with app.app_context():
         gi = GeneratedImage(
             session_id=session_id,
-            user_image_id=user_image.id,
             hairstyle_id=hairstyle.id,
-            image_url="uploads/gen_test.webp",
         )
         db.session.add(gi)
         db.session.commit()

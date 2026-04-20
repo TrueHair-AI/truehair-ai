@@ -6,14 +6,24 @@ from datetime import datetime, timezone
 from unittest.mock import MagicMock, patch
 
 import pytest
-from PIL import Image
 
+from app.routes.main import get_genai_client
 from app.models import (
     Consent,
     ExperimentSession,
-    UserImage,
+    GeneratedImage,
     db,
 )
+
+
+def make_test_image():
+    from PIL import Image
+
+    img = Image.new("RGB", (10, 10))
+    buf = io.BytesIO()
+    img.save(buf, format="JPEG")
+    buf.seek(0)
+    return buf
 
 
 def _consent_and_login(app, client, experiment_group="control"):
@@ -33,6 +43,45 @@ def _consent_and_login(app, client, experiment_group="control"):
     with client.session_transaction() as sess:
         sess["session_id"] = sid
     return sid
+
+
+def test_get_genai_client_uses_vertex_ai_config(app):
+    """get_genai_client configures Vertex AI using the Flask app config."""
+    with app.app_context():
+        app.config["GOOGLE_CLOUD_PROJECT"] = "test-project"
+        app.config["GOOGLE_CLOUD_LOCATION"] = "europe-west4"
+
+        with patch("app.routes.main.genai.Client") as mock_client:
+            client = get_genai_client()
+
+            mock_client.assert_called_once_with(
+                vertexai=True,
+                project="test-project",
+                location="europe-west4",
+            )
+            assert client is mock_client.return_value
+
+
+def test_get_genai_client_returns_none_if_no_project(app):
+    """get_genai_client returns None when the project is missing."""
+    with app.app_context():
+        app.config["GOOGLE_CLOUD_PROJECT"] = None
+
+        client = get_genai_client()
+
+    assert client is None
+
+
+def test_get_genai_client_returns_none_on_client_init_error(app):
+    """get_genai_client returns None when client initialization raises."""
+    with app.app_context():
+        app.config["GOOGLE_CLOUD_PROJECT"] = "test-project"
+        app.config["GOOGLE_CLOUD_LOCATION"] = "us-central1"
+
+        with patch("app.routes.main.genai.Client", side_effect=Exception("boom")):
+            client = get_genai_client()
+
+    assert client is None
 
 
 # ---------------------------------------------------------------------------
@@ -192,352 +241,6 @@ def test_admin_export_invalid_format(client):
 
 
 # ---------------------------------------------------------------------------
-# Result + gallery
-# ---------------------------------------------------------------------------
-
-
-def test_result_redirect_unconsented(client):
-    response = client.get("/result")
-    assert response.status_code == 302
-
-
-def test_result_no_image_id(auth_client):
-    response = auth_client.get("/result")
-    assert response.status_code in (200, 302, 404)
-
-
-def test_result_with_invalid_image_id(auth_client):
-    response = auth_client.get("/result/99999")
-    assert response.status_code == 404
-
-
-def test_gallery_redirect_unconsented(client):
-    response = client.get("/gallery")
-    assert response.status_code == 302
-
-
-def test_gallery_consented(auth_client):
-    response = auth_client.get("/gallery")
-    assert response.status_code == 200
-
-
-# ---------------------------------------------------------------------------
-# /api/generate
-# ---------------------------------------------------------------------------
-
-
-def test_api_generate_redirect_unconsented(client):
-    response = client.post(
-        "/api/generate",
-        json={"user_image_id": 1, "hairstyle_id": 1},
-        content_type="application/json",
-    )
-    assert response.status_code == 302
-
-
-def test_api_generate_missing_params(auth_client):
-    response = auth_client.post(
-        "/api/generate",
-        json={},
-        content_type="application/json",
-    )
-    assert response.status_code == 400
-    data = response.get_json()
-    assert "error" in data
-
-
-def test_api_generate_invalid_selection(auth_client):
-    response = auth_client.post(
-        "/api/generate",
-        json={"user_image_id": 99999, "hairstyle_id": 99999},
-        content_type="application/json",
-    )
-    assert response.status_code == 400
-
-
-def test_api_generate_wrong_session_403(app, auth_client, hairstyle):
-    """Generate returns 403 when the user_image belongs to another session."""
-    other_sid = str(uuid.uuid4())
-    with app.app_context():
-        oi = UserImage(session_id=other_sid, image_url="uploads/other.jpg")
-        db.session.add(oi)
-        db.session.commit()
-        oi_id = oi.id
-    response = auth_client.post(
-        "/api/generate",
-        json={"user_image_id": oi_id, "hairstyle_id": hairstyle.id},
-        content_type="application/json",
-    )
-    assert response.status_code == 403
-
-
-@patch("app.services.r2.download_bytes")
-@patch("app.routes.main.get_genai_client")
-def test_api_generate_no_gemini_key(
-    mock_get_client, mock_download, auth_client, user_image, hairstyle
-):
-    mock_get_client.return_value = None
-    response = auth_client.post(
-        "/api/generate",
-        json={"user_image_id": user_image.id, "hairstyle_id": hairstyle.id},
-        content_type="application/json",
-    )
-    assert response.status_code == 500
-    data = response.get_json()
-    assert "error" in data
-
-
-@patch("app.services.r2.download_bytes")
-@patch("app.routes.main.get_genai_client")
-@patch("app.routes.main.Image.open")
-def test_api_generate_exception_returns_500(
-    mock_image_open, mock_get_client, mock_download, auth_client, user_image, hairstyle
-):
-    mock_download.return_value = b"fake-bytes"
-    mock_image_open.return_value = MagicMock()
-    mock_get_client.return_value = MagicMock()
-    mock_get_client.return_value.models.generate_content.side_effect = Exception(
-        "API error"
-    )
-    response = auth_client.post(
-        "/api/generate",
-        json={"user_image_id": user_image.id, "hairstyle_id": hairstyle.id},
-        content_type="application/json",
-    )
-    assert response.status_code == 500
-    data = response.get_json()
-    assert "error" in data
-
-
-@patch("app.services.r2.download_bytes")
-@patch("app.routes.main.get_genai_client")
-@patch("app.routes.main.Image.open")
-def test_api_generate_no_image_in_response_returns_500(
-    mock_image_open, mock_get_client, mock_download, auth_client, user_image, hairstyle
-):
-    mock_download.return_value = b"fake-bytes"
-    mock_image_open.return_value = MagicMock()
-    mock_client = MagicMock()
-    mock_client.models.generate_content.return_value = MagicMock(parts=[])
-    mock_get_client.return_value = mock_client
-    response = auth_client.post(
-        "/api/generate",
-        json={"user_image_id": user_image.id, "hairstyle_id": hairstyle.id},
-        content_type="application/json",
-    )
-    assert response.status_code == 500
-
-
-# ---------------------------------------------------------------------------
-# R2 presign / confirm
-# ---------------------------------------------------------------------------
-
-
-@patch("app.services.r2.get_presigned_put_url")
-@patch("app.services.r2.make_upload_key")
-def test_presign_returns_put_url(mock_key, mock_presign, auth_client):
-    mock_key.return_value = "uploads/abc_photo.jpg"
-    mock_presign.return_value = "https://r2.example.com/put"
-    response = auth_client.post(
-        "/api/upload/presign",
-        json={"filename": "photo.jpg", "content_type": "image/jpeg"},
-        content_type="application/json",
-    )
-    assert response.status_code == 200
-    data = response.get_json()
-    assert data["put_url"] == "https://r2.example.com/put"
-    assert data["upload_key"] == "uploads/abc_photo.jpg"
-
-
-def test_presign_rejects_bad_content_type(auth_client):
-    response = auth_client.post(
-        "/api/upload/presign",
-        json={"filename": "file.txt", "content_type": "text/plain"},
-        content_type="application/json",
-    )
-    assert response.status_code == 400
-    assert b"Unsupported" in response.data
-
-
-def test_presign_redirects_unconsented(client):
-    response = client.post(
-        "/api/upload/presign",
-        json={"filename": "photo.jpg"},
-        content_type="application/json",
-    )
-    assert response.status_code == 302
-
-
-@patch("app.services.r2.get_display_url")
-def test_confirm_creates_user_image(mock_display, app, auth_client):
-    mock_display.return_value = "https://r2.example.com/get/uploads/abc.jpg"
-    with auth_client.session_transaction() as sess:
-        sid = sess["session_id"]
-    response = auth_client.post(
-        "/api/upload/confirm",
-        json={"upload_key": "uploads/abc_photo.jpg"},
-        content_type="application/json",
-    )
-    assert response.status_code == 200
-    data = response.get_json()
-    assert data["status"] == "success"
-    assert data["image_url"] == "https://r2.example.com/get/uploads/abc.jpg"
-    assert "image_id" in data
-
-    with app.app_context():
-        ui = db.session.get(UserImage, data["image_id"])
-        assert ui is not None
-        assert ui.image_url == "uploads/abc_photo.jpg"
-        assert ui.session_id == sid
-
-
-def test_confirm_rejects_invalid_key(auth_client):
-    response = auth_client.post(
-        "/api/upload/confirm",
-        json={"upload_key": "malicious/path"},
-        content_type="application/json",
-    )
-    assert response.status_code == 400
-
-
-def test_confirm_rejects_missing_key(auth_client):
-    response = auth_client.post(
-        "/api/upload/confirm",
-        json={},
-        content_type="application/json",
-    )
-    assert response.status_code == 400
-
-
-# ---------------------------------------------------------------------------
-# Generate + R2 success path
-# ---------------------------------------------------------------------------
-
-
-@patch("app.services.r2.get_display_url")
-@patch("app.services.r2.upload_bytes")
-@patch("app.services.r2.download_bytes")
-@patch("app.routes.main.get_genai_client")
-def test_api_generate_success(
-    mock_get_client, mock_download, mock_upload, mock_display, app, client
-):
-    from app.models import Hairstyle
-
-    sid = _consent_and_login(app, client)
-    with app.app_context():
-        h = Hairstyle(
-            name="R2 Cut",
-            description="A test style",
-            category="MODERN",
-            image_url="test.png",
-        )
-        ui = UserImage(session_id=sid, image_url="uploads/selfie.jpg")
-        db.session.add_all([h, ui])
-        db.session.commit()
-        ui_id, h_id = ui.id, h.id
-
-    img = Image.new("RGB", (10, 10), color="blue")
-    buf = io.BytesIO()
-    img.save(buf, format="PNG")
-    mock_download.return_value = buf.getvalue()
-
-    mock_part = MagicMock()
-    mock_part.inline_data = MagicMock(data=buf.getvalue(), mime_type="image/png")
-    mock_part.as_image.return_value = MagicMock()
-    mock_client = MagicMock()
-    mock_client.models.generate_content.return_value = MagicMock(parts=[mock_part])
-    mock_get_client.return_value = mock_client
-
-    mock_display.return_value = "https://r2.example.com/get/result.webp"
-
-    response = client.post(
-        "/api/generate",
-        json={"user_image_id": ui_id, "hairstyle_id": h_id},
-        content_type="application/json",
-    )
-    assert response.status_code == 200
-    data = response.get_json()
-    assert data["status"] == "success"
-    assert data["image_url"] == "https://r2.example.com/get/result.webp"
-
-    mock_download.assert_called_once_with("uploads/selfie.jpg")
-    mock_upload.assert_called_once()
-
-    uploaded_key = mock_upload.call_args[0][0]
-    uploaded_mime = mock_upload.call_args[0][2]
-    assert uploaded_key.endswith(".webp")
-    assert uploaded_mime == "image/webp"
-
-
-# ---------------------------------------------------------------------------
-# Result / gallery display URL tests
-# ---------------------------------------------------------------------------
-
-
-@patch("app.services.r2.get_display_url")
-def test_result_uses_r2_display_url(mock_display, app, client):
-    from app.models import GeneratedImage, Hairstyle
-
-    sid = _consent_and_login(app, client)
-    with app.app_context():
-        h = Hairstyle(
-            name="Res Cut",
-            description="A style",
-            category="MODERN",
-            image_url="test.png",
-        )
-        ui = UserImage(session_id=sid, image_url="uploads/photo.jpg")
-        db.session.add_all([h, ui])
-        db.session.commit()
-        gi = GeneratedImage(
-            session_id=sid,
-            user_image_id=ui.id,
-            hairstyle_id=h.id,
-            image_url="uploads/gen_result.webp",
-        )
-        db.session.add(gi)
-        db.session.commit()
-        gi_id = gi.id
-
-    mock_display.return_value = "https://r2.example.com/display/gen_result.webp"
-
-    response = client.get(f"/result/{gi_id}")
-    assert response.status_code == 200
-    assert b"https://r2.example.com/display/gen_result.webp" in response.data
-
-
-@patch("app.services.r2.get_display_url")
-def test_gallery_uses_r2_display_urls(mock_display, app, client):
-    from app.models import GeneratedImage, Hairstyle
-
-    sid = _consent_and_login(app, client)
-    with app.app_context():
-        h = Hairstyle(
-            name="Gal Cut",
-            description="A style",
-            category="MODERN",
-            image_url="test.png",
-        )
-        ui = UserImage(session_id=sid, image_url="uploads/photo.jpg")
-        db.session.add_all([h, ui])
-        db.session.commit()
-        gi = GeneratedImage(
-            session_id=sid,
-            user_image_id=ui.id,
-            hairstyle_id=h.id,
-            image_url="uploads/gen_gal.webp",
-        )
-        db.session.add(gi)
-        db.session.commit()
-
-    mock_display.return_value = "https://r2.example.com/display/gen_gal.webp"
-
-    response = client.get("/gallery")
-    assert response.status_code == 200
-    assert b"https://r2.example.com/display/gen_gal.webp" in response.data
-
-
-# ---------------------------------------------------------------------------
 # POST /api/rate
 # ---------------------------------------------------------------------------
 
@@ -578,33 +281,6 @@ def test_api_rate_rejects_out_of_range(auth_client, generated_image, bad_rating)
         content_type="application/json",
     )
     assert response.status_code == 400
-
-
-def test_api_rate_other_session_image_403(app, auth_client, hairstyle):
-    """Rating an image owned by a different session returns 403."""
-    from app.models import GeneratedImage
-
-    other_sid = str(uuid.uuid4())
-    with app.app_context():
-        oi = UserImage(session_id=other_sid, image_url="uploads/other_rate.jpg")
-        db.session.add(oi)
-        db.session.commit()
-        theirs = GeneratedImage(
-            session_id=other_sid,
-            user_image_id=oi.id,
-            hairstyle_id=hairstyle.id,
-            image_url="uploads/theirs.webp",
-        )
-        db.session.add(theirs)
-        db.session.commit()
-        their_id = theirs.id
-
-    response = auth_client.post(
-        "/api/rate",
-        json={"generated_image_id": their_id, "rating": 4},
-        content_type="application/json",
-    )
-    assert response.status_code == 403
 
 
 def test_api_rate_updates_existing(auth_client, generated_image, app):
@@ -712,8 +388,8 @@ def test_api_session_end_computes_duration(auth_client, app):
 def test_api_recommend_redirect_unconsented(client):
     response = client.post(
         "/api/recommend",
-        json={"user_image_id": 1},
-        content_type="application/json",
+        data={"photo": (make_test_image(), "test.jpg")},
+        content_type="multipart/form-data",
     )
     assert response.status_code == 302
 
@@ -722,104 +398,57 @@ def test_api_recommend_control_group_forbidden(auth_client):
     """Control-group sessions get 403 on /api/recommend."""
     response = auth_client.post(
         "/api/recommend",
-        json={"user_image_id": 1},
-        content_type="application/json",
+        data={"photo": (make_test_image(), "test.jpg")},
+        content_type="multipart/form-data",
     )
     assert response.status_code == 403
 
 
-def test_api_recommend_missing_user_image(experimental_client):
+def test_api_recommend_missing_photo(experimental_client):
     client, _sid = experimental_client
     response = client.post(
         "/api/recommend",
-        json={},
-        content_type="application/json",
+        data={},
+        content_type="multipart/form-data",
     )
     assert response.status_code == 400
 
 
-def test_api_recommend_wrong_session_403(app, experimental_client):
-    client, _sid = experimental_client
-    other_sid = str(uuid.uuid4())
-    with app.app_context():
-        oi = UserImage(session_id=other_sid, image_url="uploads/other_rec.jpg")
-        db.session.add(oi)
-        db.session.commit()
-        oi_id = oi.id
-
-    response = client.post(
-        "/api/recommend",
-        json={"user_image_id": oi_id},
-        content_type="application/json",
-    )
-    assert response.status_code == 403
-
-
-@patch("app.services.r2.download_bytes")
 @patch("app.routes.main.get_genai_client")
-def test_api_recommend_no_gemini_key(
-    mock_get_client, mock_download, app, experimental_client
-):
-    client, sid = experimental_client
-    with app.app_context():
-        ui = UserImage(session_id=sid, image_url="uploads/rec_photo.jpg")
-        db.session.add(ui)
-        db.session.commit()
-        ui_id = ui.id
+def test_api_recommend_no_gemini_key(mock_get_client, app, experimental_client):
+    client, _sid = experimental_client
 
     mock_get_client.return_value = None
     response = client.post(
         "/api/recommend",
-        json={"user_image_id": ui_id},
-        content_type="application/json",
+        data={"photo": (make_test_image(), "test.jpg")},
+        content_type="multipart/form-data",
     )
     assert response.status_code == 500
 
 
-@patch("app.services.r2.download_bytes")
 @patch("app.routes.main.get_genai_client")
-@patch("app.routes.main.Image.open")
-def test_api_recommend_exception_returns_500(
-    mock_image_open, mock_get_client, mock_download, app, experimental_client
-):
-    client, sid = experimental_client
-    with app.app_context():
-        ui = UserImage(session_id=sid, image_url="uploads/rec_photo.jpg")
-        db.session.add(ui)
-        db.session.commit()
-        ui_id = ui.id
+def test_api_recommend_exception_returns_500(mock_get_client, app, experimental_client):
+    client, _sid = experimental_client
 
-    mock_download.return_value = b"fake-bytes"
-    mock_image_open.return_value = MagicMock()
     mock_get_client.return_value = MagicMock()
     mock_get_client.return_value.models.generate_content.side_effect = Exception(
         "API error"
     )
     response = client.post(
         "/api/recommend",
-        json={"user_image_id": ui_id},
-        content_type="application/json",
+        data={"photo": (make_test_image(), "test.jpg")},
+        content_type="multipart/form-data",
     )
     assert response.status_code == 500
 
 
-@patch("app.services.r2.download_bytes")
 @patch("app.routes.main.get_genai_client")
-@patch("app.routes.main.Image.open")
-def test_api_recommend_success(
-    mock_image_open, mock_get_client, mock_download, app, experimental_client, hairstyle
-):
+def test_api_recommend_success(mock_get_client, app, experimental_client, hairstyle):
     import json
 
     client, sid = experimental_client
-    with app.app_context():
-        ui = UserImage(session_id=sid, image_url="uploads/rec_photo.jpg")
-        db.session.add(ui)
-        db.session.commit()
-        ui_id = ui.id
 
-    mock_download.return_value = b"fake-bytes"
-    mock_image_open.return_value = MagicMock()
     mock_client = MagicMock()
 
     mock_response = MagicMock()
@@ -838,8 +467,8 @@ def test_api_recommend_success(
 
     response = client.post(
         "/api/recommend",
-        json={"user_image_id": ui_id},
-        content_type="application/json",
+        data={"photo": (make_test_image(), "test.jpg")},
+        content_type="multipart/form-data",
     )
     assert response.status_code == 200
     data = response.get_json()
@@ -850,7 +479,143 @@ def test_api_recommend_success(
     from app.models import Recommendation
 
     with app.app_context():
-        rec = Recommendation.query.filter_by(user_image_id=ui_id).first()
+        rec = Recommendation.query.filter_by(session_id=sid).first()
         assert rec is not None
         assert rec.hairstyle_id == hairstyle.id
         assert rec.reasoning == "This is a great style for you."
+
+
+@patch("app.routes.main.get_genai_client")
+def test_api_generate_success(mock_get_client, app, auth_client, hairstyle):
+    from PIL import Image
+
+    # Create fake image
+    img = Image.new("RGB", (10, 10))
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    buf.seek(0)
+
+    mock_part = MagicMock()
+    mock_part.inline_data = MagicMock(data=buf.getvalue(), mime_type="image/png")
+
+    mock_client = MagicMock()
+    mock_client.models.generate_content.return_value = MagicMock(parts=[mock_part])
+    mock_get_client.return_value = mock_client
+
+    response = auth_client.post(
+        "/api/generate",
+        data={
+            "photo": (buf, "test.png"),
+            "hairstyle_id": str(hairstyle.id),
+        },
+        content_type="multipart/form-data",
+    )
+
+    assert response.status_code == 200
+    assert response.mimetype == "image/webp"
+    assert len(response.data) > 0
+
+    gen_id = response.headers.get("X-Generated-Image-Id")
+    assert gen_id is not None
+    with app.app_context():
+        gen_img = db.session.get(GeneratedImage, int(gen_id))
+        assert gen_img is not None
+        assert gen_img.hairstyle_id == hairstyle.id
+
+
+# ---------------------------------------------------------------------------
+# Upload validation (size / MIME / corruption) for /api/generate and /api/recommend
+# ---------------------------------------------------------------------------
+
+
+def test_api_generate_rejects_bad_mimetype(auth_client, hairstyle):
+    """A file declared as application/pdf is rejected before decoding."""
+    response = auth_client.post(
+        "/api/generate",
+        data={
+            "photo": (io.BytesIO(b"%PDF-1.4 fake"), "test.pdf", "application/pdf"),
+            "hairstyle_id": str(hairstyle.id),
+        },
+        content_type="multipart/form-data",
+    )
+    assert response.status_code == 400
+    assert b"Unsupported file type" in response.data
+
+
+def test_api_generate_rejects_corrupted_bytes(auth_client, hairstyle):
+    """A non-image byte stream declared as image/jpeg is rejected by PIL.verify()."""
+    response = auth_client.post(
+        "/api/generate",
+        data={
+            "photo": (io.BytesIO(b"not-an-image"), "test.jpg", "image/jpeg"),
+            "hairstyle_id": str(hairstyle.id),
+        },
+        content_type="multipart/form-data",
+    )
+    assert response.status_code == 400
+    assert b"Invalid or corrupted" in response.data
+
+
+def test_api_generate_rejects_large_file(auth_client, hairstyle):
+    """Flask's MAX_CONTENT_LENGTH (10MB) rejects oversize uploads with 413."""
+    oversize = io.BytesIO(b"\x00" * (10 * 1024 * 1024 + 1024))
+    response = auth_client.post(
+        "/api/generate",
+        data={
+            "photo": (oversize, "big.jpg", "image/jpeg"),
+            "hairstyle_id": str(hairstyle.id),
+        },
+        content_type="multipart/form-data",
+    )
+    assert response.status_code == 413
+
+
+def test_api_recommend_rejects_bad_mimetype(experimental_client):
+    client, _sid = experimental_client
+    response = client.post(
+        "/api/recommend",
+        data={
+            "photo": (io.BytesIO(b"%PDF-1.4 fake"), "test.pdf", "application/pdf"),
+        },
+        content_type="multipart/form-data",
+    )
+    assert response.status_code == 400
+    assert b"Unsupported file type" in response.data
+
+
+def test_api_recommend_rejects_corrupted_bytes(experimental_client):
+    client, _sid = experimental_client
+    response = client.post(
+        "/api/recommend",
+        data={
+            "photo": (io.BytesIO(b"not-an-image"), "test.jpg", "image/jpeg"),
+        },
+        content_type="multipart/form-data",
+    )
+    assert response.status_code == 400
+    assert b"Invalid or corrupted" in response.data
+
+
+# ---------------------------------------------------------------------------
+# /api/rate cross-session isolation
+# ---------------------------------------------------------------------------
+
+
+def test_api_rate_other_session_image_403(app, auth_client, hairstyle):
+    """Rating an image owned by a different session returns 403."""
+    other_sid = str(uuid.uuid4())
+    with app.app_context():
+        theirs = GeneratedImage(
+            session_id=other_sid,
+            hairstyle_id=hairstyle.id,
+        )
+        db.session.add(theirs)
+        db.session.commit()
+        their_id = theirs.id
+
+    response = auth_client.post(
+        "/api/rate",
+        json={"generated_image_id": their_id, "rating": 4},
+        content_type="application/json",
+    )
+    assert response.status_code == 403
