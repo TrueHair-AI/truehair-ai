@@ -10,7 +10,7 @@
         <span class="badge bg-warning text-dark fw-bold px-3 py-2 rounded-pill mb-3"
             style="background-color: var(--th-yellow) !important;">Legal</span>
         <h1 class="fw-bold display-5 mb-2">Privacy Notice</h1>
-        <p class="text-secondary">Last updated: March 2026</p>
+        <p class="text-secondary">Last updated: April 2026</p>
     </div>
 
     <!-- Section: Our Commitment -->
@@ -19,55 +19,42 @@
             <i class="bi bi-shield-check text-warning me-2"></i>Our Commitment to Privacy
         </h2>
         <p class="text-secondary mb-0">
-            TrueHair.ai is a student-developed application created for a software engineering course at Colby College.
-            We are committed to being transparent about the data we collect during this testing phase.
+            TrueHair.ai is an anonymous research study conducted by students and faculty at Colby College,
+            reviewed and approved by the Colby College Institutional Review Board (IRB). This study does
+            not create accounts, collect names or email addresses, or retain the photographs you upload.
+            This notice describes exactly what we do and do not record, so you can read it alongside the
+            consent disclosure you review at the start of a session.
         </p>
     </div>
 
-    <!-- Section: What We Collect -->
+    <!-- Section: What We Collect (and What We Don't) -->
     <div class="bg-card rounded-4 border border-secondary border-opacity-25 p-4 mb-4">
-        <h2 class="fw-bold h4 mb-4">
-            <i class="bi bi-database text-warning me-2"></i>What Data We Collect &amp; Why
+        <h2 class="fw-bold h4 mb-3">
+            <i class="bi bi-database text-warning me-2"></i>What We Collect (and What We Don't)
         </h2>
-        <p class="text-secondary mb-4">To validate our prototype, we collect the following information:</p>
+        <p class="text-secondary mb-3">
+            This is an anonymous research study. We have taken deliberate steps to avoid collecting
+            personally identifiable information.
+        </p>
 
-        <div class="d-flex flex-column gap-3">
-            <div class="d-flex gap-3">
-                <div class="flex-shrink-0 bg-dark border border-secondary border-opacity-25 rounded-3 d-flex align-items-center justify-content-center"
-                    style="width: 40px; height: 40px;">
-                    <i class="bi bi-envelope text-warning"></i>
-                </div>
-                <div>
-                    <h6 class="fw-bold mb-1 text-white">Email Addresses &amp; Account Info</h6>
-                    <p class="text-secondary mb-0 small">Collected during registration to verify that our platform is
-                        being tested by real users.</p>
-                </div>
-            </div>
+        <h6 class="fw-bold text-white mt-3 mb-2">We do NOT collect:</h6>
+        <ul class="text-secondary small mb-3">
+            <li>Your name, email address, or phone number</li>
+            <li>Any account or login information (there is no account system)</li>
+            <li>Your IP address (stripped from application logs)</li>
+            <li>A stored copy of your uploaded photograph (held in server memory only during AI processing, then discarded)</li>
+            <li>A stored copy of the AI-generated hairstyle visualizations (streamed to your browser, never saved on our servers)</li>
+        </ul>
 
-            <div class="d-flex gap-3">
-                <div class="flex-shrink-0 bg-dark border border-secondary border-opacity-25 rounded-3 d-flex align-items-center justify-content-center"
-                    style="width: 40px; height: 40px;">
-                    <i class="bi bi-image text-warning"></i>
-                </div>
-                <div>
-                    <h6 class="fw-bold mb-1 text-white">User-Uploaded Images</h6>
-                    <p class="text-secondary mb-0 small">Any photos uploaded to visualize hairstyles are processed
-                        solely to deliver the core functionality of the prototype.</p>
-                </div>
-            </div>
-
-            <div class="d-flex gap-3">
-                <div class="flex-shrink-0 bg-dark border border-secondary border-opacity-25 rounded-3 d-flex align-items-center justify-content-center"
-                    style="width: 40px; height: 40px;">
-                    <i class="bi bi-cookie text-warning"></i>
-                </div>
-                <div>
-                    <h6 class="fw-bold mb-1 text-white">Session Data &amp; Cookies</h6>
-                    <p class="text-secondary mb-0 small">Used to keep you logged in securely and to measure basic app
-                        usage.</p>
-                </div>
-            </div>
-        </div>
+        <h6 class="fw-bold text-white mt-4 mb-2">We DO record:</h6>
+        <ul class="text-secondary small mb-0">
+            <li>An anonymous session ID (a random code, not linked to your identity)</li>
+            <li>Which experimental condition you were assigned to</li>
+            <li>Which hairstyles you selected (catalog IDs only)</li>
+            <li>Your 1&ndash;5 star ratings of generated visualizations</li>
+            <li>How long your session lasted and how many visualizations you generated</li>
+            <li>The timestamp of your click on &ldquo;I Agree&rdquo;</li>
+        </ul>
     </div>
 
     <!-- Section: How Data Is Used -->
@@ -76,25 +63,75 @@
             <i class="bi bi-bar-chart text-warning me-2"></i>How Your Data is Used
         </h2>
         <p class="text-secondary mb-0">
-            All data collected is used strictly for educational purposes. We analyze this information to evaluate the
-            success of our prototype, calculate user retention, and make data-driven decisions for our coursework.
-            <strong class="text-white">Your data will never be sold or used for commercial purposes.</strong>
+            The anonymous session records listed above are used solely for academic research &mdash;
+            to evaluate how participants interact with AI-generated hairstyle recommendations and to
+            report aggregate findings. <strong class="text-white">Your data is never sold, shared with
+            advertisers, or used for any commercial purpose.</strong>
         </p>
     </div>
 
-    <!-- Section: Data Removal -->
+    <!-- Section: Third-Party AI Processing -->
+    <div class="bg-card rounded-4 border border-secondary border-opacity-25 p-4 mb-4">
+        <h2 class="fw-bold h4 mb-3">
+            <i class="bi bi-cloud text-warning me-2"></i>Third-Party AI Processing
+        </h2>
+        <p class="text-secondary mb-3">
+            Your uploaded photograph is transmitted to Google&rsquo;s Gemini models via the
+            <a href="https://cloud.google.com/vertex-ai" class="text-warning">Vertex AI API</a>
+            to generate hairstyle visualizations and recommendations.
+            Google&rsquo;s paid-tier terms of service prohibit using API request data to train
+            Google&rsquo;s AI models.
+        </p>
+        <p class="text-secondary mb-3">
+            We have configured Zero Data Retention (ZDR) settings on the Vertex AI project:
+            data caching is disabled, and an abuse-monitoring logging exception has been applied for
+            (see <a href="https://cloud.google.com/vertex-ai/generative-ai/docs/data-governance"
+                class="text-warning">Google Cloud&rsquo;s data governance policy</a>).
+        </p>
+        <p class="text-secondary mb-0">
+            API calls to Google carry no information about you (no name, email, or account identifier).
+            Google has no means of associating a photograph with you as an individual.
+        </p>
+    </div>
+
+    <!-- Section: Post-Study Data Requests -->
+    <div class="bg-card rounded-4 border border-secondary border-opacity-25 p-4 mb-4">
+        <h2 class="fw-bold h4 mb-3">
+            <i class="bi bi-question-circle text-warning me-2"></i>Can I remove my data after participating?
+        </h2>
+        <p class="text-secondary mb-3">
+            Because this study is fully anonymous, we cannot identify which records belong to any
+            specific participant after a session ends. As a result, we are unable to honor requests
+            to delete specific data after the fact.
+        </p>
+        <p class="text-secondary mb-0">
+            If you do not want your data to be included, please close the browser window
+            <em>before</em> completing your session. If you have concerns, you can contact the
+            research team or the Colby IRB using the information below.
+        </p>
+    </div>
+
+    <!-- Section: Contact -->
     <div class="bg-card rounded-4 border border-secondary border-opacity-25 p-4 mb-5">
         <h2 class="fw-bold h4 mb-3">
-            <i class="bi bi-trash3 text-warning me-2"></i>Data Removal Requests
+            <i class="bi bi-envelope text-warning me-2"></i>Questions or Concerns
         </h2>
-        <p class="text-secondary mb-4">
-            You have the right to request the deletion of your account and any associated data (including emails and
-            photos) at any time.
+        <p class="text-secondary mb-3">
+            For questions about the study, you can contact the research team at Colby College:
         </p>
-        <a href="mailto:rfagyapong1@gmail.com" class="btn fw-bold px-4 py-2 rounded-3 text-dark"
-            style="background-color: var(--th-yellow);">
-            <i class="bi bi-envelope me-2"></i>Request Data Deletion
-        </a>
+        <ul class="text-secondary small mb-3">
+            <li>Rose Agyapong (team lead) &mdash;
+                <a href="mailto:rfagya27@colby.edu" class="text-warning">rfagya27@colby.edu</a></li>
+            <li>Francis O&rsquo;Hara Aidoo &mdash;
+                <a href="mailto:fohara27@colby.edu" class="text-warning">fohara27@colby.edu</a></li>
+            <li>Prof. Naser Al Madi (faculty supervisor) &mdash;
+                <a href="mailto:nsalmadi@colby.edu" class="text-warning">nsalmadi@colby.edu</a></li>
+        </ul>
+        <p class="text-secondary mb-0">
+            For questions about your rights as a research participant, contact the Colby College
+            Institutional Review Board at
+            <a href="mailto:institutionalreviewboard@colby.edu" class="text-warning">institutionalreviewboard@colby.edu</a>.
+        </p>
     </div>
 
 </div>
