@@ -15,7 +15,7 @@ from flask import (
 )
 from google import genai
 from google.genai import types
-from PIL import Image
+from PIL import Image, UnidentifiedImageError
 from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import joinedload
@@ -28,11 +28,9 @@ from app.models import (
     Rating,
     Recommendation,
     Stylist,
-    UserImage,
     Visit,
     db,
 )
-from app.services import r2 as r2_service
 from app.services.session_identity import (
     consent_required,
     get_session_id,
@@ -40,6 +38,40 @@ from app.services.session_identity import (
 )
 
 main_bp = Blueprint("main", __name__)
+
+ALLOWED_PHOTO_TYPES = {"image/jpeg", "image/png", "image/webp"}
+ALLOWED_PHOTO_FORMATS = {"JPEG", "PNG", "WEBP"}
+
+
+def _load_validated_photo(photo_file):
+    """Return (PIL.Image, None) on success or (None, (response, status)) on failure.
+
+    Validates the reported MIME type, verifies the byte stream decodes,
+    and cross-checks the decoded format against the allowlist so a
+    mislabeled file (e.g. a .pdf sent as image/jpeg) is rejected.
+    """
+    if photo_file.mimetype not in ALLOWED_PHOTO_TYPES:
+        return None, (
+            jsonify({"error": f"Unsupported file type: {photo_file.mimetype}"}),
+            400,
+        )
+
+    photo_bytes = photo_file.read()
+    try:
+        probe = Image.open(io.BytesIO(photo_bytes))
+        probe.verify()
+    except UnidentifiedImageError, OSError, SyntaxError, ValueError:
+        return None, (jsonify({"error": "Invalid or corrupted image"}), 400)
+
+    # verify() leaves the image unusable; reopen for real use.
+    user_photo = Image.open(io.BytesIO(photo_bytes))
+    if user_photo.format not in ALLOWED_PHOTO_FORMATS:
+        return None, (
+            jsonify({"error": f"Unsupported image format: {user_photo.format}"}),
+            400,
+        )
+
+    return user_photo, None
 
 
 def _day_of_week(date_column):
@@ -159,49 +191,6 @@ def style_studio():
     )
     return render_template(
         "style_studio.html", hairstyles=hairstyles, categories=categories
-    )
-
-
-@main_bp.route("/api/upload/presign", methods=["POST"])
-@consent_required
-def upload_presign():
-    """Return a presigned PUT URL so the client can upload directly to R2."""
-    data = request.get_json(silent=True) or {}
-    filename = data.get("filename", "photo.jpg")
-    content_type = data.get("content_type", "image/jpeg")
-
-    if content_type not in r2_service.ALLOWED_CONTENT_TYPES:
-        return jsonify({"error": f"Unsupported content type: {content_type}"}), 400
-
-    upload_key = r2_service.make_upload_key(filename)
-    put_url = r2_service.get_presigned_put_url(upload_key, content_type)
-
-    return jsonify({"put_url": put_url, "upload_key": upload_key})
-
-
-@main_bp.route("/api/upload/confirm", methods=["POST"])
-@consent_required
-def upload_confirm():
-    """Confirm a client-side R2 upload and create the DB record."""
-    data = request.get_json(silent=True) or {}
-    upload_key = data.get("upload_key")
-
-    if not upload_key or not upload_key.startswith("uploads/"):
-        return jsonify({"error": "Invalid upload_key"}), 400
-
-    user_image = UserImage(
-        session_id=get_session_id(),
-        image_url=upload_key,
-    )
-    db.session.add(user_image)
-    db.session.commit()
-
-    return jsonify(
-        {
-            "status": "success",
-            "image_url": r2_service.get_display_url(upload_key),
-            "image_id": user_image.id,
-        }
     )
 
 
@@ -501,9 +490,7 @@ def result(image_id=None):
             .first()
         )
 
-    image_display_url = (
-        r2_service.get_display_url(gen_img.image_url) if gen_img else None
-    )
+    image_display_url = None
 
     return render_template(
         "result.html", latest_gen=gen_img, image_display_url=image_display_url
@@ -522,7 +509,7 @@ def gallery():
         .all()
     )
 
-    display_urls = {img.id: r2_service.get_display_url(img.image_url) for img in images}
+    display_urls = {}
 
     return render_template("gallery.html", images=images, display_urls=display_urls)
 
@@ -554,26 +541,19 @@ def recommend():
     if not exp or exp.experiment_group != "experimental":
         abort(403)
 
-    data = request.json
-    user_image_id = data.get("user_image_id")
-    if not user_image_id:
-        return jsonify({"error": "Missing user_image_id"}), 400
+    photo_file = request.files.get("photo")
+    if not photo_file:
+        return jsonify({"error": "Missing photo"}), 400
 
-    user_image = db.session.get(UserImage, user_image_id)
-    if not user_image:
-        return jsonify({"error": "Invalid user_image_id"}), 400
-
-    if user_image.session_id != sid:
-        abort(403)
+    user_photo, err = _load_validated_photo(photo_file)
+    if err:
+        return err
 
     client = get_genai_client()
     if not client:
         return jsonify({"error": "Internal server error. Please try again later."}), 500
 
     try:
-        photo_bytes = r2_service.download_bytes(user_image.image_url)
-        user_photo = Image.open(io.BytesIO(photo_bytes))
-
         hairstyles = Hairstyle.query.all()
         catalog_list = [
             {"id": h.id, "name": h.name, "description": h.description}
@@ -636,7 +616,6 @@ Respond with a JSON object in this exact format:
 
                 db_rec = Recommendation(
                     session_id=sid,
-                    user_image_id=user_image.id,
                     hairstyle_id=h.id,
                     reasoning=reasoning,
                 )
@@ -665,129 +644,74 @@ Respond with a JSON object in this exact format:
 @consent_required
 def generate():
     """Generate a new image with the selected hairstyle using Gemini."""
+    # IRB compliance: photo bytes must not be logged or persisted.
+    # Do not log request.files, request.data, or photo_bytes.
     sid = get_session_id()
-    data = request.json
-    user_image_id = data.get("user_image_id")
-    hairstyle_id = data.get("hairstyle_id")
-    reference_image_id = data.get("reference_image_id")
 
-    if not user_image_id:
-        return jsonify({"error": "Missing user photo"}), 400
+    photo_file = request.files.get("photo")
+    if not photo_file:
+        return jsonify({"error": "Missing photo"}), 400
 
-    if not hairstyle_id and not reference_image_id:
-        return jsonify({"error": "Select a hairstyle or upload a reference image"}), 400
+    hairstyle_id = request.form.get("hairstyle_id", type=int)
 
-    user_image = db.session.get(UserImage, user_image_id)
-    if not user_image:
-        return jsonify({"error": "Invalid selection"}), 400
-    if user_image.session_id != sid:
-        abort(403)
+    if not hairstyle_id:
+        return jsonify({"error": "Select a hairstyle"}), 400
 
-    hairstyle = db.session.get(Hairstyle, hairstyle_id) if hairstyle_id else None
-    if hairstyle_id and not hairstyle:
+    hairstyle = db.session.get(Hairstyle, hairstyle_id)
+    if not hairstyle:
         return jsonify({"error": "Invalid hairstyle"}), 400
 
-    reference_image = None
-    if reference_image_id:
-        reference_image = db.session.get(UserImage, reference_image_id)
-        if not reference_image:
-            return jsonify({"error": "Invalid reference image"}), 400
-        if reference_image.session_id != sid:
-            abort(403)
+    user_photo, err = _load_validated_photo(photo_file)
+    if err:
+        return err
 
     client = get_genai_client()
     if not client:
-        return jsonify({"error": "Internal server error. Please try again later."}), 500
+        return jsonify({"error": "Internal server error"}), 500
 
     try:
-        photo_bytes = r2_service.download_bytes(user_image.image_url)
-        user_photo = Image.open(io.BytesIO(photo_bytes))
-
-        contents = []
-
-        if reference_image and hairstyle:
-            ref_bytes = r2_service.download_bytes(reference_image.image_url)
-            ref_photo = Image.open(io.BytesIO(ref_bytes))
-            prompt = (
-                f"Edit this person's photo to give them a hairstyle matching "
-                f"the reference image provided. The target style is '{hairstyle.name}': "
-                f"{hairstyle.description}. "
-                f"Use the reference image as the primary guide for the exact look. "
-                f"Keep the person's face, skin tone, and body exactly the same. "
-                f"Only change their hair. Return the edited photo."
-            )
-            contents = [prompt, user_photo, ref_photo]
-        elif reference_image:
-            ref_bytes = r2_service.download_bytes(reference_image.image_url)
-            ref_photo = Image.open(io.BytesIO(ref_bytes))
-            prompt = (
-                "Edit this person's photo to give them the hairstyle shown in "
-                "the reference image. Replicate the hair style, length, texture, "
-                "and shape from the reference as closely as possible. "
-                "Keep the person's face, skin tone, and body exactly the same. "
-                "Only change their hair. Return the edited photo."
-            )
-            contents = [prompt, user_photo, ref_photo]
-        else:
-            prompt = (
-                f"Edit this person's photo to give them a '{hairstyle.name}' hairstyle. "
-                f"{hairstyle.description}. "
-                f"Keep the person's face, skin tone, and body exactly the same. "
-                f"Only change their hair to match the described style. "
-                f"Return the edited photo."
-            )
-            contents = [prompt, user_photo]
+        prompt = (
+            f"Edit this person's photo to give them a '{hairstyle.name}' hairstyle. "
+            f"{hairstyle.description}. "
+            f"Keep the person's face, skin tone, and body exactly the same. "
+            f"Only change their hair. Return the edited photo."
+        )
 
         response = client.models.generate_content(
             model="gemini-2.5-flash-image",
-            contents=contents,
+            contents=[prompt, user_photo],
             config=types.GenerateContentConfig(
                 response_modalities=["IMAGE"],
                 http_options=types.HttpOptions(timeout=120000),
             ),
         )
 
-        image_part = None
-        for part in response.parts:
-            if part.inline_data is not None:
-                image_part = part
-                break
-        else:
-            raise Exception("No image returned by the model.")
+        image_part = next((p for p in response.parts if p.inline_data), None)
+        if not image_part:
+            raise Exception("No image returned")
 
-        result_key = r2_service.make_generated_key()
         image_bytes = image_part.inline_data.data
 
-        gen_image_pil = Image.open(io.BytesIO(image_bytes))
-        webp_io = io.BytesIO()
-        gen_image_pil.save(webp_io, format="WEBP", lossless=True)
-        webp_bytes = webp_io.getvalue()
+        img = Image.open(io.BytesIO(image_bytes))
+        out = io.BytesIO()
+        img.save(out, format="WEBP", lossless=True)
 
-        r2_service.upload_bytes(result_key, webp_bytes, "image/webp")
-        result_url = result_key
+        webp_bytes = out.getvalue()
 
         gen_img = GeneratedImage(
             session_id=sid,
-            user_image_id=user_image.id,
-            hairstyle_id=hairstyle.id if hairstyle else None,
-            reference_image_id=reference_image.id if reference_image else None,
-            image_url=result_url,
+            hairstyle_id=hairstyle.id,
         )
         db.session.add(gen_img)
         db.session.commit()
 
-        return jsonify(
-            {
-                "status": "success",
-                "image_url": r2_service.get_display_url(result_url),
-                "image_id": gen_img.id,
-            }
+        return current_app.response_class(
+            webp_bytes,
+            mimetype="image/webp",
+            headers={"X-Generated-Image-Id": str(gen_img.id)},
         )
     except Exception as e:
-        import traceback
-
-        traceback.print_exc()
-        current_app.logger.error(f"Gemini generation failed: {e}")
+        current_app.logger.error(f"Generation failed: {e}")
         return jsonify({"error": "Internal server error. Please try again later."}), 500
 
 
