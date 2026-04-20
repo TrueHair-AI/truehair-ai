@@ -52,40 +52,16 @@ class Hairstyle(db.Model):
         return f"<Hairstyle {self.name}>"
 
 
-class UserImage(db.Model):
-    """Stores metadata for a source image uploaded by the user."""
-
-    id = db.Column(db.Integer, primary_key=True)
-    session_id = db.Column(db.String(36), nullable=False)
-    image_url = db.Column(db.String(255), nullable=False)
-    created_at = db.Column(
-        db.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
-    )
-
-
 class GeneratedImage(db.Model):
-    """Stores the generated AI hairstyle image and its associations."""
+    """Records the event of a hairstyle visualization being generated."""
 
     id = db.Column(db.Integer, primary_key=True)
     session_id = db.Column(db.String(36), nullable=False)
-    user_image_id = db.Column(
-        db.Integer, db.ForeignKey("user_image.id"), nullable=False
-    )
     hairstyle_id = db.Column(db.Integer, db.ForeignKey("hairstyle.id"), nullable=True)
-    reference_image_id = db.Column(
-        db.Integer, db.ForeignKey("user_image.id"), nullable=True
-    )
-    image_url = db.Column(db.String(255), nullable=False)
     created_at = db.Column(
         db.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
 
-    user_image = db.relationship(
-        "UserImage",
-        foreign_keys=[user_image_id],
-        backref=db.backref("generations", lazy=True),
-    )
-    reference_image = db.relationship("UserImage", foreign_keys=[reference_image_id])
     hairstyle = db.relationship(
         "Hairstyle", backref=db.backref("generations", lazy=True)
     )
@@ -126,13 +102,10 @@ class Consent(db.Model):
 
 
 class Recommendation(db.Model):
-    """Stores AI-generated hairstyle recommendations for a user's image."""
+    """Stores AI-generated hairstyle recommendations."""
 
     id = db.Column(db.Integer, primary_key=True)
     session_id = db.Column(db.String(36), nullable=False)
-    user_image_id = db.Column(
-        db.Integer, db.ForeignKey("user_image.id"), nullable=False
-    )
     hairstyle_id = db.Column(db.Integer, db.ForeignKey("hairstyle.id"), nullable=False)
     reasoning = db.Column(db.Text)
     created_at = db.Column(
