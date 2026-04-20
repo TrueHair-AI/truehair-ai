@@ -609,9 +609,6 @@ Respond with a JSON object in this exact format:
                 valid_recommendations.append(
                     {
                         "hairstyle_id": h.id,
-                        "name": h.name,
-                        "description": h.description,
-                        "image_url": h.image_url,
                         "reasoning": reasoning,
                     }
                 )
