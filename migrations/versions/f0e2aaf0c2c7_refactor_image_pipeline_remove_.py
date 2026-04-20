@@ -1,4 +1,4 @@
-"""Refactor image pipeline: remove UserImage, drop image references, add session_id to Visit
+"""Refactor image pipeline: remove UserImage, drop image references
 
 Revision ID: f0e2aaf0c2c7
 Revises: d1e4f5a6b7c8
@@ -37,16 +37,8 @@ def upgrade():
 
     op.drop_table("user_image")
 
-    with op.batch_alter_table("visit", schema=None) as batch_op:
-        batch_op.add_column(
-            sa.Column("session_id", sa.String(length=36), nullable=True)
-        )
-
 
 def downgrade():
-    with op.batch_alter_table("visit", schema=None) as batch_op:
-        batch_op.drop_column("session_id")
-
     op.create_table(
         "user_image",
         sa.Column("id", sa.INTEGER(), nullable=False),
