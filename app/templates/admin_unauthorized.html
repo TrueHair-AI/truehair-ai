@@ -1,0 +1,30 @@
+{% extends 'base.html' %}
+
+{% block title %}Access denied - TrueHair AI{% endblock %}
+
+{% block navbar %}{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-md-8 col-lg-6">
+            <div class="card bg-dark border-secondary">
+                <div class="card-body p-5 text-center">
+                    <i class="bi bi-shield-lock-fill text-warning" style="font-size: 3rem;"></i>
+                    <h1 class="h3 text-white mt-3 mb-3">Access denied</h1>
+                    <p class="text-secondary mb-2">
+                        The Google account <strong class="text-white">{{ email }}</strong>
+                        is not on the admin allowlist.
+                    </p>
+                    <p class="text-secondary small mb-4">
+                        If you believe you should have access, contact the study administrator.
+                    </p>
+                    <a href="{{ url_for('admin.logout') }}" class="btn btn-outline-light">
+                        Sign out
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
