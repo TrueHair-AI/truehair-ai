@@ -94,11 +94,18 @@
 
         <div class="row g-4 mb-5" id="hairstyle-grid">
             {% for style in hairstyles %}
-            <div class="col-12 col-sm-6 col-md-4 col-lg-3 hairstyle-item" data-id="{{ style.id }}" data-category="{{ (style.category or 'UNCATEGORIZED') | upper }}" data-name="{{ style.name }}" data-description="{{ style.description or '' }}">
+            <div class="col-12 col-sm-6 col-md-4 col-lg-3 col-xl-2 hairstyle-item" data-id="{{ style.id }}" data-category="{{ (style.category or 'UNCATEGORIZED') | upper }}" data-name="{{ style.name }}" data-description="{{ style.description or '' }}" tabindex="0">
                 <div class="style-card rounded-4 position-relative overflow-hidden border border-secondary border-opacity-25 h-100"
                     style="cursor: pointer; transition: all 0.2s ease;">
                     <img src="{{ url_for('static', filename='images/' + style.image_url) }}" alt="{{ style.name }}"
                         class="img-fluid w-100" style="aspect-ratio: 1/1; object-fit: cover;">
+                    
+                    <!-- NEW: reasoning overlay -->
+                    <div class="reasoning-overlay position-absolute top-0 start-0 w-100 h-100 p-3 d-flex align-items-center"
+                         style="background: rgba(22, 22, 24, 0.92); color: #fff; opacity: 0; pointer-events: none; transition: opacity 0.2s ease; z-index: 5;">
+                        <p class="small mb-0 reasoning-text" style="line-height: 1.5;"></p>
+                    </div>
+
                     <div class="style-card-label position-absolute bottom-0 start-0 w-100 p-3 pt-5"
                         style="background: linear-gradient(to top, rgba(0,0,0,0.9), transparent);">
                         <span class="text-white fw-bold text-sm">{{ style.name }}</span>
@@ -269,6 +276,22 @@
     .style-card:hover {
         transform: translateY(-4px);
         box-shadow: 0 8px 20px rgba(0,0,0,0.4);
+    }
+
+    /* Hover: show overlay for recommended cards */
+    .style-card.is-recommended:hover .reasoning-overlay,
+    .style-card.is-recommended:focus-within .reasoning-overlay {
+        opacity: 1;
+    }
+
+    /* Selected (= clicked): show overlay regardless of hover */
+    .style-card.is-selected .reasoning-overlay {
+        opacity: 1;
+    }
+
+    /* Non-recommended cards have no reasoning — make sure their overlay never shows */
+    .style-card:not(.is-recommended) .reasoning-overlay {
+        display: none;
     }
 </style>
 
@@ -447,6 +470,9 @@
                 item.querySelector(".rec-badge").classList.remove("d-none");
                 // Stash reasoning on the node for hover tooltip (issue #59)
                 item.dataset.reasoning = reasoning;
+                // Populate reasoning text and dataset for sticky-on-click
+                item.querySelector(".reasoning-text").textContent = reasoning;
+                item.dataset.hasReasoning = "true";
             }
         });
     }
@@ -489,6 +515,7 @@
         
         hairstyleItems.forEach(i => {
             const c = i.querySelector('.style-card');
+            c.classList.remove('is-selected');
             c.classList.replace('border-yellow', 'border-secondary');
             if (!c.classList.contains('is-recommended')) {
                 c.classList.add('border-opacity-25');
@@ -500,12 +527,13 @@
     }
 
     hairstyleItems.forEach(item => {
-        item.addEventListener('click', () => {
+        const handleSelect = () => {
             if (item.classList.contains('d-none')) return;
             
             clearCatalogSelection();
 
             const card = item.querySelector('.style-card');
+            card.classList.add('is-selected');
             card.classList.replace('border-secondary', 'border-yellow');
             card.classList.remove('border-opacity-25');
             
@@ -520,6 +548,14 @@
             state.selectedHairstyleDesc = item.dataset.description || 'A great new look for you.';
             
             checkEnableGenerate();
+        };
+
+        item.addEventListener('click', handleSelect);
+        item.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                handleSelect();
+            }
         });
     });
 
