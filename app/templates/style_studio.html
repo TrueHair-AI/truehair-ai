@@ -42,13 +42,6 @@
                         <i class="bi bi-x-lg"></i>
                     </button>
                 </div>
-
-                <!-- Progress Spinner -->
-                <div id="upload-spinner" class="d-none">
-                    <div class="spinner-border text-yellow" role="status">
-                        <span class="visually-hidden">Uploading...</span>
-                    </div>
-                </div>
             </div>
         </div>
 
@@ -90,45 +83,6 @@
                 {% endfor %}
             </div>
 
-            <!-- Reference Box -->
-            <div id="reference-box"
-                class="bg-card rounded-4 border border-secondary border-opacity-25 p-4 mb-4 mt-auto">
-                <input type="file" id="reference-image-input" class="d-none" accept="image/*">
-
-                <div id="reference-upload-prompt" class="d-flex align-items-center justify-content-between">
-                    <div class="d-flex align-items-center gap-3">
-                        <div class="bg-dark rounded-3 d-flex align-items-center justify-content-center border border-secondary border-opacity-25"
-                            style="width: 48px; height: 48px;">
-                            <i class="bi bi-file-earmark-arrow-up text-yellow fs-4"></i>
-                        </div>
-                        <div>
-                            <h6 class="fw-bold mb-1">Have a reference?</h6>
-                            <p class="text-secondary text-sm mb-0">Upload a custom style image instead</p>
-                        </div>
-                    </div>
-                    <button id="reference-upload-btn" class="btn btn-dark border border-secondary border-opacity-25 fw-semibold text-yellow">Upload
-                        Reference</button>
-                </div>
-
-                <div id="reference-preview-container" class="d-none">
-                    <div class="d-flex align-items-center gap-3">
-                        <img id="reference-preview-img" src="" class="rounded-3" style="width: 48px; height: 48px; object-fit: cover;">
-                        <div class="flex-grow-1">
-                            <h6 class="fw-bold mb-0 text-yellow">Reference uploaded</h6>
-                            <p class="text-secondary text-sm mb-0">This will guide the generation</p>
-                        </div>
-                        <button id="remove-reference" class="btn btn-sm btn-dark border border-secondary">
-                            <i class="bi bi-x-lg"></i>
-                        </button>
-                    </div>
-                </div>
-
-                <div id="reference-spinner" class="d-none text-center py-2">
-                    <div class="spinner-border spinner-border-sm text-yellow" role="status">
-                        <span class="visually-hidden">Uploading...</span>
-                    </div>
-                </div>
-            </div>
 
             <!-- Flash Message Container -->
             <div id="flash-message-container" class="mb-3"></div>
@@ -150,10 +104,8 @@
 
 <script>
     document.addEventListener('DOMContentLoaded', function () {
-        const experimentGroup = "{{ experiment_group }}";
         let selectedHairstyleId = null;
-        let uploadedImageId = null;
-        let referenceImageId = null;
+        let uploadedFile = null;
 
         const uploadContainer = document.getElementById('upload-container');
         const imageInput = document.getElementById('user-image-input');
@@ -162,15 +114,6 @@
         const previewImg = document.getElementById('image-preview');
         const removeBtn = document.getElementById('remove-image');
         const generateBtn = document.getElementById('generate-btn');
-        const spinner = document.getElementById('upload-spinner');
-
-        const referenceInput = document.getElementById('reference-image-input');
-        const referenceUploadBtn = document.getElementById('reference-upload-btn');
-        const referenceUploadPrompt = document.getElementById('reference-upload-prompt');
-        const referencePreviewContainer = document.getElementById('reference-preview-container');
-        const referencePreviewImg = document.getElementById('reference-preview-img');
-        const removeReferenceBtn = document.getElementById('remove-reference');
-        const referenceSpinner = document.getElementById('reference-spinner');
 
         // Handle File Selection
         uploadContainer.addEventListener('click', (e) => {
@@ -217,215 +160,24 @@
         });
 
         function uploadFile(file) {
-            placeholder.classList.add('d-none');
-            spinner.classList.remove('d-none');
+            uploadedFile = file;
 
-            fetch("{{ url_for('main.upload_presign') }}", {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ filename: file.name, content_type: file.type || 'image/jpeg' })
-            })
-            .then(r => r.json())
-            .then(presignData => {
-                if (presignData.error) throw presignData;
-                return fetch(presignData.put_url, {
-                    method: 'PUT',
-                    headers: { 'Content-Type': file.type || 'image/jpeg' },
-                    body: file
-                }).then(() => presignData.upload_key);
-            })
-            .then(uploadKey => {
-                return fetch("{{ url_for('main.upload_confirm') }}", {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ upload_key: uploadKey })
-                }).then(r => r.json());
-            })
-            .then(data => {
-                spinner.classList.add('d-none');
-                if (data.status === 'success') {
-                    previewImg.src = data.image_url;
-                    uploadedImageId = data.image_id;
-                    previewContainer.classList.remove('d-none');
-                    checkEnableGenerate();
-                    
-                    if (experimentGroup === 'experimental') {
-                        fetchRecommendations(uploadedImageId);
-                    }
-                } else {
-                    showFlashMessage(data.error || 'Upload failed.');
-                    placeholder.classList.remove('d-none');
-                }
-            })
-            .catch(err => {
-                console.error(err);
-                spinner.classList.add('d-none');
-                showFlashMessage(err.error || 'Upload failed. Please try again.');
-                placeholder.classList.remove('d-none');
-            });
-        }
-
-        function fetchRecommendations(imageId) {
-            const gridContainer = document.getElementById('hairstyle-grid');
-            
-            // Show loading state
-            gridContainer.innerHTML = `
-                <div class="col-12 text-center py-5">
-                    <div class="spinner-border text-warning mb-3" role="status"></div>
-                    <h5 class="fw-bold">Analyzing your photo and finding your best styles...</h5>
-                </div>
-            `;
-            
-            fetch("{{ url_for('main.recommend') }}", {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ user_image_id: imageId })
-            })
-            .then(response => {
-                if (!response.ok) {
-                    return response.json().then(err => { throw err; });
-                }
-                return response.json();
-            })
-            .then(data => {
-                if (data.status === 'success') {
-                    renderRecommendations(data.recommendations);
-                } else {
-                    throw new Error(data.error || 'Recommendation failed.');
-                }
-            })
-            .catch(err => {
-                console.error(err);
-                gridContainer.innerHTML = '';
-                showFlashMessage(err.error || 'AI recommendation could not be generated. This session cannot proceed. Please try again later.');
-            });
-        }
-
-        function renderRecommendations(recommendations) {
-            const gridContainer = document.getElementById('hairstyle-grid');
-            gridContainer.innerHTML = '';
-            
-            if (!recommendations || recommendations.length === 0) {
-                gridContainer.innerHTML = '<div class="col-12"><p class="text-secondary text-center">No recommendations found.</p></div>';
-                return;
-            }
-            
-            recommendations.forEach(style => {
-                const imgSrc = "{{ url_for('static', filename='images/') }}" + style.image_url;
-                
-                const col = document.createElement('div');
-                col.className = 'col-md-4 col-sm-6 hairstyle-item';
-                col.dataset.id = style.hairstyle_id;
-                col.dataset.category = 'ALL';
-                
-                col.innerHTML = `
-                    <div class="style-card rounded-4 position-relative overflow-hidden border border-secondary border-opacity-25 mb-2"
-                        style="cursor: pointer;">
-                        <img src="${imgSrc}" alt="${style.name}"
-                            class="img-fluid w-100" style="aspect-ratio: 1/1; object-fit: cover;">
-                        <div class="position-absolute bottom-0 start-0 w-100 p-3 pt-5"
-                            style="background: linear-gradient(to top, rgba(0,0,0,0.9), transparent);">
-                            <span class="text-white fw-bold text-sm">${style.name}</span>
-                        </div>
-                        <div class="selection-indicator position-absolute top-0 end-0 m-3 bg-warning text-dark rounded-circle d-none align-items-center justify-content-center"
-                            style="width: 24px; height: 24px;">
-                            <i class="bi bi-check" style="font-size: 1.2rem; line-height: 1;"></i>
-                        </div>
-                    </div>
-                    <div class="text-sm text-secondary px-1 mb-3" style="font-size: 0.8rem; line-height: 1.4;">
-                        ${style.reasoning}
-                    </div>
-                `;
-                
-                gridContainer.appendChild(col);
-                
-                col.addEventListener('click', () => {
-                    const allItems = document.querySelectorAll('.hairstyle-item');
-                    allItems.forEach(i => {
-                        i.querySelector('.style-card').classList.replace('border-yellow', 'border-secondary');
-                        i.querySelector('.style-card').classList.add('border-opacity-25');
-                        i.querySelector('.selection-indicator').classList.add('d-none');
-                    });
-
-                    const card = col.querySelector('.style-card');
-                    card.classList.replace('border-secondary', 'border-yellow');
-                    card.classList.remove('border-opacity-25');
-                    col.querySelector('.selection-indicator').classList.remove('d-none');
-
-                    selectedHairstyleId = col.dataset.id;
-                    checkEnableGenerate();
-                });
-            });
+            const reader = new FileReader();
+            reader.onload = function (e) {
+                previewImg.src = e.target.result;
+                previewContainer.classList.remove('d-none');
+                placeholder.classList.add('d-none');
+                checkEnableGenerate();
+            };
+            reader.readAsDataURL(file);
         }
 
         removeBtn.addEventListener('click', () => {
-            uploadedImageId = null;
+            uploadedFile = null;
+            previewImg.src = '';
             previewContainer.classList.add('d-none');
             placeholder.classList.remove('d-none');
             imageInput.value = '';
-            checkEnableGenerate();
-        });
-
-        // Reference Image Upload
-        referenceUploadBtn.addEventListener('click', () => referenceInput.click());
-
-        referenceInput.addEventListener('change', function () {
-            if (this.files && this.files[0]) {
-                uploadReferenceFile(this.files[0]);
-            }
-        });
-
-        function uploadReferenceFile(file) {
-            referenceUploadPrompt.classList.add('d-none');
-            referencePreviewContainer.classList.add('d-none');
-            referenceSpinner.classList.remove('d-none');
-
-            fetch("{{ url_for('main.upload_presign') }}", {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ filename: file.name, content_type: file.type || 'image/jpeg' })
-            })
-            .then(r => r.json())
-            .then(presignData => {
-                if (presignData.error) throw presignData;
-                return fetch(presignData.put_url, {
-                    method: 'PUT',
-                    headers: { 'Content-Type': file.type || 'image/jpeg' },
-                    body: file
-                }).then(() => presignData.upload_key);
-            })
-            .then(uploadKey => {
-                return fetch("{{ url_for('main.upload_confirm') }}", {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ upload_key: uploadKey })
-                }).then(r => r.json());
-            })
-            .then(data => {
-                referenceSpinner.classList.add('d-none');
-                if (data.status === 'success') {
-                    referenceImageId = data.image_id;
-                    referencePreviewImg.src = data.image_url;
-                    referencePreviewContainer.classList.remove('d-none');
-                    checkEnableGenerate();
-                } else {
-                    showFlashMessage(data.error || 'Reference upload failed.');
-                    referenceUploadPrompt.classList.remove('d-none');
-                }
-            })
-            .catch(err => {
-                console.error(err);
-                referenceSpinner.classList.add('d-none');
-                showFlashMessage(err.error || 'Reference upload failed. Please try again.');
-                referenceUploadPrompt.classList.remove('d-none');
-            });
-        }
-
-        removeReferenceBtn.addEventListener('click', () => {
-            referenceImageId = null;
-            referencePreviewContainer.classList.add('d-none');
-            referenceUploadPrompt.classList.remove('d-none');
-            referenceInput.value = '';
             checkEnableGenerate();
         });
 
@@ -487,8 +239,8 @@
         });
 
         function checkEnableGenerate() {
-            const hasPhoto = !!uploadedImageId;
-            const hasStyle = !!selectedHairstyleId || !!referenceImageId;
+            const hasPhoto = !!uploadedFile;
+            const hasStyle = !!selectedHairstyleId;
             generateBtn.disabled = !(hasPhoto && hasStyle);
         }
 
@@ -501,38 +253,31 @@
             btnText.textContent = 'GENERATING (may take 1 min)...';
             btnSpinner.classList.remove('d-none');
 
+            const formData = new FormData();
+            formData.append("photo", uploadedFile);
+            formData.append("hairstyle_id", selectedHairstyleId);
+
             fetch("{{ url_for('main.generate') }}", {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    user_image_id: uploadedImageId,
-                    hairstyle_id: selectedHairstyleId,
-                    reference_image_id: referenceImageId
-                })
+                method: "POST",
+                body: formData
             })
                 .then(response => {
-                    if (!response.ok) {
-                        return response.json().then(err => { throw err; });
+                    if (!response.ok) throw new Error("Generation failed");
+                    const generatedId = response.headers.get("X-Generated-Image-Id");
+                    if (generatedId) {
+                        sessionStorage.setItem("generated_image_id", generatedId);
                     }
-                    return response.json();
+                    return response.blob();
                 })
-                .then(data => {
-                    if (data.status === 'success' || data.status === 'demo') {
-                        // Redirect or show result
-                        // For MVP, navigate to result page which will show the latest generated image
-                        window.location.href = "{{ url_for('main.result') }}/" + data.image_id;
-                    } else {
-                        showFlashMessage(data.error || 'Generation failed.');
-                        btnText.textContent = 'GENERATE MY NEW LOOK';
-                        btnSpinner.classList.add('d-none');
-                        checkEnableGenerate();
-                    }
+                .then(blob => {
+                    const url = URL.createObjectURL(blob);
+                    sessionStorage.setItem("generated_image", url);
+                    window.location.href = "/result";
                 })
                 .catch(err => {
                     console.error(err);
                     showFlashMessage(err.error || 'Internal server error. Please try again later.');
+                    generateBtn.disabled = false;
                     btnText.textContent = 'GENERATE MY NEW LOOK';
                     btnSpinner.classList.add('d-none');
                     checkEnableGenerate();

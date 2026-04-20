@@ -368,46 +368,6 @@ def test_api_generate_no_image_in_response_returns_500(
     assert response.status_code == 500
 
 
-# ---------------------------------------------------------------------------
-# R2 presign / confirm
-# ---------------------------------------------------------------------------
-
-
-@patch("app.services.r2.get_presigned_put_url")
-@patch("app.services.r2.make_upload_key")
-def test_presign_returns_put_url(mock_key, mock_presign, auth_client):
-    mock_key.return_value = "uploads/abc_photo.jpg"
-    mock_presign.return_value = "https://r2.example.com/put"
-    response = auth_client.post(
-        "/api/upload/presign",
-        json={"filename": "photo.jpg", "content_type": "image/jpeg"},
-        content_type="application/json",
-    )
-    assert response.status_code == 200
-    data = response.get_json()
-    assert data["put_url"] == "https://r2.example.com/put"
-    assert data["upload_key"] == "uploads/abc_photo.jpg"
-
-
-def test_presign_rejects_bad_content_type(auth_client):
-    response = auth_client.post(
-        "/api/upload/presign",
-        json={"filename": "file.txt", "content_type": "text/plain"},
-        content_type="application/json",
-    )
-    assert response.status_code == 400
-    assert b"Unsupported" in response.data
-
-
-def test_presign_redirects_unconsented(client):
-    response = client.post(
-        "/api/upload/presign",
-        json={"filename": "photo.jpg"},
-        content_type="application/json",
-    )
-    assert response.status_code == 302
-
-
 @patch("app.services.r2.get_display_url")
 def test_confirm_creates_user_image(mock_display, app, auth_client):
     mock_display.return_value = "https://r2.example.com/get/uploads/abc.jpg"
@@ -455,11 +415,10 @@ def test_confirm_rejects_missing_key(auth_client):
 
 
 @patch("app.services.r2.get_display_url")
-@patch("app.services.r2.upload_bytes")
 @patch("app.services.r2.download_bytes")
 @patch("app.routes.main.get_genai_client")
 def test_api_generate_success(
-    mock_get_client, mock_download, mock_upload, mock_display, app, client
+    mock_get_client, mock_download, mock_display, app, client
 ):
     from app.models import Hairstyle
 
@@ -501,12 +460,6 @@ def test_api_generate_success(
     assert data["image_url"] == "https://r2.example.com/get/result.webp"
 
     mock_download.assert_called_once_with("uploads/selfie.jpg")
-    mock_upload.assert_called_once()
-
-    uploaded_key = mock_upload.call_args[0][0]
-    uploaded_mime = mock_upload.call_args[0][2]
-    assert uploaded_key.endswith(".webp")
-    assert uploaded_mime == "image/webp"
 
 
 # ---------------------------------------------------------------------------
