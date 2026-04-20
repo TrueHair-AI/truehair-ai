@@ -62,7 +62,7 @@ def _load_validated_photo(photo_file):
     try:
         probe = Image.open(io.BytesIO(photo_bytes))
         probe.verify()
-    except (UnidentifiedImageError, OSError, SyntaxError, ValueError):
+    except (UnidentifiedImageError, OSError, SyntaxError, ValueError):  # fmt: skip
         return None, (jsonify({"error": "Invalid or corrupted image"}), 400)
 
     # verify() leaves the image unusable; reopen for real use.
