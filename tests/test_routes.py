@@ -11,6 +11,7 @@ from app.routes.main import get_genai_client
 from app.models import (
     Consent,
     ExperimentSession,
+    GeneratedImage,
     db,
 )
 
@@ -427,13 +428,9 @@ def test_api_recommend_no_gemini_key(mock_get_client, app, experimental_client):
 
 
 @patch("app.routes.main.get_genai_client")
-@patch("app.routes.main.Image.open")
-def test_api_recommend_exception_returns_500(
-    mock_image_open, mock_get_client, app, experimental_client
-):
+def test_api_recommend_exception_returns_500(mock_get_client, app, experimental_client):
     client, _sid = experimental_client
 
-    mock_image_open.return_value = MagicMock()
     mock_get_client.return_value = MagicMock()
     mock_get_client.return_value.models.generate_content.side_effect = Exception(
         "API error"
@@ -447,15 +444,11 @@ def test_api_recommend_exception_returns_500(
 
 
 @patch("app.routes.main.get_genai_client")
-@patch("app.routes.main.Image.open")
-def test_api_recommend_success(
-    mock_image_open, mock_get_client, app, experimental_client, hairstyle
-):
+def test_api_recommend_success(mock_get_client, app, experimental_client, hairstyle):
     import json
 
     client, sid = experimental_client
 
-    mock_image_open.return_value = MagicMock()
     mock_client = MagicMock()
 
     mock_response = MagicMock()
@@ -519,4 +512,110 @@ def test_api_generate_success(mock_get_client, app, auth_client, hairstyle):
     )
 
     assert response.status_code == 200
+    assert response.mimetype == "image/webp"
     assert len(response.data) > 0
+
+    gen_id = response.headers.get("X-Generated-Image-Id")
+    assert gen_id is not None
+    with app.app_context():
+        gen_img = db.session.get(GeneratedImage, int(gen_id))
+        assert gen_img is not None
+        assert gen_img.hairstyle_id == hairstyle.id
+
+
+# ---------------------------------------------------------------------------
+# Upload validation (size / MIME / corruption) for /api/generate and /api/recommend
+# ---------------------------------------------------------------------------
+
+
+def test_api_generate_rejects_bad_mimetype(auth_client, hairstyle):
+    """A file declared as application/pdf is rejected before decoding."""
+    response = auth_client.post(
+        "/api/generate",
+        data={
+            "photo": (io.BytesIO(b"%PDF-1.4 fake"), "test.pdf", "application/pdf"),
+            "hairstyle_id": str(hairstyle.id),
+        },
+        content_type="multipart/form-data",
+    )
+    assert response.status_code == 400
+    assert b"Unsupported file type" in response.data
+
+
+def test_api_generate_rejects_corrupted_bytes(auth_client, hairstyle):
+    """A non-image byte stream declared as image/jpeg is rejected by PIL.verify()."""
+    response = auth_client.post(
+        "/api/generate",
+        data={
+            "photo": (io.BytesIO(b"not-an-image"), "test.jpg", "image/jpeg"),
+            "hairstyle_id": str(hairstyle.id),
+        },
+        content_type="multipart/form-data",
+    )
+    assert response.status_code == 400
+    assert b"Invalid or corrupted" in response.data
+
+
+def test_api_generate_rejects_large_file(auth_client, hairstyle):
+    """Flask's MAX_CONTENT_LENGTH (10MB) rejects oversize uploads with 413."""
+    oversize = io.BytesIO(b"\x00" * (10 * 1024 * 1024 + 1024))
+    response = auth_client.post(
+        "/api/generate",
+        data={
+            "photo": (oversize, "big.jpg", "image/jpeg"),
+            "hairstyle_id": str(hairstyle.id),
+        },
+        content_type="multipart/form-data",
+    )
+    assert response.status_code == 413
+
+
+def test_api_recommend_rejects_bad_mimetype(experimental_client):
+    client, _sid = experimental_client
+    response = client.post(
+        "/api/recommend",
+        data={
+            "photo": (io.BytesIO(b"%PDF-1.4 fake"), "test.pdf", "application/pdf"),
+        },
+        content_type="multipart/form-data",
+    )
+    assert response.status_code == 400
+    assert b"Unsupported file type" in response.data
+
+
+def test_api_recommend_rejects_corrupted_bytes(experimental_client):
+    client, _sid = experimental_client
+    response = client.post(
+        "/api/recommend",
+        data={
+            "photo": (io.BytesIO(b"not-an-image"), "test.jpg", "image/jpeg"),
+        },
+        content_type="multipart/form-data",
+    )
+    assert response.status_code == 400
+    assert b"Invalid or corrupted" in response.data
+
+
+# ---------------------------------------------------------------------------
+# /api/rate cross-session isolation
+# ---------------------------------------------------------------------------
+
+
+def test_api_rate_other_session_image_403(app, auth_client, hairstyle):
+    """Rating an image owned by a different session returns 403."""
+    other_sid = str(uuid.uuid4())
+    with app.app_context():
+        theirs = GeneratedImage(
+            session_id=other_sid,
+            hairstyle_id=hairstyle.id,
+        )
+        db.session.add(theirs)
+        db.session.commit()
+        their_id = theirs.id
+
+    response = auth_client.post(
+        "/api/rate",
+        json={"generated_image_id": their_id, "rating": 4},
+        content_type="application/json",
+    )
+    assert response.status_code == 403
