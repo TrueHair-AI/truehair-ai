@@ -7,6 +7,7 @@ import tempfile
 
 from flask import Flask
 from flask_migrate import Migrate
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 from app.models import db
 from config import Config
@@ -59,6 +60,12 @@ def create_app(config_class=Config):
 
     db.init_app(app)
     migrate.init_app(app, db)
+
+    # IRB compliance (sections 2.1 and 6.5): do not trust X-Forwarded-For for
+    # client IP. With x_for=0, request.remote_addr resolves to Heroku's internal
+    # router IP rather than the client's public IP. x_proto and x_host are kept
+    # so HTTPS and host detection still work for url_for(..., _external=True).
+    app.wsgi_app = ProxyFix(app.wsgi_app, x_for=0, x_proto=1, x_host=1)
 
     from app.routes.main import main_bp
 
