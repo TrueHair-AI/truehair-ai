@@ -40,11 +40,11 @@ def _consent_and_login(app, client, experiment_group="control"):
 # ---------------------------------------------------------------------------
 
 
-def test_index_redirects_to_consent_for_unconsented(client):
-    """/ redirects to /consent when no session cookie is set."""
+def test_index_renders_landing_for_unconsented(client):
+    """/ renders landing page when no session cookie is set."""
     response = client.get("/")
-    assert response.status_code == 302
-    assert "/consent" in response.location
+    assert response.status_code == 200
+    assert b"What this is" in response.data
 
 
 def test_index_redirects_to_style_studio_when_consented(auth_client):

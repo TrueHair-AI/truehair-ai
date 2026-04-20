@@ -84,7 +84,7 @@ def index():
     sid = get_session_id()
     if sid and Consent.query.filter_by(session_id=sid).first():
         return redirect(url_for("main.style_studio"))
-    return redirect(url_for("main.consent_page"))
+    return render_template("landing.html")
 
 
 # ---------------------------------------------------------------------------
