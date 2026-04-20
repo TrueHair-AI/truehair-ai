@@ -101,9 +101,9 @@
                         class="img-fluid w-100" style="aspect-ratio: 1/1; object-fit: cover;">
                     
                     <!-- NEW: reasoning overlay -->
-                    <div class="reasoning-overlay position-absolute top-0 start-0 w-100 h-100 p-3 d-flex align-items-center"
-                         style="background: rgba(22, 22, 24, 0.92); color: #fff; opacity: 0; pointer-events: none; transition: opacity 0.2s ease; z-index: 5;">
-                        <p class="small mb-0 reasoning-text" style="line-height: 1.5;"></p>
+                    <div class="reasoning-overlay position-absolute top-0 start-0 w-100 h-100 p-2 d-flex align-items-center"
+                         style="background: rgba(22, 22, 24, 0.92); color: #fff; pointer-events: none; z-index: 5;">
+                        <p class="mb-0 reasoning-text" style="line-height: 1.5;"></p>
                     </div>
 
                     <div class="style-card-label position-absolute bottom-0 start-0 w-100 p-3 pt-5"
@@ -112,12 +112,12 @@
                     </div>
                     <!-- Recommendation badge: hidden by default, shown via JS -->
                     <div class="rec-badge position-absolute top-0 start-0 m-2 d-none"
-                        style="background: var(--th-yellow); color: #000; padding: 4px 10px; border-radius: 999px; font-size: 0.7rem; font-weight: 700;">
+                        style="background: var(--th-yellow); color: #000; padding: 4px 10px; border-radius: 999px; font-size: 0.7rem; font-weight: 700; z-index: 10;">
                         ✨ Recommended
                     </div>
                     <!-- Selection check: hidden by default -->
                     <div class="selection-indicator position-absolute top-0 end-0 m-3 bg-warning text-dark rounded-circle d-none align-items-center justify-content-center"
-                        style="width: 24px; height: 24px;">
+                        style="width: 24px; height: 24px; z-index: 10;">
                         <i class="bi bi-check" style="font-size: 1.2rem; line-height: 1;"></i>
                     </div>
                 </div>
@@ -276,6 +276,11 @@
     .style-card:hover {
         transform: translateY(-4px);
         box-shadow: 0 8px 20px rgba(0,0,0,0.4);
+    }
+
+    .reasoning-overlay {
+        opacity: 0;
+        transition: opacity 0.2s ease;
     }
 
     /* Hover: show overlay for recommended cards */
@@ -468,11 +473,8 @@
                 card.classList.add("is-recommended");
                 // Show badge
                 item.querySelector(".rec-badge").classList.remove("d-none");
-                // Stash reasoning on the node for hover tooltip (issue #59)
-                item.dataset.reasoning = reasoning;
-                // Populate reasoning text and dataset for sticky-on-click
+                // Populate reasoning text for sticky-on-click
                 item.querySelector(".reasoning-text").textContent = reasoning;
-                item.dataset.hasReasoning = "true";
             }
         });
     }
