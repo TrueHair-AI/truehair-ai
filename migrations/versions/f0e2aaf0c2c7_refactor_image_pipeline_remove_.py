@@ -18,21 +18,28 @@ depends_on = None
 
 
 def upgrade():
+    # SQLite doesn't name FK constraints in the baseline schema, so drop_constraint
+    # fails. On SQLite, batch_alter_table recreates the table and FKs to dropped
+    # columns are discarded automatically.
+    is_sqlite = op.get_bind().dialect.name == "sqlite"
+
     with op.batch_alter_table("generated_image", schema=None) as batch_op:
-        batch_op.drop_constraint(
-            "fk_generated_image_reference_image_id", type_="foreignkey"
-        )
-        batch_op.drop_constraint(
-            "generated_image_user_image_id_fkey", type_="foreignkey"
-        )
+        if not is_sqlite:
+            batch_op.drop_constraint(
+                "fk_generated_image_reference_image_id", type_="foreignkey"
+            )
+            batch_op.drop_constraint(
+                "generated_image_user_image_id_fkey", type_="foreignkey"
+            )
         batch_op.drop_column("image_url")
         batch_op.drop_column("user_image_id")
         batch_op.drop_column("reference_image_id")
 
     with op.batch_alter_table("recommendation", schema=None) as batch_op:
-        batch_op.drop_constraint(
-            "recommendation_user_image_id_fkey", type_="foreignkey"
-        )
+        if not is_sqlite:
+            batch_op.drop_constraint(
+                "recommendation_user_image_id_fkey", type_="foreignkey"
+            )
         batch_op.drop_column("user_image_id")
 
     op.drop_table("user_image")
