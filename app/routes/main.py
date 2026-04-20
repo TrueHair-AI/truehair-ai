@@ -15,7 +15,7 @@ from flask import (
 )
 from google import genai
 from google.genai import types
-from PIL import Image
+from PIL import Image, UnidentifiedImageError
 from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import joinedload
@@ -38,6 +38,40 @@ from app.services.session_identity import (
 )
 
 main_bp = Blueprint("main", __name__)
+
+ALLOWED_PHOTO_TYPES = {"image/jpeg", "image/png", "image/webp"}
+ALLOWED_PHOTO_FORMATS = {"JPEG", "PNG", "WEBP"}
+
+
+def _load_validated_photo(photo_file):
+    """Return (PIL.Image, None) on success or (None, (response, status)) on failure.
+
+    Validates the reported MIME type, verifies the byte stream decodes,
+    and cross-checks the decoded format against the allowlist so a
+    mislabeled file (e.g. a .pdf sent as image/jpeg) is rejected.
+    """
+    if photo_file.mimetype not in ALLOWED_PHOTO_TYPES:
+        return None, (
+            jsonify({"error": f"Unsupported file type: {photo_file.mimetype}"}),
+            400,
+        )
+
+    photo_bytes = photo_file.read()
+    try:
+        probe = Image.open(io.BytesIO(photo_bytes))
+        probe.verify()
+    except UnidentifiedImageError, OSError, SyntaxError, ValueError:
+        return None, (jsonify({"error": "Invalid or corrupted image"}), 400)
+
+    # verify() leaves the image unusable; reopen for real use.
+    user_photo = Image.open(io.BytesIO(photo_bytes))
+    if user_photo.format not in ALLOWED_PHOTO_FORMATS:
+        return None, (
+            jsonify({"error": f"Unsupported image format: {user_photo.format}"}),
+            400,
+        )
+
+    return user_photo, None
 
 
 def _day_of_week(date_column):
@@ -511,18 +545,9 @@ def recommend():
     if not photo_file:
         return jsonify({"error": "Missing photo"}), 400
 
-    ALLOWED_PHOTO_TYPES = {"image/jpeg", "image/png", "image/webp"}
-    if photo_file.mimetype not in ALLOWED_PHOTO_TYPES:
-        return jsonify({"error": f"Unsupported file type: {photo_file.mimetype}"}), 400
-
-    photo_bytes = photo_file.read()
-    if len(photo_bytes) > 10 * 1024 * 1024:
-        return jsonify({"error": "Photo too large"}), 400
-
-    try:
-        user_photo = Image.open(io.BytesIO(photo_bytes))
-    except Exception:
-        return jsonify({"error": "Invalid or corrupted image"}), 400
+    user_photo, err = _load_validated_photo(photo_file)
+    if err:
+        return err
 
     client = get_genai_client()
     if not client:
@@ -627,10 +652,6 @@ def generate():
     if not photo_file:
         return jsonify({"error": "Missing photo"}), 400
 
-    ALLOWED_PHOTO_TYPES = {"image/jpeg", "image/png", "image/webp"}
-    if photo_file.mimetype not in ALLOWED_PHOTO_TYPES:
-        return jsonify({"error": f"Unsupported file type: {photo_file.mimetype}"}), 400
-
     hairstyle_id = request.form.get("hairstyle_id", type=int)
 
     if not hairstyle_id:
@@ -640,14 +661,9 @@ def generate():
     if not hairstyle:
         return jsonify({"error": "Invalid hairstyle"}), 400
 
-    photo_bytes = photo_file.read()
-    if len(photo_bytes) > 10 * 1024 * 1024:
-        return jsonify({"error": "Photo too large (10MB max)"}), 400
-
-    try:
-        user_photo = Image.open(io.BytesIO(photo_bytes))
-    except Exception:
-        return jsonify({"error": "Invalid or corrupted image"}), 400
+    user_photo, err = _load_validated_photo(photo_file)
+    if err:
+        return err
 
     client = get_genai_client()
     if not client:
