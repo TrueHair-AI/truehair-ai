@@ -22,7 +22,8 @@ class Config:
     SESSION_COOKIE_HTTPONLY = True
     SESSION_COOKIE_SAMESITE = "Lax"
 
-    GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
+    GOOGLE_CLOUD_PROJECT = os.environ.get("GOOGLE_CLOUD_PROJECT")
+    GOOGLE_CLOUD_LOCATION = os.environ.get("GOOGLE_CLOUD_LOCATION", "us-central1")
 
     R2_ACCOUNT_ID = os.environ.get("R2_ACCOUNT_ID")
     R2_ACCESS_KEY_ID = os.environ.get("R2_ACCESS_KEY_ID")

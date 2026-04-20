@@ -21,7 +21,8 @@ class TestConfig(Config):
     SQLALCHEMY_DATABASE_URI = "sqlite:///:memory:"
     WTF_CSRF_ENABLED = False
     SESSION_COOKIE_SECURE = False
-    GEMINI_API_KEY = "test-gemini-key"
+    GOOGLE_CLOUD_PROJECT = "test-project"
+    GOOGLE_CLOUD_LOCATION = "us-central1"
     R2_ACCOUNT_ID = "test-account-id"
     R2_ACCESS_KEY_ID = "test-access-key"
     R2_SECRET_ACCESS_KEY = "test-secret-key"
