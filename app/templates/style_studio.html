@@ -73,8 +73,14 @@
     <section id="phase-catalog" class="phase" hidden>
         <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-end mb-4 gap-3">
             <div>
-                <h2 class="fw-bold mb-1">Select a Style</h2>
-                <p class="text-secondary mb-0">Choose a hairstyle to generate your new look.</p>
+                <h2 class="fw-bold mb-1">Pick a hairstyle</h2>
+                <p class="text-secondary mb-0">
+                    {% if experiment_group == 'experimental' %}
+                    Styles with a ✨ are AI-recommended based on your photo. Hover for why.
+                    {% else %}
+                    Browse the full catalog and pick a style to visualize.
+                    {% endif %}
+                </p>
             </div>
             <div class="d-flex gap-2 flex-wrap" id="category-filters">
                 <button class="badge bg-warning text-dark rounded-pill px-3 py-2 fw-bold border-0 category-filter"
@@ -93,18 +99,19 @@
                     style="cursor: pointer; transition: all 0.2s ease;">
                     <img src="{{ url_for('static', filename='images/' + style.image_url) }}" alt="{{ style.name }}"
                         class="img-fluid w-100" style="aspect-ratio: 1/1; object-fit: cover;">
-                    <div class="position-absolute bottom-0 start-0 w-100 p-3 pt-5"
+                    <div class="style-card-label position-absolute bottom-0 start-0 w-100 p-3 pt-5"
                         style="background: linear-gradient(to top, rgba(0,0,0,0.9), transparent);">
-                        <span class="text-white fw-bold d-block">{{ style.name }}</span>
-                        <!-- Reasoning container (populated via JS for experimental group) -->
-                        <div class="reasoning-container mt-2 text-sm text-yellow d-none" style="font-size: 0.8rem; line-height: 1.3;"></div>
+                        <span class="text-white fw-bold text-sm">{{ style.name }}</span>
                     </div>
-                    <div class="selection-indicator position-absolute top-0 end-0 m-3 bg-warning text-dark rounded-circle d-none align-items-center justify-content-center shadow"
-                        style="width: 28px; height: 28px;">
-                        <i class="bi bi-check" style="font-size: 1.4rem; line-height: 1;"></i>
+                    <!-- Recommendation badge: hidden by default, shown via JS -->
+                    <div class="rec-badge position-absolute top-0 start-0 m-2 d-none"
+                        style="background: var(--th-yellow); color: #000; padding: 4px 10px; border-radius: 999px; font-size: 0.7rem; font-weight: 700;">
+                        ✨ Recommended
                     </div>
-                    <div class="recommended-badge position-absolute top-0 start-0 m-3 bg-primary text-dark rounded-pill px-2 py-1 d-none align-items-center shadow-sm" style="font-size: 0.75rem; font-weight: 700;">
-                        <i class="bi bi-stars me-1"></i> RECOMMENDED
+                    <!-- Selection check: hidden by default -->
+                    <div class="selection-indicator position-absolute top-0 end-0 m-3 bg-warning text-dark rounded-circle d-none align-items-center justify-content-center"
+                        style="width: 24px; height: 24px;">
+                        <i class="bi bi-check" style="font-size: 1.2rem; line-height: 1;"></i>
                     </div>
                 </div>
             </div>
@@ -257,13 +264,6 @@
         background-color: rgba(255, 214, 0, 0.07) !important;
         box-shadow: 0 0 0 3px rgba(255, 214, 0, 0.25);
         transition: all 0.15s ease;
-    }
-    
-    .recommended-card {
-        border-color: var(--bs-primary) !important;
-        border-width: 2px !important;
-        border-opacity: 1 !important;
-        box-shadow: 0 0 15px rgba(13, 110, 253, 0.3);
     }
     
     .style-card:hover {
@@ -432,32 +432,21 @@
 
     // --- Section 3: Catalog ---
     function applyRecommendationHighlights() {
-        if (!state.recommendations || state.recommendations.length === 0) return;
-        
-        // Create a map for quick lookup
-        const recMap = {};
-        state.recommendations.forEach(r => {
-            recMap[r.hairstyle_id] = r;
-        });
-        
-        hairstyleItems.forEach(item => {
+        if (!state.recommendations || state.experimentGroup !== "experimental") return;
+
+        const recById = new Map(state.recommendations.map(r => [r.hairstyle_id, r.reasoning]));
+
+        document.querySelectorAll(".hairstyle-item").forEach(item => {
             const id = parseInt(item.dataset.id, 10);
-            const card = item.querySelector('.style-card');
-            const badge = item.querySelector('.recommended-badge');
-            const reasoningContainer = item.querySelector('.reasoning-container');
-            
-            if (recMap[id]) {
-                card.classList.add('recommended-card');
-                badge.classList.remove('d-none');
-                badge.classList.add('d-flex');
-                
-                reasoningContainer.textContent = recMap[id].reasoning;
-                reasoningContainer.classList.remove('d-none');
-                
-                // Move recommended items to the top
-                item.style.order = "-1";
-            } else {
-                item.style.order = "0";
+            const reasoning = recById.get(id);
+            if (reasoning) {
+                // Visual highlight
+                const card = item.querySelector(".style-card");
+                card.classList.add("is-recommended");
+                // Show badge
+                item.querySelector(".rec-badge").classList.remove("d-none");
+                // Stash reasoning on the node for hover tooltip (issue #59)
+                item.dataset.reasoning = reasoning;
             }
         });
     }
@@ -501,7 +490,7 @@
         hairstyleItems.forEach(i => {
             const c = i.querySelector('.style-card');
             c.classList.replace('border-yellow', 'border-secondary');
-            if (!c.classList.contains('recommended-card')) {
+            if (!c.classList.contains('is-recommended')) {
                 c.classList.add('border-opacity-25');
             }
             i.querySelector('.selection-indicator').classList.add('d-none');
