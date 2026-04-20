@@ -100,12 +100,6 @@
                     <img src="{{ url_for('static', filename='images/' + style.image_url) }}" alt="{{ style.name }}"
                         class="img-fluid w-100" style="aspect-ratio: 1/1; object-fit: cover;">
                     
-                    <!-- NEW: reasoning overlay -->
-                    <div class="reasoning-overlay position-absolute top-0 start-0 w-100 h-100 p-2 d-flex align-items-center"
-                         style="background: rgba(22, 22, 24, 0.92); color: #fff; pointer-events: none; z-index: 5;">
-                        <p class="mb-0 reasoning-text" style="line-height: 1.5;"></p>
-                    </div>
-
                     <div class="style-card-label position-absolute bottom-0 start-0 w-100 p-3 pt-5"
                         style="background: linear-gradient(to top, rgba(0,0,0,0.9), transparent);">
                         <span class="text-white fw-bold text-sm">{{ style.name }}</span>
@@ -125,11 +119,33 @@
             {% endfor %}
         </div>
 
-        <!-- Sticky bottom bar for Generate button -->
-        <div class="position-fixed bottom-0 start-0 w-100 p-3 p-md-4" style="background: linear-gradient(to top, rgba(22,22,34,1) 60%, transparent); z-index: 1000; pointer-events: none;">
+        <!-- Sticky bottom bar: AI reasoning panel + Generate button -->
+        <div class="position-fixed bottom-0 start-0 w-100 p-3 p-md-4" style="background: linear-gradient(to top, rgba(22,22,34,1) 70%, transparent); z-index: 1000; pointer-events: none;">
             <div class="container-fluid" style="max-width: 1400px;">
                 <div class="row justify-content-center">
-                    <div class="col-12 col-md-8 col-lg-6" style="pointer-events: auto;">
+                    <div class="col-12 col-md-10 col-lg-8" style="pointer-events: auto;">
+
+                        <!-- AI Reasoning Panel -->
+                        <div id="ai-reasoning-panel" class="rounded-4 border border-secondary border-opacity-25 mb-3 px-3 py-3 d-flex align-items-center"
+                            style="background-color: rgba(28, 28, 30, 0.95); backdrop-filter: blur(8px); min-height: 88px; transition: all 0.2s ease;">
+
+                            <div id="ai-panel-empty" class="d-flex align-items-center gap-2 text-secondary w-100 justify-content-center">
+                                <span style="color: var(--th-yellow); font-size: 1.1rem;">✨</span>
+                                <span class="text-sm">Hover a recommended style to see why it was suggested for you.</span>
+                            </div>
+
+                            <div id="ai-panel-content" class="d-none align-items-center gap-3 w-100">
+                                <img id="ai-panel-thumb" src="" alt="" class="rounded-3 flex-shrink-0" style="width: 64px; height: 64px; object-fit: cover;">
+                                <div class="flex-grow-1" style="min-width: 0;">
+                                    <div class="d-flex align-items-center gap-2 mb-1">
+                                        <span style="color: var(--th-yellow); font-size: 0.9rem;">✨</span>
+                                        <span class="fw-bold text-white" id="ai-panel-name"></span>
+                                    </div>
+                                    <p class="mb-0 text-secondary" id="ai-panel-reasoning" style="line-height: 1.45; font-size: 0.9rem;"></p>
+                                </div>
+                            </div>
+                        </div>
+
                         <div id="flash-message-container" class="mb-2"></div>
                         <button id="generate-btn" disabled
                             class="btn w-100 py-3 fw-bold fs-5 shadow position-relative overflow-hidden rounded-4 text-dark d-flex justify-content-center align-items-center"
@@ -143,7 +159,7 @@
             </div>
         </div>
         <!-- Spacer to prevent content from hiding behind sticky bar -->
-        <div style="height: 100px;"></div>
+        <div style="height: 220px;"></div>
     </section>
 
     <!-- Section 4: Result -->
@@ -277,27 +293,6 @@
         transform: translateY(-4px);
         box-shadow: 0 8px 20px rgba(0,0,0,0.4);
     }
-
-    .reasoning-overlay {
-        opacity: 0;
-        transition: opacity 0.2s ease;
-    }
-
-    /* Hover: show overlay for recommended cards */
-    .style-card.is-recommended:hover .reasoning-overlay,
-    .style-card.is-recommended:focus-within .reasoning-overlay {
-        opacity: 1;
-    }
-
-    /* Selected (= clicked): show overlay regardless of hover */
-    .style-card.is-selected .reasoning-overlay {
-        opacity: 1;
-    }
-
-    /* Non-recommended cards have no reasoning — make sure their overlay never shows */
-    .style-card:not(.is-recommended) .reasoning-overlay {
-        display: none;
-    }
 </style>
 
 <script type="module">
@@ -308,6 +303,7 @@
         selectedHairstyleId: null,
         selectedHairstyleName: null,
         selectedHairstyleDesc: null,
+        aiPanelClickedId: null,
         experimentGroup: "{{ experiment_group }}",  // rendered by Jinja
         generatedImageId: null,         // set after /api/generate
         generatedImageBlobUrl: null,    // set after /api/generate
@@ -330,6 +326,12 @@
     const generateBtn = document.getElementById('generate-btn');
     const btnText = document.getElementById('btn-text');
     const btnSpinner = document.getElementById('btn-spinner');
+    
+    const aiPanelEmpty = document.getElementById('ai-panel-empty');
+    const aiPanelContent = document.getElementById('ai-panel-content');
+    const aiPanelThumb = document.getElementById('ai-panel-thumb');
+    const aiPanelName = document.getElementById('ai-panel-name');
+    const aiPanelReasoning = document.getElementById('ai-panel-reasoning');
     
     const categoryFilterButtons = document.querySelectorAll('.category-filter');
     const hairstyleItems = document.querySelectorAll('.hairstyle-item');
@@ -473,8 +475,7 @@
                 card.classList.add("is-recommended");
                 // Show badge
                 item.querySelector(".rec-badge").classList.remove("d-none");
-                // Populate reasoning text for sticky-on-click
-                item.querySelector(".reasoning-text").textContent = reasoning;
+                item.dataset.reasoning = reasoning;
             }
         });
     }
@@ -510,6 +511,38 @@
         });
     });
 
+    function showAIPanelForItem(item) {
+        const card = item.querySelector('.style-card');
+        if (!card.classList.contains('is-recommended')) return;
+        const reasoning = item.dataset.reasoning || '';
+        const name = item.dataset.name || '';
+        const img = item.querySelector('img');
+        aiPanelThumb.src = img ? img.src : '';
+        aiPanelThumb.alt = name;
+        aiPanelName.textContent = name;
+        aiPanelReasoning.textContent = reasoning;
+        aiPanelEmpty.classList.add('d-none');
+        aiPanelContent.classList.remove('d-none');
+        aiPanelContent.classList.add('d-flex');
+    }
+
+    function resetAIPanel() {
+        aiPanelContent.classList.add('d-none');
+        aiPanelContent.classList.remove('d-flex');
+        aiPanelEmpty.classList.remove('d-none');
+    }
+
+    function refreshAIPanel() {
+        if (state.aiPanelClickedId) {
+            const item = document.querySelector(`.hairstyle-item[data-id="${state.aiPanelClickedId}"]`);
+            if (item) {
+                showAIPanelForItem(item);
+                return;
+            }
+        }
+        resetAIPanel();
+    }
+
     function clearCatalogSelection() {
         state.selectedHairstyleId = null;
         state.selectedHairstyleName = null;
@@ -529,12 +562,13 @@
     }
 
     hairstyleItems.forEach(item => {
+        const card = item.querySelector('.style-card');
+        
         const handleSelect = () => {
             if (item.classList.contains('d-none')) return;
             
             clearCatalogSelection();
 
-            const card = item.querySelector('.style-card');
             card.classList.add('is-selected');
             card.classList.replace('border-secondary', 'border-yellow');
             card.classList.remove('border-opacity-25');
@@ -549,6 +583,11 @@
             state.selectedHairstyleName = item.dataset.name || 'Selected Style';
             state.selectedHairstyleDesc = item.dataset.description || 'A great new look for you.';
             
+            if (card.classList.contains('is-recommended')) {
+                state.aiPanelClickedId = item.dataset.id;
+                showAIPanelForItem(item);
+            }
+            
             checkEnableGenerate();
         };
 
@@ -558,6 +597,19 @@
                 e.preventDefault();
                 handleSelect();
             }
+        });
+        
+        item.addEventListener('mouseenter', () => {
+            if (card.classList.contains('is-recommended')) showAIPanelForItem(item);
+        });
+        item.addEventListener('mouseleave', () => {
+            if (card.classList.contains('is-recommended')) refreshAIPanel();
+        });
+        item.addEventListener('focus', () => {
+            if (card.classList.contains('is-recommended')) showAIPanelForItem(item);
+        });
+        item.addEventListener('blur', () => {
+            if (card.classList.contains('is-recommended')) refreshAIPanel();
         });
     });
 
