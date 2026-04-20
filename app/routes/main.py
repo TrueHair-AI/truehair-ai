@@ -523,23 +523,6 @@ def result(image_id=None):
     return render_template("result.html", latest_gen=gen_img)
 
 
-@main_bp.route("/gallery")
-@consent_required
-def gallery():
-    """Render the user's gallery of past generated hairstyles."""
-    log_visit("My Gallery")
-    images = (
-        GeneratedImage.query.options(joinedload(GeneratedImage.rating))
-        .filter_by(session_id=get_session_id())
-        .order_by(GeneratedImage.created_at.desc())
-        .all()
-    )
-
-    display_urls = {}
-
-    return render_template("gallery.html", images=images, display_urls=display_urls)
-
-
 @main_bp.route("/terms")
 def terms():
     """Render the Terms of Service page."""
