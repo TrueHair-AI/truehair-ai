@@ -270,9 +270,15 @@
                     return response.blob();
                 })
                 .then(blob => {
-                    const url = URL.createObjectURL(blob);
-                    sessionStorage.setItem("generated_image", url);
-                    window.location.href = "/result";
+                    const reader = new FileReader();
+
+                    reader.onloadend = () => {
+                        const base64data = reader.result;
+                        sessionStorage.setItem("generated_image", base64data);
+                        window.location.href = "/result";
+                    };
+
+                    reader.readAsDataURL(blob);
                 })
                 .catch(err => {
                     console.error(err);
