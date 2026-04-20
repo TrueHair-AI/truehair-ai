@@ -12,4 +12,7 @@ __pycache__
 # app-generated files
 app/static/uploads
 instance/
-app.db
+
+# SQLite databases
+*.db
+*.sqlite3
