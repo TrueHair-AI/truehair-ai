@@ -88,7 +88,7 @@
 
         <div class="row g-4 mb-5" id="hairstyle-grid">
             {% for style in hairstyles %}
-            <div class="col-12 col-sm-6 col-md-4 col-lg-3 hairstyle-item" data-id="{{ style.id }}" data-category="{{ (style.category or 'UNCATEGORIZED') | upper }}">
+            <div class="col-12 col-sm-6 col-md-4 col-lg-3 hairstyle-item" data-id="{{ style.id }}" data-category="{{ (style.category or 'UNCATEGORIZED') | upper }}" data-name="{{ style.name }}" data-description="{{ style.description or '' }}">
                 <div class="style-card rounded-4 position-relative overflow-hidden border border-secondary border-opacity-25 h-100"
                     style="cursor: pointer; transition: all 0.2s ease;">
                     <img src="{{ url_for('static', filename='images/' + style.image_url) }}" alt="{{ style.name }}"
@@ -208,25 +208,12 @@
                     </div>
 
                     <div class="p-4">
-                        <div class="mb-4">
+                        <div class="mb-0">
                             <h6 class="text-yellow fw-bold mb-2">Selected Style</h6>
                             <div class="p-3 bg-dark bg-opacity-50 rounded-3 border border-secondary border-opacity-25">
                                 <div class="fw-bold text-white" id="result-style-name"></div>
                                 <div class="text-secondary text-sm mt-1" id="result-style-desc"></div>
                             </div>
-                        </div>
-
-                        <div class="d-flex justify-content-between mb-3">
-                            <span class="text-secondary">Face Shape Match:</span>
-                            <span class="text-white fw-semibold">98% High</span>
-                        </div>
-                        <div class="d-flex justify-content-between mb-3">
-                            <span class="text-secondary">Maintenance:</span>
-                            <span class="text-white fw-semibold">Low - Medium</span>
-                        </div>
-                        <div class="d-flex justify-content-between">
-                            <span class="text-secondary">Styling Product:</span>
-                            <span class="text-white fw-semibold">Matte Pomade</span>
                         </div>
                     </div>
 
@@ -369,8 +356,9 @@
         const files = e.dataTransfer.files;
         if (files && files.length > 0) {
             const file = files[0];
-            if (!file.type.startsWith('image/')) {
-                alert('Please drop an image file (PNG, JPG, WebP)');
+            const allowed = ['image/png', 'image/jpeg', 'image/webp'];
+            if (!allowed.includes(file.type)) {
+                showFlashMessage('Please drop a PNG, JPG, or WebP image.');
                 return;
             }
             handleFileSelection(file);
@@ -539,11 +527,7 @@
             state.selectedHairstyleId = item.dataset.id;
             
             // Extract name and description for result page
-            const nameEl = item.querySelector('.text-white.fw-bold');
-            state.selectedHairstyleName = nameEl ? nameEl.textContent : 'Selected Style';
-            
-            // We don't have full description in the DOM, we'll just use the name for now
-            // or we could embed it in data attributes. Let's look for it or fallback.
+            state.selectedHairstyleName = item.dataset.name || 'Selected Style';
             state.selectedHairstyleDesc = item.dataset.description || 'A great new look for you.';
             
             checkEnableGenerate();
@@ -558,12 +542,19 @@
 
     function showFlashMessage(message, type = 'danger') {
         const container = document.getElementById('flash-message-container');
-        if (container) {
-            container.innerHTML = `<div class="alert alert-${type} alert-dismissible fade show mb-0" role="alert">
-                ${message}
-                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-            </div>`;
-        }
+        if (!container) return;
+        container.innerHTML = '';
+        const alertDiv = document.createElement('div');
+        alertDiv.className = `alert alert-${type} alert-dismissible fade show mb-0`;
+        alertDiv.setAttribute('role', 'alert');
+        alertDiv.textContent = message;
+        const closeBtn = document.createElement('button');
+        closeBtn.type = 'button';
+        closeBtn.className = 'btn-close';
+        closeBtn.setAttribute('data-bs-dismiss', 'alert');
+        closeBtn.setAttribute('aria-label', 'Close');
+        alertDiv.appendChild(closeBtn);
+        container.appendChild(alertDiv);
     }
 
     // --- Phase 3 → 4 (Generate) ---
@@ -591,7 +582,12 @@
                 throw new Error(err.error || "Generation failed");
             }
 
-            state.generatedImageId = parseInt(res.headers.get("X-Generated-Image-Id"), 10);
+            const idHeader = res.headers.get("X-Generated-Image-Id");
+            const parsedId = parseInt(idHeader, 10);
+            if (!Number.isFinite(parsedId)) {
+                throw new Error("Server did not return a valid image id");
+            }
+            state.generatedImageId = parsedId;
             const blob = await res.blob();
             
             if (state.generatedImageBlobUrl) {
@@ -628,65 +624,53 @@
         const root = document.getElementById('rating-widget');
         if (!root) return;
         
-        let current = 0;
-        const buttons = root.querySelectorAll('.th-star-btn');
+        // Clone first to drop any listeners from a previous generation
+        root.querySelectorAll('.th-star-btn').forEach(btn => {
+            btn.parentNode.replaceChild(btn.cloneNode(true), btn);
+        });
+
+        const buttons = root.querySelectorAll('.th-star-btn');  // live references
         const feedback = document.getElementById('rating-feedback');
+        let current = 0;
         let hideTimer;
 
         function paintStars(value) {
             buttons.forEach((btn, idx) => {
-                const n = idx + 1;
                 const icon = btn.querySelector('.th-star-icon');
-                if (value >= n) {
-                    icon.classList.remove('bi-star');
-                    icon.classList.add('bi-star-fill');
-                } else {
-                    icon.classList.remove('bi-star-fill');
-                    icon.classList.add('bi-star');
-                }
+                icon.classList.toggle('bi-star-fill', value >= idx + 1);
+                icon.classList.toggle('bi-star', value < idx + 1);
             });
         }
 
         function showFeedback() {
             if (hideTimer) clearTimeout(hideTimer);
             feedback.classList.remove('opacity-0');
-            hideTimer = setTimeout(() => {
-                feedback.classList.add('opacity-0');
-            }, 2200);
+            hideTimer = setTimeout(() => feedback.classList.add('opacity-0'), 2200);
         }
 
-        // Reset stars
         paintStars(0);
-
-        // Remove old event listeners by cloning buttons
         buttons.forEach(btn => {
-            const newBtn = btn.cloneNode(true);
-            btn.parentNode.replaceChild(newBtn, btn);
-            
-            newBtn.addEventListener('click', () => {
-                const v = parseInt(newBtn.getAttribute('data-star-value'), 10);
+            btn.addEventListener('click', () => {
+                const v = parseInt(btn.getAttribute('data-star-value'), 10);
                 paintStars(v);
-                
                 fetch("{{ url_for('main.api_rate') }}", {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ generated_image_id: genId, rating: v })
                 }).then(res => {
-                    if (res.ok) {
-                        current = v;
-                        showFeedback();
-                    } else {
-                        paintStars(current);
-                    }
-                }).catch(() => {
-                    paintStars(current);
-                });
+                    if (res.ok) { current = v; showFeedback(); }
+                    else paintStars(current);
+                }).catch(() => paintStars(current));
             });
         });
     }
 
     // --- Phase 4 → 3 (Try Another Style) ---
     tryAnotherBtn.addEventListener("click", () => {
+        if (state.generatedImageBlobUrl) {
+            URL.revokeObjectURL(state.generatedImageBlobUrl);
+            state.generatedImageBlobUrl = null;
+        }
         // Keep photoFile, keep recommendations, clear selection
         clearCatalogSelection();
         showPhase("catalog");
