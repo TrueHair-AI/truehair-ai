@@ -5,325 +5,261 @@
 {% block body_class %}bg-studio{% endblock %}
 
 {% block content %}
-<div class="container-fluid px-4 py-4">
-    <div class="row g-4">
-
-        <!-- Left Column: Upload -->
-        <div class="col-lg-5 d-flex flex-column">
-            <h3 class="fw-bold mb-1">1. Upload Photo</h3>
-            <p class="text-secondary text-sm mb-4">Front-facing portraits work best</p>
-
-            <div id="upload-container"
-                class="upload-zone flex-grow-1 rounded-4 border border-secondary border-opacity-50 border-dashed d-flex flex-column justify-content-center align-items-center text-center p-5 position-relative"
-                style="background-color: #161622; border-style: dashed !important; min-height: 500px; cursor: pointer;">
-
-                <input type="file" id="user-image-input" class="d-none" accept="image/*">
-
-                <div id="upload-placeholder">
-                    <div class="mb-4">
-                        <div class="bg-card rounded-circle d-inline-flex border border-secondary border-opacity-25 position-relative"
-                            style="width: 80px; height: 80px; align-items: center; justify-content: center;">
-                            <i class="bi bi-camera text-yellow fs-2"></i>
-                            <span
-                                class="position-absolute top-0 start-100 translate-middle badge rounded-circle bg-dark border border-secondary p-1">
-                                <i class="bi bi-plus text-yellow" style="font-size: 0.6rem;"></i>
-                            </span>
+<div class="container-fluid py-4" style="max-width: 1400px;">
+    <!-- Section 1: Upload -->
+    <section id="phase-upload" class="phase active">
+        <div class="row justify-content-center">
+            <div class="col-lg-8 col-xl-6 text-center">
+                <h2 class="fw-bold mb-3">Let's find your new look</h2>
+                <p class="text-secondary mb-4 fs-5">Upload a front-facing photo to get started.</p>
+                
+                <div id="upload-container"
+                    class="upload-zone rounded-4 border border-secondary border-opacity-50 border-dashed d-flex flex-column justify-content-center align-items-center text-center p-5 position-relative mx-auto"
+                    style="background-color: #161622; border-style: dashed !important; min-height: 400px; cursor: pointer;">
+                    
+                    <input type="file" id="user-image-input" class="d-none" accept="image/png, image/jpeg, image/webp">
+                    
+                    <div id="upload-placeholder">
+                        <div class="mb-4">
+                            <div class="bg-card rounded-circle d-inline-flex border border-secondary border-opacity-25 position-relative"
+                                style="width: 80px; height: 80px; align-items: center; justify-content: center;">
+                                <i class="bi bi-camera text-yellow fs-2"></i>
+                                <span class="position-absolute top-0 start-100 translate-middle badge rounded-circle bg-dark border border-secondary p-1">
+                                    <i class="bi bi-plus text-yellow" style="font-size: 0.6rem;"></i>
+                                </span>
+                            </div>
                         </div>
+                        <h5 class="fw-bold mb-2">Drag & drop your selfie</h5>
+                        <p class="text-secondary text-sm mb-4">PNG, JPG, WebP up to 10MB</p>
+                        <button class="btn btn-light fw-bold px-4 py-2 rounded-3" type="button">Browse Files</button>
                     </div>
-                    <h5 class="fw-bold mb-2">Drag & drop your selfie</h5>
-                    <p class="text-secondary text-sm mb-4">PNG, JPG up to 10MB</p>
-                    <button class="btn btn-light fw-bold px-4 py-2 rounded-3">Browse Files</button>
+                    
+                    <div id="image-preview-container" class="d-none w-100 h-100 p-2 position-relative">
+                        <img id="image-preview" src="" class="img-fluid rounded-4 w-100 h-100" style="object-fit: cover; max-height: 500px;">
+                        <button type="button" class="btn btn-sm btn-dark position-absolute top-0 end-0 m-3 border border-secondary"
+                            id="remove-image">
+                            <i class="bi bi-x-lg"></i>
+                        </button>
+                    </div>
                 </div>
-
-                <div id="image-preview-container" class="d-none w-100 h-100 p-2">
-                    <img id="image-preview" src="" class="img-fluid rounded-4 w-100 h-100" style="object-fit: cover;">
-                    <button class="btn btn-sm btn-dark position-absolute top-0 end-0 m-3 border border-secondary"
-                        id="remove-image">
-                        <i class="bi bi-x-lg"></i>
+                
+                <div class="mt-4 d-none" id="upload-continue-container">
+                    <button id="upload-continue-btn" class="btn btn-primary w-100 py-3 fw-bold fs-5 shadow rounded-3 text-dark">
+                        Continue <i class="bi bi-arrow-right ms-2"></i>
                     </button>
                 </div>
             </div>
         </div>
+    </section>
 
-        <!-- Right Column: Styles -->
-        <div class="col-lg-7 d-flex flex-column">
-            <div class="d-flex justify-content-between align-items-end mb-4">
-                <h3 class="fw-bold mb-0">2. Select a Style</h3>
-                <div class="d-flex gap-2 flex-wrap" id="category-filters">
-                    {% if experiment_group != 'experimental' %}
-                    <button class="badge bg-warning text-dark rounded-pill px-3 py-2 fw-bold border-0 category-filter"
-                        data-category="ALL">ALL</button>
-                    {% for category in categories %}
-                    <button
-                        class="badge bg-dark border border-secondary rounded-pill px-3 py-2 fw-bold text-secondary category-filter"
-                        data-category="{{ category }}">{{ category }}</button>
-                    {% endfor %}
-                    {% endif %}
+    <!-- Section 2: Analyzing (experimental only) -->
+    <section id="phase-analyzing" class="phase" hidden>
+        <div class="row justify-content-center align-items-center" style="min-height: 60vh;">
+            <div class="col-md-6 text-center">
+                <div class="spinner-border text-yellow mb-4" style="width: 4rem; height: 4rem;" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <h3 class="fw-bold text-white mb-3">Analyzing your photo...</h3>
+                <p class="text-secondary fs-5">Finding styles that suit your face shape and features.</p>
+                <div id="analyzing-error-container" class="mt-4 d-none">
+                    <div class="alert alert-danger" role="alert" id="analyzing-error-message"></div>
+                    <button class="btn btn-outline-light mt-2" id="retry-analyzing-btn">Try Again</button>
                 </div>
             </div>
+        </div>
+    </section>
 
-            <!-- Grid -->
-            <div class="row g-3 mb-4 scrollable-grid pe-2" id="hairstyle-grid">
-                {% for style in hairstyles %}
-                <div class="col-md-4 col-sm-6 hairstyle-item" data-id="{{ style.id }}" data-category="{{ (style.category or 'UNCATEGORIZED') | upper }}">
-                    <div class="style-card rounded-4 position-relative overflow-hidden border border-secondary border-opacity-25"
-                        style="cursor: pointer;">
-                        <img src="{{ url_for('static', filename='images/' + style.image_url) }}" alt="{{ style.name }}"
-                            class="img-fluid w-100" style="aspect-ratio: 1/1; object-fit: cover;">
-                        <div class="position-absolute bottom-0 start-0 w-100 p-3 pt-5"
-                            style="background: linear-gradient(to top, rgba(0,0,0,0.9), transparent);">
-                            <span class="text-white fw-bold text-sm">{{ style.name }}</span>
+    <!-- Section 3: Catalog -->
+    <section id="phase-catalog" class="phase" hidden>
+        <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-end mb-4 gap-3">
+            <div>
+                <h2 class="fw-bold mb-1">Select a Style</h2>
+                <p class="text-secondary mb-0">Choose a hairstyle to generate your new look.</p>
+            </div>
+            <div class="d-flex gap-2 flex-wrap" id="category-filters">
+                <button class="badge bg-warning text-dark rounded-pill px-3 py-2 fw-bold border-0 category-filter"
+                    data-category="ALL">ALL</button>
+                {% for category in categories %}
+                <button class="badge bg-dark border border-secondary rounded-pill px-3 py-2 fw-bold text-secondary category-filter"
+                    data-category="{{ category }}">{{ category }}</button>
+                {% endfor %}
+            </div>
+        </div>
+
+        <div class="row g-4 mb-5" id="hairstyle-grid">
+            {% for style in hairstyles %}
+            <div class="col-12 col-sm-6 col-md-4 col-lg-3 hairstyle-item" data-id="{{ style.id }}" data-category="{{ (style.category or 'UNCATEGORIZED') | upper }}">
+                <div class="style-card rounded-4 position-relative overflow-hidden border border-secondary border-opacity-25 h-100"
+                    style="cursor: pointer; transition: all 0.2s ease;">
+                    <img src="{{ url_for('static', filename='images/' + style.image_url) }}" alt="{{ style.name }}"
+                        class="img-fluid w-100" style="aspect-ratio: 1/1; object-fit: cover;">
+                    <div class="position-absolute bottom-0 start-0 w-100 p-3 pt-5"
+                        style="background: linear-gradient(to top, rgba(0,0,0,0.9), transparent);">
+                        <span class="text-white fw-bold d-block">{{ style.name }}</span>
+                        <!-- Reasoning container (populated via JS for experimental group) -->
+                        <div class="reasoning-container mt-2 text-sm text-yellow d-none" style="font-size: 0.8rem; line-height: 1.3;"></div>
+                    </div>
+                    <div class="selection-indicator position-absolute top-0 end-0 m-3 bg-warning text-dark rounded-circle d-none align-items-center justify-content-center shadow"
+                        style="width: 28px; height: 28px;">
+                        <i class="bi bi-check" style="font-size: 1.4rem; line-height: 1;"></i>
+                    </div>
+                    <div class="recommended-badge position-absolute top-0 start-0 m-3 bg-primary text-dark rounded-pill px-2 py-1 d-none align-items-center shadow-sm" style="font-size: 0.75rem; font-weight: 700;">
+                        <i class="bi bi-stars me-1"></i> RECOMMENDED
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+
+        <!-- Sticky bottom bar for Generate button -->
+        <div class="position-fixed bottom-0 start-0 w-100 p-3 p-md-4" style="background: linear-gradient(to top, rgba(22,22,34,1) 60%, transparent); z-index: 1000; pointer-events: none;">
+            <div class="container-fluid" style="max-width: 1400px;">
+                <div class="row justify-content-center">
+                    <div class="col-12 col-md-8 col-lg-6" style="pointer-events: auto;">
+                        <div id="flash-message-container" class="mb-2"></div>
+                        <button id="generate-btn" disabled
+                            class="btn w-100 py-3 fw-bold fs-5 shadow position-relative overflow-hidden rounded-4 text-dark d-flex justify-content-center align-items-center"
+                            style="background-color: var(--th-yellow); transition: all 0.2s ease;">
+                            <i class="bi bi-stars me-2"></i>
+                            <span id="btn-text">GENERATE MY NEW LOOK</span>
+                            <span id="btn-spinner" class="spinner-border spinner-border-sm ms-2 d-none" role="status"></span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!-- Spacer to prevent content from hiding behind sticky bar -->
+        <div style="height: 100px;"></div>
+    </section>
+
+    <!-- Section 4: Result -->
+    <section id="phase-result" class="phase" hidden>
+        <div class="mb-5 text-center text-md-start">
+            <div class="badge rounded-pill border border-secondary border-opacity-50 px-3 py-2 text-yellow mb-3"
+                style="background-color: rgba(248, 205, 36, 0.1); border-color: rgba(248, 205, 36, 0.3) !important;">
+                <i class="bi bi-stars"></i> TRANSFORMATION COMPLETE
+            </div>
+            <h1 class="fw-bold mb-2 display-5 text-white" id="result-title">Your new look is ready!</h1>
+            <p class="text-secondary fs-5" style="color: #a1a1aa;">Our AI has perfectly mapped your new style to your facial structure.</p>
+        </div>
+
+        <div class="row g-4 d-flex justify-content-between">
+            <!-- Left Column: Image and Actions -->
+            <div class="col-lg-7 d-flex flex-column gap-3">
+                <!-- Image Card -->
+                <div class="position-relative rounded-4 overflow-hidden border border-secondary border-opacity-25 shadow"
+                    style="background-color: #1c1c1e;">
+                    <img id="result-img" src="" class="img-fluid w-100" style="object-fit: cover; aspect-ratio: 16/10;" alt="Generated Profile">
+                    
+                    <!-- Fullscreen Overlay Button -->
+                    <button type="button" class="btn btn-dark border-secondary border-opacity-50 text-white position-absolute bottom-0 end-0 m-3 rounded-circle"
+                        data-bs-toggle="modal" data-bs-target="#imageModal" title="View Fullscreen"
+                        style="width: 44px; height: 44px; z-index: 10; display: flex; align-items: center; justify-content: center; background-color: rgba(42, 42, 45, 0.8); backdrop-filter: blur(4px); transition: all 0.2s ease;">
+                        <i class="bi bi-arrows-fullscreen"></i>
+                    </button>
+                </div>
+
+                <!-- Rating Widget -->
+                <div class="bg-card rounded-4 border border-secondary border-opacity-25 p-4 mt-1" id="rating-widget">
+                    <div class="d-flex flex-wrap align-items-center gap-3 justify-content-between">
+                        <div>
+                            <h6 class="text-white fw-bold mb-1">How do you like this look?</h6>
+                            <p class="text-secondary small mb-0">Tap a star to rate (1–5)</p>
                         </div>
-                        <div class="selection-indicator position-absolute top-0 end-0 m-3 bg-warning text-dark rounded-circle d-none align-items-center justify-content-center"
-                            style="width: 24px; height: 24px;">
-                            <i class="bi bi-check" style="font-size: 1.2rem; line-height: 1;"></i>
+                        <div class="d-flex align-items-center gap-2 flex-wrap">
+                            <div class="th-star-rating d-flex align-items-center gap-1" role="group" aria-label="Rate from 1 to 5 stars">
+                                {% for i in range(1, 6) %}
+                                <button type="button" class="th-star-btn bg-transparent p-0 border-0"
+                                    data-star-value="{{ i }}" aria-label="{{ i }} star{% if i != 1 %}s{% endif %}">
+                                    <i class="bi bi-star th-star-icon" aria-hidden="true"></i>
+                                </button>
+                                {% endfor %}
+                            </div>
+                            <span id="rating-feedback" class="text-yellow small fw-semibold opacity-0"
+                                style="min-width: 4rem; transition: opacity 0.2s;">Rated!</span>
                         </div>
                     </div>
                 </div>
-                {% endfor %}
+
+                <!-- Action Buttons -->
+                <div class="bg-card rounded-4 border border-secondary border-opacity-25 p-3 d-flex gap-3 mt-1 flex-wrap flex-md-nowrap">
+                    <button id="try-another-btn" class="btn btn-primary fw-bold py-3 px-4 rounded-3 d-flex align-items-center justify-content-center gap-2 flex-grow-1 text-dark">
+                        <i class="bi bi-arrow-clockwise fs-5"></i> Try Another Style
+                    </button>
+                    <button class="btn btn-dark border border-secondary border-opacity-50 text-white fw-bold py-3 px-4 rounded-3 d-flex align-items-center justify-content-center gap-2 flex-grow-1"
+                        style="background-color: #2a2a2d;" onclick="window.location.href='{{ url_for('main.gallery') }}';">
+                        <i class="bi bi-images text-secondary"></i> My Gallery
+                    </button>
+                    <a id="result-download" href="#" class="btn btn-dark border border-secondary border-opacity-50 rounded-3 d-flex align-items-center justify-content-center px-4 py-3"
+                        style="background-color: #2a2a2d;" title="Download Result">
+                        <i class="bi bi-download text-white fs-5"></i>
+                    </a>
+                </div>
             </div>
 
+            <!-- Right Column: Details & Stylists -->
+            <div class="col-lg-5 col-xl-4 d-flex flex-column gap-4">
+                <div class="bg-card rounded-4 border border-secondary border-opacity-25 overflow-hidden">
+                    <div class="p-4 border-bottom border-dark">
+                        <h5 class="fw-bold text-white mb-2 d-flex align-items-center gap-2">
+                            <i class="bi bi-scissors text-yellow"></i> Style Breakdown
+                        </h5>
+                        <p class="text-secondary text-sm mb-0">What makes this look work for you</p>
+                    </div>
 
-            <!-- Flash Message Container -->
-            <div id="flash-message-container" class="mb-3"></div>
+                    <div class="p-4">
+                        <div class="mb-4">
+                            <h6 class="text-yellow fw-bold mb-2">Selected Style</h6>
+                            <div class="p-3 bg-dark bg-opacity-50 rounded-3 border border-secondary border-opacity-25">
+                                <div class="fw-bold text-white" id="result-style-name"></div>
+                                <div class="text-secondary text-sm mt-1" id="result-style-desc"></div>
+                            </div>
+                        </div>
 
-            <!-- Generate Button -->
-            <button id="generate-btn" disabled
-                class="btn w-100 py-3 fw-bold fs-5 shadow position-relative overflow-hidden rounded-3 text-dark d-flex justify-content-center align-items-center"
-                style="background-color: var(--th-yellow);">
-                <i class="bi bi-stars me-2"></i>
-                <span id="btn-text">GENERATE MY NEW LOOK</span>
-                <span id="btn-spinner" class="spinner-border spinner-border-sm ms-2 d-none" role="status"></span>
-            </button>
-            <p class="text-center text-secondary mt-3" style="font-size: 0.7rem;">By generating, you agree to our Terms
-                of Service. Processing usually takes 15-30 seconds.</p>
+                        <div class="d-flex justify-content-between mb-3">
+                            <span class="text-secondary">Face Shape Match:</span>
+                            <span class="text-white fw-semibold">98% High</span>
+                        </div>
+                        <div class="d-flex justify-content-between mb-3">
+                            <span class="text-secondary">Maintenance:</span>
+                            <span class="text-white fw-semibold">Low - Medium</span>
+                        </div>
+                        <div class="d-flex justify-content-between">
+                            <span class="text-secondary">Styling Product:</span>
+                            <span class="text-white fw-semibold">Matte Pomade</span>
+                        </div>
+                    </div>
+
+                    <div class="p-3 border-top border-secondary border-opacity-25">
+                        <a href="{{ url_for('main.stylists') }}" class="btn btn-outline-yellow w-100 py-2 fw-bold text-sm">
+                            Find Stylists for this Look
+                        </a>
+                    </div>
+                </div>
+            </div>
         </div>
 
-    </div>
+        <!-- Fullscreen Image Modal -->
+        <div class="modal fade" id="imageModal" tabindex="-1" aria-labelledby="imageModalLabel" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered modal-xl" style="max-width: 90vw;">
+                <div class="modal-content bg-transparent border-0" style="cursor: zoom-out;">
+                    <div class="modal-header border-0 pb-0 position-absolute top-0 end-0 w-100 d-flex justify-content-end" style="z-index: 1055;">
+                        <button type="button" class="btn btn-dark border-0 m-3 d-flex align-items-center justify-content-center" data-bs-dismiss="modal" aria-label="Close" 
+                            style="width: 44px; height: 44px; border-radius: 50%; background-color: rgba(42, 42, 45, 0.8); backdrop-filter: blur(4px); box-shadow: 0 4px 12px rgba(0,0,0,0.5); transition: all 0.2s ease;">
+                            <i class="bi bi-x-lg text-white"></i>
+                        </button>
+                    </div>
+                    <div class="modal-body text-center p-0 d-flex justify-content-center align-items-center">
+                        <img id="result-image-modal" src="" class="img-fluid rounded-4 shadow-lg" alt="Generated Profile Fullscreen"
+                            style="max-height: 90vh; object-fit: contain; cursor: default;">
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
 </div>
 
-<script>
-    document.addEventListener('DOMContentLoaded', function () {
-        let selectedHairstyleId = null;
-        let uploadedFile = null;
-
-        const uploadContainer = document.getElementById('upload-container');
-        const imageInput = document.getElementById('user-image-input');
-        const previewContainer = document.getElementById('image-preview-container');
-        const placeholder = document.getElementById('upload-placeholder');
-        const previewImg = document.getElementById('image-preview');
-        const removeBtn = document.getElementById('remove-image');
-        const generateBtn = document.getElementById('generate-btn');
-
-        // Handle File Selection
-        uploadContainer.addEventListener('click', (e) => {
-            if (e.target.closest('#remove-image')) return;
-            imageInput.click();
-        });
-
-        imageInput.addEventListener('change', function () {
-            if (this.files && this.files[0]) {
-                uploadFile(this.files[0]);
-            }
-        });
-
-        // Handle Drag & Drop
-        uploadContainer.addEventListener('dragover', (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            uploadContainer.classList.add('drag-active');
-        });
-
-        uploadContainer.addEventListener('dragleave', (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            // Only remove highlight if leaving the container itself (not a child element)
-            if (!uploadContainer.contains(e.relatedTarget)) {
-                uploadContainer.classList.remove('drag-active');
-            }
-        });
-
-        uploadContainer.addEventListener('drop', (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            uploadContainer.classList.remove('drag-active');
-
-            const files = e.dataTransfer.files;
-            if (files && files.length > 0) {
-                const file = files[0];
-                if (!file.type.startsWith('image/')) {
-                    showFlashMessage('Please drop an image file (PNG, JPG, etc.)');
-                    return;
-                }
-                uploadFile(file);
-            }
-        });
-
-        function uploadFile(file) {
-            uploadedFile = file;
-
-            const reader = new FileReader();
-            reader.onload = function (e) {
-                previewImg.src = e.target.result;
-                previewContainer.classList.remove('d-none');
-                placeholder.classList.add('d-none');
-                checkEnableGenerate();
-            };
-            reader.readAsDataURL(file);
-        }
-
-        removeBtn.addEventListener('click', () => {
-            uploadedFile = null;
-            previewImg.src = '';
-            previewContainer.classList.add('d-none');
-            placeholder.classList.remove('d-none');
-            imageInput.value = '';
-            checkEnableGenerate();
-        });
-
-        // Handle Hairstyle Selection
-        const hairstyleItems = document.querySelectorAll('.hairstyle-item');
-        const categoryFilterButtons = document.querySelectorAll('.category-filter');
-
-        function setFilterButtonState(activeButton) {
-            categoryFilterButtons.forEach(btn => {
-                btn.classList.remove('bg-warning', 'text-dark', 'border-0');
-                btn.classList.add('bg-dark', 'border', 'border-secondary', 'text-secondary');
-            });
-
-            activeButton.classList.remove('bg-dark', 'border', 'border-secondary', 'text-secondary');
-            activeButton.classList.add('bg-warning', 'text-dark', 'border-0');
-        }
-
-        function applyCategoryFilter(category) {
-            hairstyleItems.forEach(item => {
-                const itemCategory = item.dataset.category;
-                const shouldShow = category === 'ALL' || itemCategory === category;
-                item.classList.toggle('d-none', !shouldShow);
-
-                if (!shouldShow && selectedHairstyleId === item.dataset.id) {
-                    selectedHairstyleId = null;
-                    item.querySelector('.style-card').classList.replace('border-yellow', 'border-secondary');
-                    item.querySelector('.style-card').classList.add('border-opacity-25');
-                    item.querySelector('.selection-indicator').classList.add('d-none');
-                }
-            });
-
-            checkEnableGenerate();
-        }
-
-        categoryFilterButtons.forEach(button => {
-            button.addEventListener('click', () => {
-                setFilterButtonState(button);
-                applyCategoryFilter(button.dataset.category);
-            });
-        });
-
-        hairstyleItems.forEach(item => {
-            item.addEventListener('click', () => {
-                if (item.classList.contains('d-none')) return;
-                hairstyleItems.forEach(i => {
-                    i.querySelector('.style-card').classList.replace('border-yellow', 'border-secondary');
-                    i.querySelector('.style-card').classList.add('border-opacity-25');
-                    i.querySelector('.selection-indicator').classList.add('d-none');
-                });
-
-                const card = item.querySelector('.style-card');
-                card.classList.replace('border-secondary', 'border-yellow');
-                card.classList.remove('border-opacity-25');
-                item.querySelector('.selection-indicator').classList.remove('d-none');
-
-                selectedHairstyleId = item.dataset.id;
-                checkEnableGenerate();
-            });
-        });
-
-        function checkEnableGenerate() {
-            const hasPhoto = !!uploadedFile;
-            const hasStyle = !!selectedHairstyleId;
-            generateBtn.disabled = !(hasPhoto && hasStyle);
-        }
-
-        // Handle Generation
-        generateBtn.addEventListener('click', () => {
-            const btnText = document.getElementById('btn-text');
-            const btnSpinner = document.getElementById('btn-spinner');
-
-            generateBtn.disabled = true;
-            btnText.textContent = 'GENERATING (may take 1 min)...';
-            btnSpinner.classList.remove('d-none');
-
-            const formData = new FormData();
-            formData.append("photo", uploadedFile);
-            formData.append("hairstyle_id", selectedHairstyleId);
-
-            fetch("{{ url_for('main.generate') }}", {
-                method: "POST",
-                body: formData
-            })
-                .then(response => {
-                    if (!response.ok) throw new Error("Generation failed");
-                    const generatedId = response.headers.get("X-Generated-Image-Id");
-                    if (generatedId) {
-                        sessionStorage.setItem("generated_image_id", generatedId);
-                    }
-                    return response.blob();
-                })
-                .then(blob => {
-                    const reader = new FileReader();
-
-                    reader.onloadend = () => {
-                        const base64data = reader.result;
-                        sessionStorage.setItem("generated_image", base64data);
-                        window.location.href = "/result";
-                    };
-
-                    reader.readAsDataURL(blob);
-                })
-                .catch(err => {
-                    console.error(err);
-                    showFlashMessage(err.error || 'Internal server error. Please try again later.');
-                    generateBtn.disabled = false;
-                    btnText.textContent = 'GENERATE MY NEW LOOK';
-                    btnSpinner.classList.add('d-none');
-                    checkEnableGenerate();
-                });
-        });
-
-        function showFlashMessage(message, type = 'danger') {
-            const container = document.getElementById('flash-message-container');
-            if (container) {
-                container.innerHTML = `<div class="alert alert-${type} alert-dismissible fade show" role="alert">
-                    ${message}
-                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-                </div>`;
-            }
-        }
-    });
-</script>
-
 <style>
-    .scrollable-grid {
-        max-height: 64.75vh;
-        overflow-y: auto;
-        /* Optional: style the scrollbar for a better look */
-        scrollbar-width: thin;
-        scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
-    }
-
-    .scrollable-grid::-webkit-scrollbar {
-        width: 6px;
-    }
-
-    .scrollable-grid::-webkit-scrollbar-track {
-        background: transparent;
-    }
-
-    .scrollable-grid::-webkit-scrollbar-thumb {
-        background-color: rgba(255, 255, 255, 0.2);
-        border-radius: 10px;
-    }
-
     .border-yellow {
         border-color: var(--th-yellow) !important;
         border-width: 2px !important;
@@ -335,5 +271,440 @@
         box-shadow: 0 0 0 3px rgba(255, 214, 0, 0.25);
         transition: all 0.15s ease;
     }
+    
+    .recommended-card {
+        border-color: var(--bs-primary) !important;
+        border-width: 2px !important;
+        border-opacity: 1 !important;
+        box-shadow: 0 0 15px rgba(13, 110, 253, 0.3);
+    }
+    
+    .style-card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 8px 20px rgba(0,0,0,0.4);
+    }
 </style>
+
+<script type="module">
+    // Module-level state
+    const state = {
+        photoFile: null,                // the File object
+        recommendations: null,          // array of {hairstyle_id, reasoning} for experimental
+        selectedHairstyleId: null,
+        selectedHairstyleName: null,
+        selectedHairstyleDesc: null,
+        experimentGroup: "{{ experiment_group }}",  // rendered by Jinja
+        generatedImageId: null,         // set after /api/generate
+        generatedImageBlobUrl: null,    // set after /api/generate
+    };
+
+    // --- DOM Elements ---
+    const uploadContainer = document.getElementById('upload-container');
+    const imageInput = document.getElementById('user-image-input');
+    const previewContainer = document.getElementById('image-preview-container');
+    const placeholder = document.getElementById('upload-placeholder');
+    const previewImg = document.getElementById('image-preview');
+    const removeBtn = document.getElementById('remove-image');
+    const uploadContinueContainer = document.getElementById('upload-continue-container');
+    const uploadContinueBtn = document.getElementById('upload-continue-btn');
+    
+    const analyzingErrorContainer = document.getElementById('analyzing-error-container');
+    const analyzingErrorMessage = document.getElementById('analyzing-error-message');
+    const retryAnalyzingBtn = document.getElementById('retry-analyzing-btn');
+    
+    const generateBtn = document.getElementById('generate-btn');
+    const btnText = document.getElementById('btn-text');
+    const btnSpinner = document.getElementById('btn-spinner');
+    
+    const categoryFilterButtons = document.querySelectorAll('.category-filter');
+    const hairstyleItems = document.querySelectorAll('.hairstyle-item');
+    
+    const tryAnotherBtn = document.getElementById('try-another-btn');
+    const resultImg = document.getElementById('result-img');
+    const resultImgModal = document.getElementById('result-image-modal');
+    const resultDownload = document.getElementById('result-download');
+    const resultTitle = document.getElementById('result-title');
+    const resultStyleName = document.getElementById('result-style-name');
+    const resultStyleDesc = document.getElementById('result-style-desc');
+
+    // --- Phase Management ---
+    function showPhase(name) {
+        document.querySelectorAll(".phase").forEach(el => el.hidden = true);
+        document.getElementById(`phase-${name}`).hidden = false;
+        // scroll to top for clean transition
+        window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+
+    // --- Section 1: Upload ---
+    uploadContainer.addEventListener('click', (e) => {
+        if (e.target.closest('#remove-image')) return;
+        imageInput.click();
+    });
+
+    imageInput.addEventListener('change', function () {
+        if (this.files && this.files[0]) {
+            handleFileSelection(this.files[0]);
+        }
+    });
+
+    uploadContainer.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        uploadContainer.classList.add('drag-active');
+    });
+
+    uploadContainer.addEventListener('dragleave', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (!uploadContainer.contains(e.relatedTarget)) {
+            uploadContainer.classList.remove('drag-active');
+        }
+    });
+
+    uploadContainer.addEventListener('drop', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        uploadContainer.classList.remove('drag-active');
+
+        const files = e.dataTransfer.files;
+        if (files && files.length > 0) {
+            const file = files[0];
+            if (!file.type.startsWith('image/')) {
+                alert('Please drop an image file (PNG, JPG, WebP)');
+                return;
+            }
+            handleFileSelection(file);
+        }
+    });
+
+    function handleFileSelection(file) {
+        state.photoFile = file;
+
+        const reader = new FileReader();
+        reader.onload = function (e) {
+            previewImg.src = e.target.result;
+            previewContainer.classList.remove('d-none');
+            placeholder.classList.add('d-none');
+            uploadContinueContainer.classList.remove('d-none');
+        };
+        reader.readAsDataURL(file);
+    }
+
+    removeBtn.addEventListener('click', () => {
+        state.photoFile = null;
+        previewImg.src = '';
+        previewContainer.classList.add('d-none');
+        placeholder.classList.remove('d-none');
+        uploadContinueContainer.classList.add('d-none');
+        imageInput.value = '';
+    });
+
+    // --- Phase 1 → 2/3 ---
+    uploadContinueBtn.addEventListener("click", async () => {
+        if (!state.photoFile) return;
+
+        // Documented decision: Control group skips analyzing phase entirely.
+        // This creates a time/anticipation confound, but is accepted per IRB and experimental design.
+        if (state.experimentGroup === "experimental") {
+            showPhase("analyzing");
+            analyzingErrorContainer.classList.add('d-none');
+            
+            try {
+                const fd = new FormData();
+                fd.append("photo", state.photoFile);
+                const res = await fetch("{{ url_for('main.recommend') }}", { method: "POST", body: fd });
+                
+                if (!res.ok) {
+                    const err = await res.json().catch(() => ({ error: "Unknown error" }));
+                    showAnalyzingError(err.error || "Failed to analyze photo");
+                    return;
+                }
+                
+                const data = await res.json();
+                state.recommendations = data.recommendations;
+                applyRecommendationHighlights();
+                showPhase("catalog");
+            } catch (e) {
+                showAnalyzingError("Network error. Please try again.");
+            }
+        } else {
+            // Control: jump straight to catalog
+            showPhase("catalog");
+        }
+    });
+
+    function showAnalyzingError(msg) {
+        analyzingErrorMessage.textContent = msg;
+        analyzingErrorContainer.classList.remove('d-none');
+    }
+
+    retryAnalyzingBtn.addEventListener('click', () => {
+        uploadContinueBtn.click();
+    });
+
+    // --- Section 3: Catalog ---
+    function applyRecommendationHighlights() {
+        if (!state.recommendations || state.recommendations.length === 0) return;
+        
+        // Create a map for quick lookup
+        const recMap = {};
+        state.recommendations.forEach(r => {
+            recMap[r.hairstyle_id] = r;
+        });
+        
+        hairstyleItems.forEach(item => {
+            const id = parseInt(item.dataset.id, 10);
+            const card = item.querySelector('.style-card');
+            const badge = item.querySelector('.recommended-badge');
+            const reasoningContainer = item.querySelector('.reasoning-container');
+            
+            if (recMap[id]) {
+                card.classList.add('recommended-card');
+                badge.classList.remove('d-none');
+                badge.classList.add('d-flex');
+                
+                reasoningContainer.textContent = recMap[id].reasoning;
+                reasoningContainer.classList.remove('d-none');
+                
+                // Move recommended items to the top
+                item.style.order = "-1";
+            } else {
+                item.style.order = "0";
+            }
+        });
+    }
+
+    function setFilterButtonState(activeButton) {
+        categoryFilterButtons.forEach(btn => {
+            btn.classList.remove('bg-warning', 'text-dark', 'border-0');
+            btn.classList.add('bg-dark', 'border', 'border-secondary', 'text-secondary');
+        });
+
+        activeButton.classList.remove('bg-dark', 'border', 'border-secondary', 'text-secondary');
+        activeButton.classList.add('bg-warning', 'text-dark', 'border-0');
+    }
+
+    function applyCategoryFilter(category) {
+        hairstyleItems.forEach(item => {
+            const itemCategory = item.dataset.category;
+            const shouldShow = category === 'ALL' || itemCategory === category;
+            item.classList.toggle('d-none', !shouldShow);
+
+            if (!shouldShow && state.selectedHairstyleId === item.dataset.id) {
+                clearCatalogSelection();
+            }
+        });
+
+        checkEnableGenerate();
+    }
+
+    categoryFilterButtons.forEach(button => {
+        button.addEventListener('click', () => {
+            setFilterButtonState(button);
+            applyCategoryFilter(button.dataset.category);
+        });
+    });
+
+    function clearCatalogSelection() {
+        state.selectedHairstyleId = null;
+        state.selectedHairstyleName = null;
+        state.selectedHairstyleDesc = null;
+        
+        hairstyleItems.forEach(i => {
+            const c = i.querySelector('.style-card');
+            c.classList.replace('border-yellow', 'border-secondary');
+            if (!c.classList.contains('recommended-card')) {
+                c.classList.add('border-opacity-25');
+            }
+            i.querySelector('.selection-indicator').classList.add('d-none');
+            i.querySelector('.selection-indicator').classList.remove('d-flex');
+        });
+        checkEnableGenerate();
+    }
+
+    hairstyleItems.forEach(item => {
+        item.addEventListener('click', () => {
+            if (item.classList.contains('d-none')) return;
+            
+            clearCatalogSelection();
+
+            const card = item.querySelector('.style-card');
+            card.classList.replace('border-secondary', 'border-yellow');
+            card.classList.remove('border-opacity-25');
+            
+            const indicator = item.querySelector('.selection-indicator');
+            indicator.classList.remove('d-none');
+            indicator.classList.add('d-flex');
+
+            state.selectedHairstyleId = item.dataset.id;
+            
+            // Extract name and description for result page
+            const nameEl = item.querySelector('.text-white.fw-bold');
+            state.selectedHairstyleName = nameEl ? nameEl.textContent : 'Selected Style';
+            
+            // We don't have full description in the DOM, we'll just use the name for now
+            // or we could embed it in data attributes. Let's look for it or fallback.
+            state.selectedHairstyleDesc = item.dataset.description || 'A great new look for you.';
+            
+            checkEnableGenerate();
+        });
+    });
+
+    function checkEnableGenerate() {
+        const hasPhoto = !!state.photoFile;
+        const hasStyle = !!state.selectedHairstyleId;
+        generateBtn.disabled = !(hasPhoto && hasStyle);
+    }
+
+    function showFlashMessage(message, type = 'danger') {
+        const container = document.getElementById('flash-message-container');
+        if (container) {
+            container.innerHTML = `<div class="alert alert-${type} alert-dismissible fade show mb-0" role="alert">
+                ${message}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>`;
+        }
+    }
+
+    // --- Phase 3 → 4 (Generate) ---
+    generateBtn.addEventListener("click", async () => {
+        if (!state.photoFile || !state.selectedHairstyleId) return;
+
+        generateBtn.disabled = true;
+        btnText.textContent = "GENERATING (may take 1 min)...";
+        btnSpinner.classList.remove('d-none');
+
+        const wasAIRecommended = state.recommendations
+            ? state.recommendations.some(r => r.hairstyle_id === parseInt(state.selectedHairstyleId, 10))
+            : false;
+
+        const fd = new FormData();
+        fd.append("photo", state.photoFile);
+        fd.append("hairstyle_id", state.selectedHairstyleId);
+        fd.append("was_ai_recommended", wasAIRecommended ? "true" : "false");
+
+        try {
+            const res = await fetch("{{ url_for('main.generate') }}", { method: "POST", body: fd });
+            
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({ error: "Generation failed" }));
+                throw new Error(err.error || "Generation failed");
+            }
+
+            state.generatedImageId = parseInt(res.headers.get("X-Generated-Image-Id"), 10);
+            const blob = await res.blob();
+            
+            if (state.generatedImageBlobUrl) {
+                URL.revokeObjectURL(state.generatedImageBlobUrl);
+            }
+            state.generatedImageBlobUrl = URL.createObjectURL(blob);
+
+            // Populate Result Phase
+            resultImg.src = state.generatedImageBlobUrl;
+            resultImgModal.src = state.generatedImageBlobUrl;
+            
+            resultDownload.href = state.generatedImageBlobUrl;
+            resultDownload.setAttribute('download', `truehair_${state.selectedHairstyleName.replace(/\s+/g, '_')}_${state.generatedImageId}.webp`);
+            
+            resultTitle.textContent = `The '${state.selectedHairstyleName}' looks incredible!`;
+            resultStyleName.textContent = state.selectedHairstyleName;
+            resultStyleDesc.textContent = state.selectedHairstyleDesc;
+            
+            initRatingWidget(state.generatedImageId);
+            
+            showPhase("result");
+        } catch (err) {
+            console.error(err);
+            showFlashMessage(err.message || 'Internal server error. Please try again later.');
+        } finally {
+            generateBtn.disabled = false;
+            btnText.textContent = "GENERATE MY NEW LOOK";
+            btnSpinner.classList.add('d-none');
+        }
+    });
+
+    // --- Section 4: Rating Widget ---
+    function initRatingWidget(genId) {
+        const root = document.getElementById('rating-widget');
+        if (!root) return;
+        
+        let current = 0;
+        const buttons = root.querySelectorAll('.th-star-btn');
+        const feedback = document.getElementById('rating-feedback');
+        let hideTimer;
+
+        function paintStars(value) {
+            buttons.forEach((btn, idx) => {
+                const n = idx + 1;
+                const icon = btn.querySelector('.th-star-icon');
+                if (value >= n) {
+                    icon.classList.remove('bi-star');
+                    icon.classList.add('bi-star-fill');
+                } else {
+                    icon.classList.remove('bi-star-fill');
+                    icon.classList.add('bi-star');
+                }
+            });
+        }
+
+        function showFeedback() {
+            if (hideTimer) clearTimeout(hideTimer);
+            feedback.classList.remove('opacity-0');
+            hideTimer = setTimeout(() => {
+                feedback.classList.add('opacity-0');
+            }, 2200);
+        }
+
+        // Reset stars
+        paintStars(0);
+
+        // Remove old event listeners by cloning buttons
+        buttons.forEach(btn => {
+            const newBtn = btn.cloneNode(true);
+            btn.parentNode.replaceChild(newBtn, btn);
+            
+            newBtn.addEventListener('click', () => {
+                const v = parseInt(newBtn.getAttribute('data-star-value'), 10);
+                paintStars(v);
+                
+                fetch("{{ url_for('main.api_rate') }}", {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ generated_image_id: genId, rating: v })
+                }).then(res => {
+                    if (res.ok) {
+                        current = v;
+                        showFeedback();
+                    } else {
+                        paintStars(current);
+                    }
+                }).catch(() => {
+                    paintStars(current);
+                });
+            });
+        });
+    }
+
+    // --- Phase 4 → 3 (Try Another Style) ---
+    tryAnotherBtn.addEventListener("click", () => {
+        // Keep photoFile, keep recommendations, clear selection
+        clearCatalogSelection();
+        showPhase("catalog");
+        window.scrollTo({ top: 0, behavior: "smooth" });
+    });
+    
+    // --- Image Modal Click to Close ---
+    const imageModal = document.getElementById('imageModal');
+    if (imageModal) {
+        imageModal.addEventListener('click', function(e) {
+            if (e.target.closest('.modal-content') && e.target.tagName !== 'IMG' && !e.target.closest('button')) {
+                const btn = imageModal.querySelector('[data-bs-dismiss="modal"]');
+                if (btn) btn.click();
+            }
+        });
+    }
+
+    // Expected behavior: Page refresh at any phase returns to Section 1
+    // because state.photoFile is lost.
+</script>
 {% endblock %}
