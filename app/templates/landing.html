@@ -3,48 +3,99 @@
 {% block main_class %}py-5{% endblock %}
 
 {% block content %}
-<div class="container" style="max-width: 840px;">
-  <div class="text-center mb-5">
-    <img src="{{ url_for('static', filename='images/truehair-logo.png') }}"
-         alt="TrueHair Logo" height="64">
-    <h1 class="fw-bold mt-3 mb-2">TrueHair AI Hairstyle Visualization Study</h1>
-    <p class="text-secondary mb-0">
-      A research study from Colby College — Department of Computer Science (CS422)
-    </p>
+<div class="container" style="max-width: 1000px;">
+  
+  <!-- Hero Section -->
+  <div class="bg-card rounded-4 shadow-lg border border-secondary border-opacity-25 mb-5 overflow-hidden">
+    <div class="row g-0">
+      <div class="col-lg-5 order-lg-2">
+        <img src="{{ url_for('static', filename='images/login-salon.jpg') }}" 
+             alt="Hair stylist working in a salon" 
+             class="img-fluid w-100 h-100" 
+             style="object-fit: cover; min-height: 250px;">
+      </div>
+      <div class="col-lg-7 order-lg-1 p-4 p-md-5 d-flex flex-column justify-content-center">
+        <div class="mb-3 text-yellow">
+          <i class="bi bi-stars fs-2"></i>
+        </div>
+        <h1 class="fw-bold mb-2">TrueHair AI Hairstyle Visualization Study</h1>
+        <p class="text-secondary small mb-4 fw-medium">
+          A research study from Colby College — Department of Computer Science (CS422)
+        </p>
+        <h2 class="visually-hidden">What this is</h2>
+        <p class="text-secondary mb-4">
+          TrueHair AI is a research prototype that uses generative AI to show
+          you what you might look like with different hairstyles. You'll upload
+          a front-facing photo, choose a hairstyle from a catalog, and see an
+          AI-generated visualization of yourself with that style.
+        </p>
+        <a href="{{ url_for('main.consent_page') }}"
+           class="btn btn-primary fw-bold py-3 px-4 rounded-3 align-self-start w-100 w-sm-auto">
+          Get Started — Read Consent
+        </a>
+      </div>
+    </div>
   </div>
 
-  <div class="bg-card rounded-4 border border-secondary border-opacity-25 p-4 p-md-5 mb-4">
-    <h2 class="fw-bold h4 mb-3">What this is</h2>
-    <p class="text-secondary mb-0">
-      TrueHair AI is a research prototype that uses generative AI to show
-      you what you might look like with different hairstyles. You'll upload
-      a front-facing photo, choose a hairstyle from a catalog, and see an
-      AI-generated visualization of yourself with that style.
-    </p>
+  <!-- What you'll do -->
+  <div class="mb-5">
+    <h2 class="fw-bold h4 mb-4 text-center">What you'll do</h2>
+    <div class="row g-4">
+      <div class="col-12 col-md-6 col-lg-3">
+        <div class="bg-card rounded-4 border border-secondary border-opacity-25 p-4 h-100 shadow-sm">
+          <div class="text-yellow mb-3">
+            <i class="bi bi-shield-check fs-3"></i>
+          </div>
+          <h3 class="h6 fw-bold mb-2">1. Consent</h3>
+          <p class="text-secondary small mb-0">Read and agree to an informed consent disclosure.</p>
+        </div>
+      </div>
+      <div class="col-12 col-md-6 col-lg-3">
+        <div class="bg-card rounded-4 border border-secondary border-opacity-25 p-4 h-100 shadow-sm">
+          <div class="text-yellow mb-3">
+            <i class="bi bi-camera fs-3"></i>
+          </div>
+          <h3 class="h6 fw-bold mb-2">2. Upload</h3>
+          <p class="text-secondary small mb-0">Upload a front-facing photo of yourself.</p>
+        </div>
+      </div>
+      <div class="col-12 col-md-6 col-lg-3">
+        <div class="bg-card rounded-4 border border-secondary border-opacity-25 p-4 h-100 shadow-sm">
+          <div class="text-yellow mb-3">
+            <i class="bi bi-palette fs-3"></i>
+          </div>
+          <h3 class="h6 fw-bold mb-2">3. Choose</h3>
+          <p class="text-secondary small mb-0">Browse a catalog of hairstyles and select one to try.</p>
+        </div>
+      </div>
+      <div class="col-12 col-md-6 col-lg-3">
+        <div class="bg-card rounded-4 border border-secondary border-opacity-25 p-4 h-100 shadow-sm">
+          <div class="text-yellow mb-3">
+            <i class="bi bi-stars fs-3"></i>
+          </div>
+          <h3 class="h6 fw-bold mb-2">4. Visualize</h3>
+          <p class="text-secondary small mb-0">View the AI-generated visualization and rate it.</p>
+        </div>
+      </div>
+    </div>
   </div>
 
-  <div class="bg-card rounded-4 border border-secondary border-opacity-25 p-4 p-md-5 mb-4">
-    <h2 class="fw-bold h4 mb-3">What you'll do</h2>
-    <ol class="text-secondary mb-0">
-      <li class="mb-2">Read and agree to an informed consent disclosure.</li>
-      <li class="mb-2">Upload a front-facing photo of yourself.</li>
-      <li class="mb-2">Browse a catalog of hairstyles and select one to try.</li>
-      <li class="mb-0">View the AI-generated visualization and rate it.</li>
-    </ol>
+  <!-- Before you begin -->
+  <div class="mx-auto" style="max-width: 600px;">
+    <div class="bg-card rounded-4 border border-secondary border-opacity-25 p-4 p-md-5 text-center shadow-sm">
+      <h2 class="fw-bold h5 mb-3">Before you begin</h2>
+      <p class="text-secondary mb-4">
+        Participation is voluntary, anonymous, and open to adults (18+).
+        Full details about the study, including how your data is handled,
+        are on the consent page.
+      </p>
+      <a href="{{ url_for('main.consent_page') }}"
+         class="btn btn-outline-primary fw-bold w-100 py-3 rounded-3">
+        Read Consent
+      </a>
+    </div>
   </div>
 
-  <div class="bg-card rounded-4 border border-secondary border-opacity-25 p-4 p-md-5 mb-4">
-    <h2 class="fw-bold h4 mb-3">Before you begin</h2>
-    <p class="text-secondary mb-3">
-      Participation is voluntary, anonymous, and open to adults (18+).
-      Full details about the study, including how your data is handled,
-      are on the consent page.
-    </p>
-    <a href="{{ url_for('main.consent_page') }}"
-       class="btn btn-primary fw-bold w-100 py-3 rounded-3">
-      Get Started — Read Consent
-    </a>
-  </div>
 </div>
 {% endblock %}
 
