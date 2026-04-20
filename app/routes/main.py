@@ -430,7 +430,7 @@ def export_data():
             session_id=sid, was_ai_recommended=True
         ).count()
 
-        if sess.experiment_group == "experimental":
+        if experiment_group == "experimental":
             ai_recommended_selection_rate = (
                 round(ai_recommended_count / num_visualizations, 3)
                 if num_visualizations > 0
