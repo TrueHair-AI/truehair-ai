@@ -26,6 +26,9 @@ class TestConfig(Config):
     R2_ACCESS_KEY_ID = "test-access-key"
     R2_SECRET_ACCESS_KEY = "test-secret-key"
     R2_BUCKET_NAME = "test-bucket"
+    ADMIN_EMAILS = "admin@example.com,other-admin@example.com"
+    GOOGLE_OAUTH_CLIENT_ID = "test-client-id"
+    GOOGLE_OAUTH_CLIENT_SECRET = "test-client-secret"
 
 
 @pytest.fixture
@@ -78,6 +81,15 @@ def auth_client(app, session_id):
     client = app.test_client()
     with client.session_transaction() as sess:
         sess["session_id"] = session_id
+    return client
+
+
+@pytest.fixture
+def admin_client(app):
+    """Test client with an allowlisted admin_email cookie set (no session_id)."""
+    client = app.test_client()
+    with client.session_transaction() as sess:
+        sess["admin_email"] = "admin@example.com"
     return client
 
 

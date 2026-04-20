@@ -180,18 +180,56 @@ def test_stylists_search(auth_client, stylist):
 
 
 # ---------------------------------------------------------------------------
-# Dashboard + export (ungated pending issue #16).
+# Dashboard + export: admin OAuth email-allowlist gating (issue #63).
 # ---------------------------------------------------------------------------
 
 
-def test_dashboard_renders(client):
+def test_dashboard_redirects_to_login_when_unauthenticated(client):
+    """No admin_email cookie -> redirect to /admin/login."""
     response = client.get("/dashboard")
+    assert response.status_code == 302
+    assert "/admin/login" in response.location
+
+
+def test_dashboard_redirects_to_login_for_non_allowlisted_admin_email(client):
+    """admin_email set but not on the allowlist -> redirect to /admin/login (no trust)."""
+    with client.session_transaction() as sess:
+        sess["admin_email"] = "random@evil.example"
+    response = client.get("/dashboard")
+    assert response.status_code == 302
+    assert "/admin/login" in response.location
+
+
+def test_dashboard_allowed_for_allowlisted_admin(admin_client):
+    """admin_email on the allowlist -> dashboard renders."""
+    response = admin_client.get("/dashboard")
     assert response.status_code == 200
 
 
-def test_admin_export_json(app, client):
-    _consent_and_login(app, client)
-    response = client.get("/api/admin/export?format=json")
+def test_dashboard_blocks_participant_session(auth_client):
+    """A consented participant (session_id only, no admin_email) cannot access /dashboard."""
+    response = auth_client.get("/dashboard")
+    assert response.status_code == 302
+    assert "/admin/login" in response.location
+
+
+def test_admin_cookie_independent_of_session_id(app, admin_client):
+    """An admin cookie without a session_id can access /dashboard and /api/admin/export."""
+    with admin_client.session_transaction() as sess:
+        assert "session_id" not in sess
+    assert admin_client.get("/dashboard").status_code == 200
+    assert admin_client.get("/api/admin/export?format=json").status_code == 200
+
+
+def test_admin_export_redirects_when_unauthenticated(client):
+    response = client.get("/api/admin/export")
+    assert response.status_code == 302
+    assert "/admin/login" in response.location
+
+
+def test_admin_export_json(app, admin_client):
+    _consent_and_login(app, admin_client)
+    response = admin_client.get("/api/admin/export?format=json")
     assert response.status_code == 200
 
     data = response.get_json()
@@ -215,9 +253,9 @@ def test_admin_export_json(app, client):
     assert "last_name" not in row
 
 
-def test_admin_export_csv(app, client):
-    _consent_and_login(app, client)
-    response = client.get("/api/admin/export")
+def test_admin_export_csv(app, admin_client):
+    _consent_and_login(app, admin_client)
+    response = admin_client.get("/api/admin/export")
     assert response.status_code == 200
     assert response.headers["Content-Type"].startswith("text/csv")
     assert "attachment" in response.headers["Content-Disposition"]
@@ -227,17 +265,59 @@ def test_admin_export_csv(app, client):
     assert "experiment_group" in csv_data
 
 
-def test_admin_export_iterates_experiment_sessions(app, client):
-    """Export emits one row per ExperimentSession row."""
-    _consent_and_login(app, client, experiment_group="control")
-    _consent_and_login(app, client, experiment_group="experimental")
-    response = client.get("/api/admin/export?format=json")
+def test_admin_export_one_row_per_participant(app, admin_client):
+    """Export emits one row per unique session_id, not per ExperimentSession row."""
+    _consent_and_login(app, admin_client, experiment_group="control")
+    _consent_and_login(app, admin_client, experiment_group="experimental")
+    response = admin_client.get("/api/admin/export?format=json")
     data = response.get_json()
     assert len(data) == 2
 
 
-def test_admin_export_invalid_format(client):
-    response = client.get("/api/admin/export?format=xml")
+def test_admin_export_dedupes_timeout_resume_sessions(app, admin_client):
+    """A participant with multiple ExperimentSession rows (timeout+resume) yields one export row.
+
+    Images and ratings must not be double-counted; session_duration_seconds must
+    be the sum across rows for that participant.
+    """
+    sid = str(uuid.uuid4())
+    started = datetime.now(timezone.utc)
+
+    with app.app_context():
+        db.session.add(Consent(session_id=sid, experiment_group="control"))
+        db.session.add(
+            ExperimentSession(
+                session_id=sid,
+                experiment_group="control",
+                started_at=started,
+                last_ping_at=started,
+                ended_at=started,
+                duration_seconds=120,
+            )
+        )
+        db.session.add(
+            ExperimentSession(
+                session_id=sid,
+                experiment_group="control",
+                started_at=started,
+                last_ping_at=started,
+                ended_at=started,
+                duration_seconds=300,
+            )
+        )
+        db.session.commit()
+
+    response = admin_client.get("/api/admin/export?format=json")
+    assert response.status_code == 200
+    data = response.get_json()
+
+    matching = [r for r in data if r["session_duration_seconds"] == 420]
+    assert len(matching) == 1, f"expected one merged row, got {data}"
+    assert matching[0]["experiment_group"] == "control"
+
+
+def test_admin_export_invalid_format(admin_client):
+    response = admin_client.get("/api/admin/export?format=xml")
     assert response.status_code == 400
 
 
