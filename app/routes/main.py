@@ -1,6 +1,7 @@
 import csv
 import io
 import random
+import statistics
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 
@@ -223,11 +224,213 @@ def stylists():
 # ---------------------------------------------------------------------------
 
 
+ENROLLMENT_TARGET = 50  # upper bound of IRB target (20–50)
+
+
+def _bin_values(values, bin_edges):
+    """Return list of counts per bin. Values exactly equal to an upper edge go into that bin
+    (except the final bin, which is inclusive of its upper edge). Empty input returns zeros."""
+    if not bin_edges or len(bin_edges) < 2:
+        return []
+    counts = [0] * (len(bin_edges) - 1)
+    for v in values:
+        for i in range(len(bin_edges) - 1):
+            lo, hi = bin_edges[i], bin_edges[i + 1]
+            is_last = i == len(bin_edges) - 2
+            if (lo <= v < hi) or (is_last and v == hi):
+                counts[i] += 1
+                break
+        # Values outside [bin_edges[0], bin_edges[-1]] are silently dropped.
+        # Callers are responsible for choosing edges that cover the data range.
+    return counts
+
+
+def _describe(values):
+    """Return descriptive stats dict for a list of numeric values. Safe for empty input."""
+    vals = [v for v in values if v is not None]
+    n = len(vals)
+    if n == 0:
+        return {
+            "n": 0,
+            "mean": None,
+            "stdev": None,
+            "median": None,
+            "min": None,
+            "max": None,
+        }
+    return {
+        "n": n,
+        "mean": round(statistics.mean(vals), 2),
+        "stdev": round(statistics.stdev(vals), 2) if n > 1 else 0.0,
+        "median": round(statistics.median(vals), 2),
+        "min": min(vals),
+        "max": max(vals),
+    }
+
+
+def _experiment_metrics():
+    """Compute per-group aggregates for the Experiment dashboard.
+
+    Returns a dict with keys consumed by experiment_dashboard.html. All per-group
+    breakdowns are keyed by "control" and "experimental". Participants are de-duplicated
+    by session_id (a participant with multiple ExperimentSession rows counts once),
+    matching the aggregation rule used by /api/admin/export.
+    """
+    all_sessions = ExperimentSession.query.order_by(ExperimentSession.started_at).all()
+    by_sid = defaultdict(list)
+    for s in all_sessions:
+        by_sid[s.session_id].append(s)
+
+    ratings_by_group = {"control": [], "experimental": []}
+    viz_count_by_group = {"control": [], "experimental": []}
+    duration_by_group = {"control": [], "experimental": []}
+
+    ai_rec_rate_values = []
+
+    zero_viz_by_group = {"control": 0, "experimental": 0}
+    zero_rating_by_group = {"control": 0, "experimental": 0}
+
+    for sid, sess_rows in by_sid.items():
+        group = sess_rows[0].experiment_group
+        if group not in ("control", "experimental"):
+            continue
+
+        total_duration = 0
+        have_any_duration = False
+        for sr in sess_rows:
+            if sr.duration_seconds is not None:
+                total_duration += sr.duration_seconds
+                have_any_duration = True
+            elif sr.last_ping_at and sr.started_at:
+                total_duration += int((sr.last_ping_at - sr.started_at).total_seconds())
+                have_any_duration = True
+        if have_any_duration:
+            duration_by_group[group].append(total_duration)
+
+        gen_images = GeneratedImage.query.filter_by(session_id=sid).all()
+        n_viz = len(gen_images)
+        viz_count_by_group[group].append(n_viz)
+        if n_viz == 0:
+            zero_viz_by_group[group] += 1
+
+        participant_ratings = Rating.query.filter_by(session_id=sid).all()
+        if participant_ratings:
+            mean_r = statistics.mean(r.rating for r in participant_ratings)
+            ratings_by_group[group].append(mean_r)
+        else:
+            zero_rating_by_group[group] += 1
+
+        if group == "experimental" and n_viz > 0:
+            ai_count = sum(1 for gi in gen_images if gi.was_ai_recommended is True)
+            ai_rec_rate_values.append(ai_count / n_viz)
+
+    rating_stats = {
+        g: _describe(ratings_by_group[g]) for g in ("control", "experimental")
+    }
+    viz_stats = {
+        g: _describe(viz_count_by_group[g]) for g in ("control", "experimental")
+    }
+    duration_stats = {
+        g: _describe(duration_by_group[g]) for g in ("control", "experimental")
+    }
+
+    rating_bin_edges = [1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0]
+    rating_bin_labels = [
+        "1.0–1.5",
+        "1.5–2.0",
+        "2.0–2.5",
+        "2.5–3.0",
+        "3.0–3.5",
+        "3.5–4.0",
+        "4.0–4.5",
+        "4.5–5.0",
+    ]
+    rating_hist = {
+        g: _bin_values(ratings_by_group[g], rating_bin_edges)
+        for g in ("control", "experimental")
+    }
+
+    viz_bin_labels = ["0", "1", "2", "3", "4", "5", "6+"]
+    viz_hist = {"control": [0] * 7, "experimental": [0] * 7}
+    for g in ("control", "experimental"):
+        for v in viz_count_by_group[g]:
+            idx = min(int(v), 6)
+            viz_hist[g][idx] += 1
+
+    duration_bin_edges_seconds = [0, 60, 180, 300, 600, 900, float("inf")]
+    duration_bin_labels = ["<1m", "1–3m", "3–5m", "5–10m", "10–15m", "15m+"]
+    duration_hist = {"control": [0] * 6, "experimental": [0] * 6}
+    for g in ("control", "experimental"):
+        for d in duration_by_group[g]:
+            for i in range(len(duration_bin_edges_seconds) - 1):
+                if (
+                    duration_bin_edges_seconds[i]
+                    <= d
+                    < duration_bin_edges_seconds[i + 1]
+                ):
+                    duration_hist[g][i] += 1
+                    break
+
+    ai_rec_stats = _describe(ai_rec_rate_values)
+    ai_rec_bin_labels = ["0–20%", "20–40%", "40–60%", "60–80%", "80–100%"]
+    ai_rec_bin_edges = [0.0, 0.2, 0.4, 0.6, 0.8, 1.0]
+    ai_rec_hist = _bin_values(ai_rec_rate_values, ai_rec_bin_edges)
+
+    n_control = len(viz_count_by_group["control"])
+    n_experimental = len(viz_count_by_group["experimental"])
+    n_total = n_control + n_experimental
+
+    completeness = {
+        "zero_viz": zero_viz_by_group,
+        "zero_rating": zero_rating_by_group,
+        "total_consented": {
+            "control": n_control,
+            "experimental": n_experimental,
+        },
+    }
+
+    return {
+        "n_control": n_control,
+        "n_experimental": n_experimental,
+        "n_total": n_total,
+        "enrollment_target": ENROLLMENT_TARGET,
+        "rating_stats": rating_stats,
+        "viz_stats": viz_stats,
+        "duration_stats": duration_stats,
+        "ai_rec_stats": ai_rec_stats,
+        "rating_hist": rating_hist,
+        "rating_bin_labels": rating_bin_labels,
+        "viz_hist": viz_hist,
+        "viz_bin_labels": viz_bin_labels,
+        "duration_hist": duration_hist,
+        "duration_bin_labels": duration_bin_labels,
+        "ai_rec_hist": ai_rec_hist,
+        "ai_rec_bin_labels": ai_rec_bin_labels,
+        "completeness": completeness,
+    }
+
+
 @main_bp.route("/dashboard")
 @admin_required
 def dashboard():
+    """Redirect legacy /dashboard to the Experiment tab (new default landing)."""
+    return redirect(url_for("main.experiment_dashboard"))
+
+
+@main_bp.route("/dashboard/experiment")
+@admin_required
+def experiment_dashboard():
+    """Render the study-focused dashboard with per-group KPI breakdowns."""
+    log_visit("Experiment Dashboard")
+    metrics = _experiment_metrics()
+    return render_template("experiment_dashboard.html", **metrics)
+
+
+@main_bp.route("/dashboard/operations")
+@admin_required
+def operations_dashboard():
     """Render the admin KPI dashboard with analytics metrics."""
-    log_visit("KPI Dashboard")
+    log_visit("Operations Dashboard")
 
     now = datetime.now()
     today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
@@ -370,7 +573,7 @@ def dashboard():
     visit_data = list(mapped_vp.values())
 
     return render_template(
-        "dashboard.html",
+        "operations_dashboard.html",
         visits_today=visits_today,
         visit_change=round(visit_change, 1),
         new_users=new_participants,

@@ -1,0 +1,37 @@
+{# Shared admin sidebar. Callers must pass `active_tab` as "experiment" or "operations". #}
+<div class="sidebar d-flex flex-column p-4 flex-shrink-0" style="width: 280px; background-color: #1a1b24;">
+    <a class="navbar-brand d-flex flex-column gap-1 mb-5" href="{{ url_for('main.style_studio') }}">
+        <div class="d-flex align-items-center gap-2">
+            <img src="{{ url_for('static', filename='images/truehair-logo.png') }}" alt="TrueHair Logo" height="32">
+            <span class="brand-text text-white fw-bold fs-5">TrueHair AI</span>
+        </div>
+        <span class="text-secondary" style="font-size: 0.65rem; letter-spacing: 1px; font-weight: 600;">ADMIN CONSOLE</span>
+    </a>
+
+    <ul class="nav nav-pills flex-column mb-auto gap-2">
+        <li class="nav-item">
+            <a href="{{ url_for('main.experiment_dashboard') }}"
+               class="nav-link d-flex align-items-center gap-3 rounded-3 py-3 px-3
+                      {% if active_tab == 'experiment' %}fw-bold shadow text-dark{% else %}text-white{% endif %}"
+               {% if active_tab == 'experiment' %}style="background-color: var(--th-yellow);"{% endif %}>
+                <i class="bi bi-beaker fs-5"></i>
+                Experiment
+            </a>
+        </li>
+        <li class="nav-item">
+            <a href="{{ url_for('main.operations_dashboard') }}"
+               class="nav-link d-flex align-items-center gap-3 rounded-3 py-3 px-3
+                      {% if active_tab == 'operations' %}fw-bold shadow text-dark{% else %}text-white{% endif %}"
+               {% if active_tab == 'operations' %}style="background-color: var(--th-yellow);"{% endif %}>
+                <i class="bi bi-grid-1x2-fill fs-5"></i>
+                Operations
+            </a>
+        </li>
+    </ul>
+
+    <div class="mt-auto pt-3 border-top border-secondary border-opacity-25">
+        <a href="{{ url_for('admin.logout') }}" class="logout-btn text-decoration-none small d-flex align-items-center gap-2">
+            <i class="bi bi-box-arrow-right"></i> Sign out
+        </a>
+    </div>
+</div>

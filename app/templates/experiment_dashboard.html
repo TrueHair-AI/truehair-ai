@@ -1,0 +1,383 @@
+{% extends 'base.html' %}
+
+{% block title %}Experiment - TrueHair AI{% endblock %}
+{% block body_class %}bg-studio{% endblock %}
+{% block navbar %}{% endblock %}
+{% block footer %}{% endblock %}
+
+{% block content %}
+<div class="d-flex h-100 w-100">
+
+    {% set active_tab = 'experiment' %}
+    {% include '_admin_sidebar.html' %}
+
+    <!-- Main Content -->
+    <div class="flex-grow-1 d-flex flex-column overflow-auto h-100">
+
+        <!-- Top bar: title + export buttons -->
+        <div class="d-flex justify-content-between align-items-center py-4 px-5 border-bottom border-secondary border-opacity-25"
+             style="background-color: var(--th-bg-studio);">
+            <div class="d-flex align-items-center gap-2">
+                <i class="bi bi-beaker text-white fs-4"></i>
+                <h3 class="fw-bold mb-0 text-white">Experiment</h3>
+            </div>
+            <div class="d-flex gap-2">
+                <a href="{{ url_for('main.export_data', format='csv') }}"
+                   class="btn rounded-3 px-3 py-2 fw-semibold"
+                   style="background-color: var(--th-yellow); color: #000;">
+                    <i class="bi bi-download me-1"></i> Export CSV
+                </a>
+                <a href="{{ url_for('main.export_data', format='json') }}"
+                   class="btn rounded-3 px-3 py-2 fw-semibold border"
+                   style="border-color: rgba(255,255,255,0.1); color: #fff;">
+                    <i class="bi bi-filetype-json me-1"></i> Export JSON
+                </a>
+            </div>
+        </div>
+
+        <div class="p-5 flex-grow-1" style="background-color: var(--th-bg-studio);">
+
+            <!-- Enrollment strip -->
+            <div class="row g-4 mb-5">
+                <div class="col-xl-4 col-md-12">
+                    <div class="card bg-card border border-secondary border-opacity-25 rounded-4 h-100 p-4 shadow-sm">
+                        <div class="d-flex justify-content-between align-items-start mb-3">
+                            <span class="text-secondary fw-semibold">Total enrolled</span>
+                            <i class="bi bi-people-fill text-yellow fs-5"></i>
+                        </div>
+                        <h2 class="fw-bold text-white mb-2">{{ n_total }} <span class="text-secondary fs-5">/ {{ enrollment_target }}</span></h2>
+                        <div class="progress" style="height: 8px; background-color: rgba(255,255,255,0.08);">
+                            <div class="progress-bar"
+                                 role="progressbar"
+                                 style="width: {{ (100 * n_total / enrollment_target) if enrollment_target else 0 }}%; background-color: var(--th-yellow);"
+                                 aria-valuenow="{{ n_total }}"
+                                 aria-valuemin="0"
+                                 aria-valuemax="{{ enrollment_target }}"></div>
+                        </div>
+                        <div class="text-secondary text-sm mt-2">Toward IRB target (20–50)</div>
+                    </div>
+                </div>
+
+                <div class="col-xl-4 col-md-6">
+                    <div class="card bg-card border border-secondary border-opacity-25 rounded-4 h-100 p-4 shadow-sm">
+                        <div class="d-flex justify-content-between align-items-start mb-3">
+                            <span class="text-secondary fw-semibold">Control group</span>
+                            <i class="bi bi-circle-fill" style="color: #4b4b53; font-size: 0.9rem;"></i>
+                        </div>
+                        <h2 class="fw-bold text-white mb-2">{{ n_control }}</h2>
+                        <div class="text-secondary text-sm">
+                            {% if n_total > 0 %}{{ (100 * n_control / n_total) | round(0, 'floor') | int }}% of enrolled{% else %}—{% endif %}
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-xl-4 col-md-6">
+                    <div class="card bg-card border border-secondary border-opacity-25 rounded-4 h-100 p-4 shadow-sm">
+                        <div class="d-flex justify-content-between align-items-start mb-3">
+                            <span class="text-secondary fw-semibold">Experimental group</span>
+                            <i class="bi bi-circle-fill text-yellow" style="font-size: 0.9rem;"></i>
+                        </div>
+                        <h2 class="fw-bold text-white mb-2">{{ n_experimental }}</h2>
+                        <div class="text-secondary text-sm">
+                            {% if n_total > 0 %}{{ (100 * n_experimental / n_total) | round(0, 'floor') | int }}% of enrolled{% else %}—{% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Primary KPI: Average star rating -->
+            <div class="card bg-card border border-secondary border-opacity-25 rounded-4 p-4 shadow-sm mb-4">
+                <div class="d-flex justify-content-between align-items-start mb-4">
+                    <div>
+                        <div class="badge rounded-pill px-3 py-2 mb-2 text-dark fw-bold" style="background-color: var(--th-yellow);">
+                            PRIMARY KPI
+                        </div>
+                        <h5 class="text-white fw-bold mb-1">Average star rating</h5>
+                        <div class="text-secondary text-sm">Per-participant mean of 1–5 star ratings, then averaged across participants in each group.</div>
+                    </div>
+                </div>
+
+                <div class="row g-4">
+                    {% for group, color in [('control', '#4b4b53'), ('experimental', '#f8cd24')] %}
+                    <div class="col-md-6">
+                        <div class="p-3 rounded-3" style="background-color: rgba(255,255,255,0.02);">
+                            <div class="d-flex align-items-center gap-2 mb-3">
+                                <i class="bi bi-circle-fill" style="color: {{ color }}; font-size: 0.9rem;"></i>
+                                <span class="fw-bold text-white text-uppercase" style="font-size: 0.8rem; letter-spacing: 0.05em;">{{ group }}</span>
+                                <span class="text-secondary text-sm ms-auto">n = {{ rating_stats[group].n }}</span>
+                            </div>
+                            <div class="d-flex align-items-baseline gap-2 mb-1">
+                                <span class="fw-bold text-white" style="font-size: 2.5rem;">
+                                    {{ rating_stats[group].mean if rating_stats[group].mean is not none else '—' }}
+                                </span>
+                                <span class="text-secondary">mean</span>
+                            </div>
+                            <div class="text-secondary text-sm">
+                                SD {{ rating_stats[group].stdev if rating_stats[group].stdev is not none else '—' }}
+                                · Median {{ rating_stats[group].median if rating_stats[group].median is not none else '—' }}
+                                · Range {{ rating_stats[group].min if rating_stats[group].min is not none else '—' }}–{{ rating_stats[group].max if rating_stats[group].max is not none else '—' }}
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+
+                <div class="mt-4" style="height: 260px;">
+                    <canvas id="ratingHist"></canvas>
+                </div>
+            </div>
+
+            <!-- Secondary KPIs: Visualizations + Duration -->
+            <div class="row g-4 mb-4">
+                <div class="col-lg-6">
+                    <div class="card bg-card border border-secondary border-opacity-25 rounded-4 p-4 shadow-sm h-100">
+                        <div class="mb-3">
+                            <div class="badge rounded-pill px-3 py-2 mb-2 text-white fw-semibold" style="background-color: rgba(255,255,255,0.08);">
+                                SECONDARY
+                            </div>
+                            <h5 class="text-white fw-bold mb-1">Visualizations per participant</h5>
+                            <div class="text-secondary text-sm">Number of hairstyle generations each participant completed.</div>
+                        </div>
+
+                        <div class="row g-2 mb-3">
+                            {% for group, color in [('control', '#4b4b53'), ('experimental', '#f8cd24')] %}
+                            <div class="col-6">
+                                <div class="p-2 rounded-3" style="background-color: rgba(255,255,255,0.02);">
+                                    <div class="d-flex align-items-center gap-2 mb-1">
+                                        <i class="bi bi-circle-fill" style="color: {{ color }}; font-size: 0.7rem;"></i>
+                                        <span class="text-secondary text-sm text-uppercase" style="letter-spacing: 0.04em;">{{ group }}</span>
+                                    </div>
+                                    <div class="fw-bold text-white">
+                                        {{ viz_stats[group].mean if viz_stats[group].mean is not none else '—' }}
+                                        <span class="text-secondary fw-normal small">mean</span>
+                                    </div>
+                                    <div class="text-secondary small">
+                                        SD {{ viz_stats[group].stdev if viz_stats[group].stdev is not none else '—' }} · n = {{ viz_stats[group].n }}
+                                    </div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+
+                        <div style="height: 220px;">
+                            <canvas id="vizHist"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-lg-6">
+                    <div class="card bg-card border border-secondary border-opacity-25 rounded-4 p-4 shadow-sm h-100">
+                        <div class="mb-3">
+                            <div class="badge rounded-pill px-3 py-2 mb-2 text-white fw-semibold" style="background-color: rgba(255,255,255,0.08);">
+                                SECONDARY
+                            </div>
+                            <h5 class="text-white fw-bold mb-1">Session duration</h5>
+                            <div class="text-secondary text-sm">Total active time on the platform, summed across reconnects.</div>
+                        </div>
+
+                        <div class="row g-2 mb-3">
+                            {% for group, color in [('control', '#4b4b53'), ('experimental', '#f8cd24')] %}
+                            <div class="col-6">
+                                <div class="p-2 rounded-3" style="background-color: rgba(255,255,255,0.02);">
+                                    <div class="d-flex align-items-center gap-2 mb-1">
+                                        <i class="bi bi-circle-fill" style="color: {{ color }}; font-size: 0.7rem;"></i>
+                                        <span class="text-secondary text-sm text-uppercase" style="letter-spacing: 0.04em;">{{ group }}</span>
+                                    </div>
+                                    <div class="fw-bold text-white">
+                                        {% if duration_stats[group].mean is not none %}
+                                            {{ (duration_stats[group].mean / 60) | round(1) }}m
+                                        {% else %}—{% endif %}
+                                        <span class="text-secondary fw-normal small">mean</span>
+                                    </div>
+                                    <div class="text-secondary small">
+                                        {% if duration_stats[group].stdev is not none %}
+                                            SD {{ (duration_stats[group].stdev / 60) | round(1) }}m
+                                        {% else %}SD —{% endif %} · n = {{ duration_stats[group].n }}
+                                    </div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+
+                        <div style="height: 220px;">
+                            <canvas id="durationHist"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Experimental-only: AI recommendation selection rate -->
+            <div class="card bg-card border border-secondary border-opacity-25 rounded-4 p-4 shadow-sm mb-4">
+                <div class="d-flex justify-content-between align-items-start mb-4">
+                    <div>
+                        <div class="badge rounded-pill px-3 py-2 mb-2 text-dark fw-bold" style="background-color: var(--th-yellow);">
+                            EXPERIMENTAL GROUP ONLY
+                        </div>
+                        <h5 class="text-white fw-bold mb-1">AI recommendation selection rate</h5>
+                        <div class="text-secondary text-sm">
+                            Fraction of each experimental-group participant's visualizations that used an AI-recommended hairstyle.
+                            Low values suggest the manipulation isn't landing.
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row g-4 align-items-center">
+                    <div class="col-md-4">
+                        <div class="p-3 rounded-3" style="background-color: rgba(255,255,255,0.02);">
+                            <div class="d-flex align-items-baseline gap-2 mb-1">
+                                <span class="fw-bold text-white" style="font-size: 2.5rem;">
+                                    {% if ai_rec_stats.mean is not none %}
+                                        {{ (ai_rec_stats.mean * 100) | round(0, 'floor') | int }}%
+                                    {% else %}—{% endif %}
+                                </span>
+                                <span class="text-secondary">mean</span>
+                            </div>
+                            <div class="text-secondary text-sm">
+                                {% if ai_rec_stats.stdev is not none %}
+                                    SD {{ (ai_rec_stats.stdev * 100) | round(0, 'floor') | int }}%
+                                {% else %}SD —{% endif %}
+                                · n = {{ ai_rec_stats.n }}
+                            </div>
+                            <div class="text-secondary text-sm mt-2">
+                                Includes only experimental-group participants with ≥1 visualization.
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-8">
+                        <div style="height: 200px;">
+                            <canvas id="aiRecHist"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Data completeness -->
+            <div class="card bg-card border border-secondary border-opacity-25 rounded-4 p-4 shadow-sm">
+                <h5 class="text-white fw-bold mb-3">Data completeness</h5>
+                <div class="text-secondary text-sm mb-3">Participants who consented but produced no visualization or no rating. These are dropouts or incomplete sessions, not analysis rows.</div>
+                <table class="table table-dark table-sm mb-0" style="background-color: transparent;">
+                    <thead>
+                        <tr class="text-secondary" style="border-bottom: 1px solid rgba(255,255,255,0.08);">
+                            <th scope="col" class="fw-semibold">Group</th>
+                            <th scope="col" class="fw-semibold text-end">Consented</th>
+                            <th scope="col" class="fw-semibold text-end">Zero visualizations</th>
+                            <th scope="col" class="fw-semibold text-end">Zero ratings</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for group in ['control', 'experimental'] %}
+                        <tr>
+                            <td class="text-white text-uppercase" style="letter-spacing: 0.04em; font-size: 0.85rem;">{{ group }}</td>
+                            <td class="text-white text-end">{{ completeness.total_consented[group] }}</td>
+                            <td class="text-white text-end">{{ completeness.zero_viz[group] }}</td>
+                            <td class="text-white text-end">{{ completeness.zero_rating[group] }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    Chart.defaults.color = "#a1a1aa";
+    Chart.defaults.font.family = "'Inter', sans-serif";
+
+    const CONTROL = "#4b4b53";
+    const EXPERIMENTAL = "#f8cd24";
+
+    function histOptions(xTitle) {
+        return {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: true,
+                    position: 'top',
+                    align: 'end',
+                    labels: {
+                        boxWidth: 10,
+                        boxHeight: 10,
+                        usePointStyle: true,
+                        pointStyle: 'circle'
+                    }
+                },
+                tooltip: {
+                    backgroundColor: '#1a1b24',
+                    titleColor: '#fff',
+                    bodyColor: '#a1a1aa',
+                    borderColor: 'rgba(255, 255, 255, 0.1)',
+                    borderWidth: 1,
+                    padding: 10
+                }
+            },
+            scales: {
+                x: {
+                    title: { display: !!xTitle, text: xTitle || '', color: '#a1a1aa' },
+                    grid: { color: "rgba(255, 255, 255, 0.05)" }
+                },
+                y: {
+                    title: { display: true, text: 'Participants', color: '#a1a1aa' },
+                    grid: { color: "rgba(255, 255, 255, 0.05)" },
+                    beginAtZero: true,
+                    ticks: { precision: 0 }
+                }
+            }
+        };
+    }
+
+    new Chart(document.getElementById("ratingHist").getContext("2d"), {
+        type: "bar",
+        data: {
+            labels: {{ rating_bin_labels | tojson }},
+            datasets: [
+                { label: "Control", data: {{ rating_hist.control | tojson }}, backgroundColor: CONTROL, borderRadius: 4 },
+                { label: "Experimental", data: {{ rating_hist.experimental | tojson }}, backgroundColor: EXPERIMENTAL, borderRadius: 4 }
+            ]
+        },
+        options: histOptions('Mean rating (per participant)')
+    });
+
+    new Chart(document.getElementById("vizHist").getContext("2d"), {
+        type: "bar",
+        data: {
+            labels: {{ viz_bin_labels | tojson }},
+            datasets: [
+                { label: "Control", data: {{ viz_hist.control | tojson }}, backgroundColor: CONTROL, borderRadius: 4 },
+                { label: "Experimental", data: {{ viz_hist.experimental | tojson }}, backgroundColor: EXPERIMENTAL, borderRadius: 4 }
+            ]
+        },
+        options: histOptions('Visualizations generated')
+    });
+
+    new Chart(document.getElementById("durationHist").getContext("2d"), {
+        type: "bar",
+        data: {
+            labels: {{ duration_bin_labels | tojson }},
+            datasets: [
+                { label: "Control", data: {{ duration_hist.control | tojson }}, backgroundColor: CONTROL, borderRadius: 4 },
+                { label: "Experimental", data: {{ duration_hist.experimental | tojson }}, backgroundColor: EXPERIMENTAL, borderRadius: 4 }
+            ]
+        },
+        options: histOptions('Session duration')
+    });
+
+    new Chart(document.getElementById("aiRecHist").getContext("2d"), {
+        type: "bar",
+        data: {
+            labels: {{ ai_rec_bin_labels | tojson }},
+            datasets: [
+                { label: "Experimental", data: {{ ai_rec_hist | tojson }}, backgroundColor: EXPERIMENTAL, borderRadius: 4 }
+            ]
+        },
+        options: histOptions('Fraction of visualizations that were AI-recommended')
+    });
+});
+</script>
+{% endblock %}
