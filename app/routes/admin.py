@@ -22,7 +22,11 @@ from flask_dance.contrib.google import google, make_google_blueprint
 ADMIN_EMAIL_KEY = "admin_email"
 
 admin_bp = Blueprint("admin", __name__, url_prefix="/admin")
-google_bp = make_google_blueprint(scope=["email"])
+# redirect_to routes the post-OAuth hop back through admin.login so it can read
+# userinfo, set session["admin_email"], and redirect to the dashboard. Without
+# this, Flask-Dance falls back to "/" after a successful callback and a browser
+# with a participant session_id cookie ends up on /style-studio.
+google_bp = make_google_blueprint(scope=["email"], redirect_to="admin.login")
 
 
 def _admin_allowlist():

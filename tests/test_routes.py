@@ -201,9 +201,13 @@ def test_dashboard_redirects_to_login_for_non_allowlisted_admin_email(client):
 
 
 def test_dashboard_allowed_for_allowlisted_admin(admin_client):
-    """admin_email on the allowlist -> dashboard renders."""
+    """admin_email on the allowlist -> /dashboard redirects to the Experiment tab, which renders."""
     response = admin_client.get("/dashboard")
-    assert response.status_code == 200
+    assert response.status_code == 302
+    assert "/dashboard/experiment" in response.location
+
+    followed = admin_client.get("/dashboard", follow_redirects=True)
+    assert followed.status_code == 200
 
 
 def test_dashboard_blocks_participant_session(auth_client):
@@ -214,11 +218,84 @@ def test_dashboard_blocks_participant_session(auth_client):
 
 
 def test_admin_cookie_independent_of_session_id(app, admin_client):
-    """An admin cookie without a session_id can access /dashboard and /api/admin/export."""
+    """An admin cookie without a session_id can access dashboards and /api/admin/export."""
     with admin_client.session_transaction() as sess:
         assert "session_id" not in sess
-    assert admin_client.get("/dashboard").status_code == 200
+    assert admin_client.get("/dashboard/experiment").status_code == 200
+    assert admin_client.get("/dashboard/operations").status_code == 200
     assert admin_client.get("/api/admin/export?format=json").status_code == 200
+
+
+# -----------------------------------------------------------------------------
+# Dashboard split: /dashboard redirects to /dashboard/experiment
+# -----------------------------------------------------------------------------
+
+
+def test_dashboard_redirects_to_experiment_for_admin(admin_client):
+    """GET /dashboard redirects admins to the Experiment tab (new default landing)."""
+    response = admin_client.get("/dashboard")
+    assert response.status_code == 302
+    assert "/dashboard/experiment" in response.location
+
+
+def test_experiment_dashboard_renders_for_admin(admin_client):
+    """Experiment dashboard renders with 200 for allowlisted admin."""
+    response = admin_client.get("/dashboard/experiment")
+    assert response.status_code == 200
+    assert b"Experiment" in response.data
+    assert b"PRIMARY KPI" in response.data
+    assert b"Average star rating" in response.data
+
+
+def test_operations_dashboard_renders_for_admin(admin_client):
+    """Operations dashboard renders with 200 for allowlisted admin."""
+    response = admin_client.get("/dashboard/operations")
+    assert response.status_code == 200
+    assert b"Operations" in response.data
+    assert b"Today's Visits" in response.data
+
+
+def test_experiment_dashboard_blocks_unauthenticated(client):
+    response = client.get("/dashboard/experiment")
+    assert response.status_code == 302
+    assert "/admin/login" in response.location
+
+
+def test_operations_dashboard_blocks_unauthenticated(client):
+    response = client.get("/dashboard/operations")
+    assert response.status_code == 302
+    assert "/admin/login" in response.location
+
+
+def test_experiment_dashboard_blocks_participant_session(auth_client):
+    """A consented participant cannot access the Experiment dashboard."""
+    response = auth_client.get("/dashboard/experiment")
+    assert response.status_code == 302
+    assert "/admin/login" in response.location
+
+
+def test_experiment_dashboard_renders_with_no_data(admin_client):
+    """With an empty database, the Experiment dashboard still renders (no 500)."""
+    response = admin_client.get("/dashboard/experiment")
+    assert response.status_code == 200
+    assert b"0 <span" in response.data  # "0 / 50" enrollment count
+
+
+def test_experiment_dashboard_includes_export_buttons(admin_client):
+    """CSV and JSON export buttons are present on the Experiment dashboard."""
+    response = admin_client.get("/dashboard/experiment")
+    assert response.status_code == 200
+    assert b"Export CSV" in response.data
+    assert b"Export JSON" in response.data
+    assert b"format=csv" in response.data
+    assert b"format=json" in response.data
+
+
+def test_operations_dashboard_does_not_include_export_buttons(admin_client):
+    """Export buttons moved to the Experiment tab; Operations should no longer render them."""
+    response = admin_client.get("/dashboard/operations")
+    assert response.status_code == 200
+    assert b"Experiment Data Export" not in response.data
 
 
 def test_admin_export_redirects_when_unauthenticated(client):
