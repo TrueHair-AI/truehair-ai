@@ -155,7 +155,16 @@ def submit_consent():
     if existing:
         return redirect(url_for("main.style_studio"))
 
-    group = random.choice(["control", "experimental"])
+    control_count = Consent.query.filter_by(experiment_group="control").count()
+    experimental_count = Consent.query.filter_by(
+        experiment_group="experimental"
+    ).count()
+    if control_count < experimental_count:
+        group = "control"
+    elif experimental_count < control_count:
+        group = "experimental"
+    else:
+        group = random.choice(["control", "experimental"])
 
     consent = Consent(session_id=sid, experiment_group=group)
     exp_session = ExperimentSession(
