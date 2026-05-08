@@ -5,7 +5,7 @@
 
 {% block content %}
 <div class="container" style="max-width: 480px;">
-  <div class="bg-card rounded-4 shadow-lg border border-secondary border-opacity-25 p-4 p-md-5 text-center">
+  <div id="loginCard" class="bg-card rounded-4 shadow-lg border border-secondary border-opacity-25 p-4 p-md-5 text-center login-card">
     <img src="{{ url_for('static', filename='images/truehair-logo.png') }}"
          alt="TrueHair AI"
          height="48"
@@ -13,7 +13,8 @@
     <h1 class="fw-bold h3 mb-2 text-white">Welcome to TrueHair AI</h1>
     <p class="text-secondary mb-4">Sign in to visualize hairstyles and find a stylist.</p>
 
-    <a href="{{ url_for('google.login') }}"
+    <a id="googleLoginBtn"
+       href="{{ url_for('google.login') }}"
        class="btn btn-light fw-semibold w-100 py-3 rounded-3 d-flex align-items-center justify-content-center gap-2">
       <i class="bi bi-google" style="font-size: 1.25rem;"></i>
       <span>Sign in with Google</span>
@@ -27,6 +28,31 @@
     </p>
   </div>
 </div>
+
+<div id="termsModal" class="terms-modal" role="dialog" aria-modal="true" aria-labelledby="termsModalTitle" hidden>
+  <div class="terms-modal__backdrop"></div>
+  <div class="terms-modal__dialog" role="document">
+    <div class="terms-modal__panel bg-card rounded-4 border border-secondary border-opacity-25 shadow-lg">
+      <h2 id="termsModalTitle" class="fw-bold h4 text-white mb-3">Before you sign in</h2>
+      <p class="text-secondary mb-3" style="line-height:1.65;">
+        TrueHair AI lets you upload a photo of yourself and preview AI-generated hairstyle visualizations.
+        Your photo is processed in memory and discarded &mdash; we never store the photo or the generated
+        images. We use your Google account only to sign you in and to remember your saved sessions.
+        TrueHair AI is for personal use, on photos of yourself, and the visualizations are not a
+        substitute for professional styling advice.
+      </p>
+      <p class="text-secondary small mb-4">
+        Read the full
+        <a href="{{ url_for('main.terms') }}" target="_blank" rel="noopener" class="text-yellow text-decoration-none">Terms</a>
+        and
+        <a href="{{ url_for('main.privacy') }}" target="_blank" rel="noopener" class="text-yellow text-decoration-none">Privacy Notice</a>.
+      </p>
+      <button id="termsAcceptBtn" type="button" class="btn btn-primary fw-semibold w-100 py-3 rounded-3">
+        I agree, continue
+      </button>
+    </div>
+  </div>
+</div>
 {% endblock %}
 
 {% block navbar %}
@@ -36,4 +62,62 @@
     <span class="text-white fw-bold">TrueHair AI</span>
   </a>
 </nav>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+  (function () {
+    var STORAGE_KEY = 'terms_accepted_v1';
+    var modal = document.getElementById('termsModal');
+    var card = document.getElementById('loginCard');
+    var googleBtn = document.getElementById('googleLoginBtn');
+    var acceptBtn = document.getElementById('termsAcceptBtn');
+
+    function readAccepted() {
+      try { return localStorage.getItem(STORAGE_KEY) === '1'; }
+      catch (e) { return false; }
+    }
+
+    function writeAccepted() {
+      try { localStorage.setItem(STORAGE_KEY, '1'); }
+      catch (e) { /* private browsing — modal will reappear next visit */ }
+    }
+
+    function dismissModal() {
+      modal.hidden = true;
+      card.classList.remove('login-card--blurred');
+      googleBtn.classList.remove('login-cta-disabled');
+      googleBtn.removeAttribute('aria-disabled');
+      googleBtn.removeAttribute('tabindex');
+      acceptBtn.removeEventListener('keydown', trapTab);
+    }
+
+    function showModal() {
+      card.classList.add('login-card--blurred');
+      googleBtn.classList.add('login-cta-disabled');
+      googleBtn.setAttribute('aria-disabled', 'true');
+      googleBtn.setAttribute('tabindex', '-1');
+      modal.hidden = false;
+      acceptBtn.addEventListener('keydown', trapTab);
+      acceptBtn.focus();
+    }
+
+    // The accept button is the only focusable element inside the modal.
+    // Trap Tab/Shift-Tab on it so focus cannot escape to the (blurred) login card.
+    function trapTab(e) {
+      if (e.key === 'Tab') { e.preventDefault(); acceptBtn.focus(); }
+    }
+
+    acceptBtn.addEventListener('click', function () {
+      writeAccepted();
+      dismissModal();
+    });
+
+    if (readAccepted()) {
+      dismissModal();
+    } else {
+      showModal();
+    }
+  })();
+</script>
 {% endblock %}

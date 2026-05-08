@@ -135,13 +135,47 @@ def test_submit_consent_is_idempotent(app, auth_client):
 
 
 def test_terms_page_public(client):
-    """Terms page is public and renders required disclaimer content."""
+    """Terms page is public and renders the consumer ToS sections."""
     response = client.get("/terms")
     assert response.status_code == 200
-    assert b"Terms &amp; Educational Disclaimer" in response.data
-    assert b"Educational Prototype Disclaimer" in response.data
-    assert b"No Liability" in response.data
-    assert b"Service Interruptions" in response.data
+    body = response.data
+    assert b"Terms of Service" in body
+    assert b"Acceptance of these Terms" in body
+    assert b"Acceptable use" in body
+    # Acceptable Use must call out third-party photo consent — moved here from
+    # the deleted IRB consent doc.
+    assert b"Do not upload images of other people without their consent" in body
+    assert b"Disclaimers and limitation of liability" in body
+    assert b"Governing law" in body
+
+
+def test_terms_page_drops_irb_framing(client):
+    """Consumer ToS rewrite must not leak IRB / research-study / course-project framing."""
+    response = client.get("/terms")
+    assert response.status_code == 200
+    text = response.data.lower()
+    assert b"irb" not in text
+    assert b"research study" not in text
+    assert b"course project" not in text
+    assert b"educational prototype" not in text
+
+
+def test_login_page_renders_terms_modal(client):
+    """/login renders the first-visit Terms modal markup; JS gates visibility on localStorage."""
+    response = client.get("/login")
+    assert response.status_code == 200
+    body = response.data
+    # Modal container, dialog role, and accept button are all present in the
+    # initial markup so the JS can show/hide it without a re-render.
+    assert b'id="termsModal"' in body
+    assert b'role="dialog"' in body
+    assert b'aria-modal="true"' in body
+    assert b'id="termsAcceptBtn"' in body
+    assert b"I agree, continue" in body
+    # The localStorage key is versioned so we can re-prompt later if Terms change.
+    assert b"terms_accepted_v1" in body
+    # Google sign-in button has the id the gating JS toggles.
+    assert b'id="googleLoginBtn"' in body
 
 
 # ---------------------------------------------------------------------------
