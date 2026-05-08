@@ -766,6 +766,185 @@ def privacy():
     return render_template("privacy.html")
 
 
+# Hard caps so a malicious or misbehaving client can't blow out the prompt window.
+MAX_OBSERVATION_LENGTH = 4000
+MAX_USER_EDITS_LENGTH = 2000
+
+VALID_PHOTO_STATUSES = {"ok", "no_face", "multiple_faces", "non_human"}
+
+PHOTO_VALIDATION_ERRORS = {
+    "no_face": "We couldn't find a face in this photo. Please upload a clear front-facing selfie.",
+    "multiple_faces": "We see more than one face in this photo. Please upload a photo with just you in it.",
+    "non_human": "This photo doesn't appear to show a person. Please upload a clear front-facing selfie.",
+}
+
+
+@main_bp.route("/api/analyze-photo", methods=["POST"])
+@login_required
+def analyze_photo():
+    """Run a structured analysis of the uploaded photo.
+
+    Returns a coherent observation paragraph + structured fields. Rejects
+    photos that don't contain exactly one human face. The observation is the
+    user's anchor for the rest of the pipeline (recommend + generate).
+    """
+    import json
+
+    photo_file = request.files.get("photo")
+    if not photo_file:
+        return jsonify({"error": "Missing photo"}), 400
+
+    user_photo, err = _load_validated_photo(photo_file)
+    if err:
+        return err
+
+    client = get_genai_client()
+    if not client:
+        return jsonify({"error": "Internal server error. Please try again later."}), 500
+
+    prompt_text = """You are a hair-care consultant analyzing a photo to anchor a hairstyle-recommendation pipeline.
+
+First, validate the photo:
+- "ok"              — exactly one clearly visible human face
+- "no_face"         — no human face visible
+- "multiple_faces"  — more than one human face visible
+- "non_human"       — the subject is not a person
+
+If validation is not "ok", set every other field to an empty string.
+
+Otherwise, observe the person's hair and produce:
+- hair_type:   coarse type (e.g. "Type 1A straight", "Type 4C coily", "bald", "thinning crown")
+- length:      one of "very short / shaved", "short", "medium", "long", or a brief phrase
+- thickness:   one of "fine", "medium", "thick", or a brief phrase
+- color:       a short descriptor (e.g. "dark brown", "salt-and-pepper grey", "dyed blonde")
+- notes:       any other observation worth carrying forward (texture, recession, transition, etc.)
+- raw_observation: a single-sentence human-readable summary that combines the above. Example: "Type 4C hair, medium length, dark brown, naturally curly."
+
+Respond with a JSON object in this exact shape:
+{
+  "photo_validation_status": "ok" | "no_face" | "multiple_faces" | "non_human",
+  "hair_type": "<string>",
+  "length": "<string>",
+  "thickness": "<string>",
+  "color": "<string>",
+  "notes": "<string>",
+  "raw_observation": "<string>"
+}"""
+
+    try:
+        response = client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=[prompt_text, user_photo],
+            config=types.GenerateContentConfig(
+                response_mime_type="application/json",
+            ),
+        )
+        data = json.loads(response.text)
+    except Exception as e:
+        current_app.logger.error(f"Gemini photo analysis failed: {e}")
+        return jsonify({"error": "Photo analysis failed. Please try again."}), 500
+
+    status = data.get("photo_validation_status")
+    if status not in VALID_PHOTO_STATUSES:
+        current_app.logger.error(
+            f"Gemini returned unknown photo_validation_status: {status!r}"
+        )
+        return jsonify({"error": "Photo analysis failed. Please try again."}), 500
+
+    if status != "ok":
+        return jsonify(
+            {
+                "error": PHOTO_VALIDATION_ERRORS.get(
+                    status, "We couldn't analyze this photo."
+                ),
+                "photo_validation_status": status,
+            }
+        ), 400
+
+    raw_observation = (data.get("raw_observation") or "").strip()
+    if not raw_observation:
+        current_app.logger.error("Gemini returned ok status but empty raw_observation")
+        return jsonify({"error": "Photo analysis failed. Please try again."}), 500
+
+    return jsonify(
+        {
+            "status": "success",
+            "photo_validation_status": "ok",
+            "hair_type": data.get("hair_type", ""),
+            "length": data.get("length", ""),
+            "thickness": data.get("thickness", ""),
+            "color": data.get("color", ""),
+            "notes": data.get("notes", ""),
+            "raw_observation": raw_observation,
+        }
+    )
+
+
+@main_bp.route("/api/refine-observation", methods=["POST"])
+@login_required
+def refine_observation():
+    """Merge the current observation with the user's free-form edits.
+
+    One Gemini call per Save click; no recommend/generate side effects so
+    the user can iterate freely.
+    """
+    import json
+
+    data = request.get_json(silent=True) or {}
+    original = (data.get("original_observation") or "").strip()
+    edits = (data.get("user_edits") or "").strip()
+
+    if not original:
+        return jsonify({"error": "Missing original_observation"}), 400
+    if not edits:
+        return jsonify({"error": "Missing user_edits"}), 400
+    if len(original) > MAX_OBSERVATION_LENGTH:
+        return jsonify({"error": "original_observation is too long"}), 400
+    if len(edits) > MAX_USER_EDITS_LENGTH:
+        return jsonify({"error": "user_edits is too long"}), 400
+
+    client = get_genai_client()
+    if not client:
+        return jsonify({"error": "Internal server error. Please try again later."}), 500
+
+    prompt_text = f"""You are merging a hair observation with user-supplied edits.
+
+ORIGINAL OBSERVATION:
+{original}
+
+USER EDITS / ADDITIONS:
+{edits}
+
+Produce a single coherent one-to-three-sentence observation that incorporates
+the user's information. When the user contradicts the original observation,
+treat the user as authoritative — they know themselves better than the model.
+Do not lose facts that the user did not contradict.
+
+Respond with a JSON object in this exact shape:
+{{
+  "raw_observation": "<merged observation>"
+}}"""
+
+    try:
+        response = client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=[prompt_text],
+            config=types.GenerateContentConfig(
+                response_mime_type="application/json",
+            ),
+        )
+        merged = json.loads(response.text)
+    except Exception as e:
+        current_app.logger.error(f"Gemini observation merge failed: {e}")
+        return jsonify({"error": "Could not save your edits. Please try again."}), 500
+
+    raw_observation = (merged.get("raw_observation") or "").strip()
+    if not raw_observation:
+        return jsonify({"error": "Could not save your edits. Please try again."}), 500
+
+    return jsonify({"status": "success", "raw_observation": raw_observation})
+
+
 @main_bp.route("/api/recommend", methods=["POST"])
 @login_required
 def recommend():
@@ -776,6 +955,10 @@ def recommend():
     photo_file = request.files.get("photo")
     if not photo_file:
         return jsonify({"error": "Missing photo"}), 400
+
+    observation = (request.form.get("observation") or "").strip()
+    if len(observation) > MAX_OBSERVATION_LENGTH:
+        return jsonify({"error": "observation is too long"}), 400
 
     user_photo, err = _load_validated_photo(photo_file)
     if err:
@@ -793,6 +976,12 @@ def recommend():
         ]
         json_catalog = json.dumps(catalog_list)
 
+        observation_block = (
+            f"\nUSER OBSERVATION (treat as authoritative — overrides photo cues if they conflict):\n{observation}\n"
+            if observation
+            else ""
+        )
+
         prompt_text = f"""You are a professional hairstylist and image consultant. Analyze the person in this photo
 and recommend the best matching hairstyles from the catalog below.
 
@@ -800,12 +989,14 @@ Consider:
 - Face shape (oval, round, square, heart, oblong, diamond)
 - Apparent hair texture and current hair characteristics
 - Overall facial features and proportions
-
+{observation_block}
 HAIRSTYLE CATALOG:
 {json_catalog}
 
-Recommend exactly 5 to 8 hairstyles from the catalog. For each recommendation, explain
-specifically why this style would suit this person based on your visual analysis.
+Recommend between 2 and 4 hairstyles from the catalog. Quality matters more than
+quantity — return only styles that genuinely suit this person. For each recommendation,
+explain specifically why this style works for them based on the photo and the
+observation above.
 
 Respond with a JSON object in this exact format:
 {{
@@ -851,6 +1042,9 @@ Respond with a JSON object in this exact format:
                 )
                 db.session.add(db_rec)
 
+                if len(valid_recommendations) == 4:
+                    break
+
         if not valid_recommendations:
             raise Exception("No valid recommendations returned.")
 
@@ -891,6 +1085,10 @@ def generate():
     if not hairstyle:
         return jsonify({"error": "Invalid hairstyle"}), 400
 
+    observation = (request.form.get("observation") or "").strip()
+    if len(observation) > MAX_OBSERVATION_LENGTH:
+        return jsonify({"error": "observation is too long"}), 400
+
     user_photo, err = _load_validated_photo(photo_file)
     if err:
         return err
@@ -914,11 +1112,17 @@ def generate():
         was_ai_recommended = rec_exists is not None
 
     try:
+        observation_clause = (
+            f" Use this observation about the person as authoritative even if it "
+            f"conflicts with what the photo shows: {observation}"
+            if observation
+            else ""
+        )
         prompt = (
             f"Edit this person's photo to give them a '{hairstyle.name}' hairstyle. "
             f"{hairstyle.description}. "
             f"Keep the person's face, skin tone, and body exactly the same. "
-            f"Only change their hair. Return the edited photo."
+            f"Only change their hair.{observation_clause} Return the edited photo."
         )
 
         response = client.models.generate_content(
