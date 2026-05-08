@@ -1,4 +1,4 @@
-{# Shared admin sidebar. Callers must pass `active_tab` as "experiment" or "operations". #}
+{# Shared admin sidebar. Callers must pass `active_tab="operations"`. #}
 <div class="sidebar d-flex flex-column p-4 flex-shrink-0" style="width: 280px; background-color: #1a1b24;">
     <a class="navbar-brand d-flex flex-column gap-1 mb-5" href="{{ url_for('main.style_studio') }}">
         <div class="d-flex align-items-center gap-2">
@@ -9,15 +9,6 @@
     </a>
 
     <ul class="nav nav-pills flex-column mb-auto gap-2">
-        <li class="nav-item">
-            <a href="{{ url_for('main.experiment_dashboard') }}"
-               class="nav-link d-flex align-items-center gap-3 rounded-3 py-3 px-3
-                      {% if active_tab == 'experiment' %}fw-bold shadow text-dark{% else %}text-white{% endif %}"
-               {% if active_tab == 'experiment' %}style="background-color: var(--th-yellow);"{% endif %}>
-                <i class="bi bi-beaker fs-5"></i>
-                Experiment
-            </a>
-        </li>
         <li class="nav-item">
             <a href="{{ url_for('main.operations_dashboard') }}"
                class="nav-link d-flex align-items-center gap-3 rounded-3 py-3 px-3

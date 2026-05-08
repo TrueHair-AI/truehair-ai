@@ -197,43 +197,38 @@ def test_dashboard_blocks_non_admin_user(auth_client):
 
 
 def test_dashboard_allowed_for_admin_user(admin_client):
-    """An admin user lands on the Experiment tab via /dashboard -> /dashboard/experiment."""
+    """An admin user lands on Operations via /dashboard -> /dashboard/operations."""
     response = admin_client.get("/dashboard")
     assert response.status_code == 302
-    assert "/dashboard/experiment" in response.location
+    assert "/dashboard/operations" in response.location
 
     followed = admin_client.get("/dashboard", follow_redirects=True)
     assert followed.status_code == 200
 
 
 def test_admin_user_does_not_need_session_id(app, admin_client):
-    """An admin user with no session_id cookie can still access dashboards and export."""
+    """An admin user with no session_id cookie can still access the dashboard and export."""
     with admin_client.session_transaction() as sess:
         assert "session_id" not in sess
-    assert admin_client.get("/dashboard/experiment").status_code == 200
     assert admin_client.get("/dashboard/operations").status_code == 200
     assert admin_client.get("/api/admin/export?format=json").status_code == 200
 
 
 # -----------------------------------------------------------------------------
-# Dashboard split: /dashboard redirects to /dashboard/experiment
+# Dashboard: /dashboard redirects to /dashboard/operations; experiment route gone
 # -----------------------------------------------------------------------------
 
 
-def test_dashboard_redirects_to_experiment_for_admin(admin_client):
-    """GET /dashboard redirects admins to the Experiment tab (current default landing)."""
+def test_dashboard_redirects_to_operations_for_admin(admin_client):
+    """GET /dashboard redirects admins to Operations (the only remaining dashboard)."""
     response = admin_client.get("/dashboard")
     assert response.status_code == 302
-    assert "/dashboard/experiment" in response.location
+    assert "/dashboard/operations" in response.location
 
 
-def test_experiment_dashboard_renders_for_admin(admin_client):
-    """Experiment dashboard renders with 200 for allowlisted admin."""
-    response = admin_client.get("/dashboard/experiment")
-    assert response.status_code == 200
-    assert b"Experiment" in response.data
-    assert b"PRIMARY KPI" in response.data
-    assert b"Average star rating" in response.data
+def test_experiment_dashboard_returns_404(admin_client):
+    """The Experiment dashboard route has been removed."""
+    assert admin_client.get("/dashboard/experiment").status_code == 404
 
 
 def test_operations_dashboard_renders_for_admin(admin_client):
@@ -244,47 +239,45 @@ def test_operations_dashboard_renders_for_admin(admin_client):
     assert b"Today's Visits" in response.data
 
 
-def test_experiment_dashboard_blocks_unauthenticated(client):
-    response = client.get("/dashboard/experiment")
-    assert response.status_code == 302
-    assert "/login" in response.location
-
-
 def test_operations_dashboard_blocks_unauthenticated(client):
     response = client.get("/dashboard/operations")
     assert response.status_code == 302
     assert "/login" in response.location
 
 
-def test_experiment_dashboard_blocks_non_admin_user(auth_client):
-    """A signed-in non-admin gets 403 on the Experiment dashboard."""
-    response = auth_client.get("/dashboard/experiment")
-    assert response.status_code == 403
-    assert b"Admin access required" in response.data
-
-
-def test_experiment_dashboard_renders_with_no_data(admin_client):
-    """With an empty database, the Experiment dashboard still renders (no 500)."""
-    response = admin_client.get("/dashboard/experiment")
-    assert response.status_code == 200
-    assert b"0 <span" in response.data  # "0 / 50" enrollment count
-
-
-def test_experiment_dashboard_includes_export_buttons(admin_client):
-    """CSV and JSON export buttons are present on the Experiment dashboard."""
-    response = admin_client.get("/dashboard/experiment")
-    assert response.status_code == 200
-    assert b"Export CSV" in response.data
-    assert b"Export JSON" in response.data
-    assert b"format=csv" in response.data
-    assert b"format=json" in response.data
-
-
 def test_operations_dashboard_does_not_include_export_buttons(admin_client):
-    """Export buttons moved to the Experiment tab; Operations should no longer render them."""
+    """Export remains accessible via /api/admin/export but isn't surfaced on the dashboard."""
     response = admin_client.get("/dashboard/operations")
     assert response.status_code == 200
     assert b"Experiment Data Export" not in response.data
+
+
+def test_operations_dashboard_renders_ai_recommended_card(admin_client):
+    """The Operations dashboard surfaces the AI-recommended selection rate metric."""
+    response = admin_client.get("/dashboard/operations")
+    assert response.status_code == 200
+    assert b"AI-Recommended Rate" in response.data
+
+
+def test_operations_dashboard_ai_rec_rate_with_data(app, admin_client, hairstyle):
+    """AI-recommended rate is the share of generations where was_ai_recommended is True."""
+    with app.app_context():
+        # 3 known-context generations: 2 AI-recommended, 1 not. Plus 1 legacy null
+        # row that should be excluded from the denominator.
+        for was_ai in (True, True, False, None):
+            db.session.add(
+                GeneratedImage(
+                    session_id=str(uuid.uuid4()),
+                    hairstyle_id=hairstyle.id,
+                    was_ai_recommended=was_ai,
+                )
+            )
+        db.session.commit()
+
+    response = admin_client.get("/dashboard/operations")
+    assert response.status_code == 200
+    # 2 / 3 = 66%
+    assert b">66%<" in response.data
 
 
 def test_admin_export_redirects_when_unauthenticated(client):
