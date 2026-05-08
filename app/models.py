@@ -185,6 +185,7 @@ class Stylist(db.Model):
     email = db.Column(db.String(120))
     specialties = db.Column(db.String(255))
     image_url = db.Column(db.String(255))
+    google_maps_url = db.Column(db.String(500))
 
     def __repr__(self):
         return f"<Stylist {self.name}>"

@@ -12,6 +12,7 @@ from app.models import (
     Consent,
     ExperimentSession,
     GeneratedImage,
+    Stylist,
     db,
 )
 
@@ -170,6 +171,23 @@ def test_stylists_consented(auth_client, stylist):
     response = auth_client.get("/stylists")
     assert response.status_code == 200
     assert b"Jane Stylist" in response.data or b"stylist" in response.data.lower()
+    # `stylist` fixture leaves `google_maps_url` null — the Maps pin should
+    # not render. Guards against accidentally hardcoding the icon.
+    assert b"bi-geo-alt" not in response.data
+
+
+def test_stylists_renders_maps_icon_when_url_set(auth_client, app):
+    with app.app_context():
+        s = Stylist(
+            name="Pinned Stylist",
+            google_maps_url="https://maps.app.goo.gl/example",
+        )
+        db.session.add(s)
+        db.session.commit()
+    response = auth_client.get("/stylists")
+    assert response.status_code == 200
+    assert response.data.count(b"bi-geo-alt") == 1
+    assert b"https://maps.app.goo.gl/example" in response.data
 
 
 def test_stylists_search(auth_client, stylist):
