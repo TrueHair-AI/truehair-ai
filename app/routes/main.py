@@ -25,12 +25,14 @@ from sqlalchemy.orm import joinedload
 
 from app.models import (
     Consent,
+    ErrorLog,
     ExperimentSession,
     GeneratedImage,
     Hairstyle,
     Rating,
     Recommendation,
     Stylist,
+    User,
     Visit,
     db,
 )
@@ -586,6 +588,14 @@ def operations_dashboard():
     visit_labels = list(mapped_vp.keys())
     visit_data = list(mapped_vp.values())
 
+    recent_errors = (
+        db.session.query(ErrorLog, User.email)
+        .outerjoin(User, ErrorLog.user_id == User.id)
+        .order_by(ErrorLog.timestamp.desc())
+        .limit(50)
+        .all()
+    )
+
     return render_template(
         "operations_dashboard.html",
         visits_today=visits_today,
@@ -603,6 +613,7 @@ def operations_dashboard():
         generations_last_week=last_week_arr,
         visit_labels=visit_labels,
         visit_data=visit_data,
+        recent_errors=recent_errors,
     )
 
 

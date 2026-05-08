@@ -141,6 +141,29 @@ class Recommendation(db.Model):
     )
 
 
+class ErrorLog(db.Model):
+    """Persistent record of a server-side error.
+
+    Captures both uncaught exceptions (Flask logs them via app.logger before
+    rendering 500) and exceptions that view code caught and logged via
+    current_app.logger.error/.exception(). The DBErrorLogHandler writes one
+    row per logger record at ERROR level or above.
+    """
+
+    id = db.Column(db.Integer, primary_key=True)
+    timestamp = db.Column(
+        db.DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        index=True,
+    )
+    route = db.Column(db.String(255))
+    method = db.Column(db.String(10))
+    exception_class = db.Column(db.String(255))
+    message = db.Column(db.Text)
+    traceback = db.Column(db.Text)
+    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=True)
+
+
 class Stylist(db.Model):
     """Represents a stylist in the directory."""
 
