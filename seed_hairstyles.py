@@ -131,6 +131,69 @@ HAIRSTYLES_DATA = [
         "category": "CLASSIC",
         "image_url": "side_part_preview.png",
     },
+    # --- Catalog expansion (issue #65): broader length, texture, gender, and
+    # cultural representation. Preview images generated via Vertex AI
+    # gemini-2.5-flash-image; see generate_catalog_images.py.
+    {
+        "name": "Lob",
+        "description": "A versatile shoulder-length cut that sits between a classic bob and long hair, offering effortless polish. Universally flattering across oval, heart, square, and round face shapes thanks to its face-framing length. Works on a wide range of textures from straight to softly curly (1A-3A). Low to medium maintenance; air-dries beautifully or can be polished with a flat iron or round brush. Style with a smoothing serum or a light texture spray for a lived-in finish.",
+        "category": "CLASSIC",
+        "image_url": "lob_preview.png",
+    },
+    {
+        "name": "Layered Cut with Bangs",
+        "description": "A medium-length style with cascading layers and soft, face-framing bangs that add movement around the jawline. Flatters oval, square, and oblong face shapes by breaking up the silhouette. Suitable for straight to wavy hair (1A-2C), where the layers prevent the look from feeling flat. Medium maintenance; bangs benefit from a quick blow-dry, and the layers respond well to texture spray or a light styling cream.",
+        "category": "MODERN",
+        "image_url": "layered_cut_bangs_preview.png",
+    },
+    {
+        "name": "Sleek High Ponytail",
+        "description": "A polished updo with hair pulled tightly back into a high gathered tail, paired with a smooth, sculpted base at the crown. Flatters heart, oval, and round face shapes by drawing attention upward. Versatile across textures from straight to coily (1A-4C), often paired with edge control on tighter textures. Low daily maintenance once installed but requires gel, a brush, and a strong elastic for the clean finish; an extension can be added for extra length and drama.",
+        "category": "UPDO",
+        "image_url": "sleek_high_ponytail_preview.png",
+    },
+    {
+        "name": "Top Knot Bun",
+        "description": "A relaxed updo where hair is gathered high on the crown and twisted or wrapped into a loose, lived-in bun. Suits round, oval, and square face shapes by elongating the silhouette. Works on medium to long hair across nearly all textures (1A-4B). Very low daily maintenance — a hair tie and a few pins are enough. Style with a light cream to control flyaways, or leave it casual with a few face-framing tendrils.",
+        "category": "UPDO",
+        "image_url": "top_knot_bun_preview.png",
+    },
+    {
+        "name": "Bantu Knots",
+        "description": "A traditional African style where hair is sectioned and twisted into small, sculpted knots arranged in clean geometric rows across the scalp. Beautifully complements oval, heart, and round face shapes. Designed specifically for tightly coiled and kinky hair textures (4A-4C). Medium maintenance during installation but very low daily upkeep once set; doubles as a heatless curl method when undone. Use a moisturizing gel or twisting cream to define each knot and protect at night with a satin scarf.",
+        "category": "PROTECTIVE",
+        "image_url": "bantu_knots_preview.png",
+    },
+    {
+        "name": "Senegalese Twists",
+        "description": "A protective two-strand twisted style — usually with extensions — that produces a smooth, rope-like finish from root to tip. Flatters every face shape, and the length can be tailored to enhance specific features. Specifically designed for curly to coily hair (3B-4C). Low daily maintenance with a typical 6–8 week wear; helps retain length by protecting the ends. Maintain with a light scalp oil and a satin bonnet at night to preserve the twist pattern.",
+        "category": "PROTECTIVE",
+        "image_url": "senegalese_twists_preview.png",
+    },
+    {
+        "name": "Goddess Braids",
+        "description": "A regal, large-scale cornrow style featuring thick braids that lie flat against the scalp in striking front-to-back patterns, with the braided lengths trailing past the shoulders. Flatters all face shapes and creates a statement silhouette. Best on curly to coily hair textures (3A-4C), often with extensions added for fullness. Low daily maintenance with a typical 4–6 week wear. Keep the scalp moisturized with a lightweight oil and refresh the edges with edge control as needed.",
+        "category": "PROTECTIVE",
+        "image_url": "goddess_braids_preview.png",
+    },
+    {
+        "name": "Curly Bob",
+        "description": "A chin- to shoulder-length cut tailored for natural curls, shaped to bounce and frame the jawline. Excellent for oval, heart, and square face shapes, where the curl volume softens angular features. Designed for wavy through tight curly hair (2B-3C). Medium maintenance; cut dry for accurate shape, refreshed daily with a curl-defining cream and a spritz of water. Diffuse to set, or air-dry for a natural, lived-in finish.",
+        "category": "TEXTURED",
+        "image_url": "curly_bob_preview.png",
+    },
+    {
+        "name": "Mohawk",
+        "description": "A bold, statement-making style featuring closely shaved or faded sides with a strip of long hair down the center, styled upward into a peak. Flatters oval and diamond face shapes by drawing attention to strong features. Adapts to a wide range of textures from straight to coily (1B-4C), with the styling method varying accordingly. High maintenance; the sides need frequent shape-ups and the center strip needs hold product — gel, pomade, or twisting cream depending on texture.",
+        "category": "BOLD",
+        "image_url": "mohawk_preview.png",
+    },
+    {
+        "name": "Faux Hawk",
+        "description": "A softer, more wearable cousin of the mohawk where hair is swept upward into a peaked center while the sides are kept short rather than shaved. Flatters oval, heart, and square face shapes. Works across textures from straight through tightly coiled (1A-4B), making it remarkably versatile. Medium maintenance; pomade, mousse, or a curl-defining gel directs hair toward the center for the signature peak. Easily styled flat for a more conservative look.",
+        "category": "BOLD",
+        "image_url": "faux_hawk_preview.png",
+    },
 ]
 
 
