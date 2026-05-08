@@ -67,11 +67,16 @@ def create_app(config_class=Config):
     # so HTTPS and host detection still work for url_for(..., _external=True).
     app.wsgi_app = ProxyFix(app.wsgi_app, x_for=0, x_proto=1, x_host=1)
 
-    from app.routes.admin import admin_bp, google_bp
+    from app.routes.auth import auth_bp, google_bp
     from app.routes.main import main_bp
+    from app.services.auth import current_user
 
     app.register_blueprint(main_bp)
-    app.register_blueprint(google_bp, url_prefix="/login")
-    app.register_blueprint(admin_bp)
+    # Flask-Dance owns /oauth/google and /oauth/google/authorized so the
+    # consumer-facing /login route lives at the root of auth_bp.
+    app.register_blueprint(google_bp, url_prefix="/oauth")
+    app.register_blueprint(auth_bp)
+
+    app.jinja_env.globals["current_user"] = current_user
 
     return app

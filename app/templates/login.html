@@ -1,0 +1,39 @@
+{% extends 'base.html' %}
+
+{% block title %}Sign in &middot; TrueHair AI{% endblock %}
+{% block main_class %}py-5{% endblock %}
+
+{% block content %}
+<div class="container" style="max-width: 480px;">
+  <div class="bg-card rounded-4 shadow-lg border border-secondary border-opacity-25 p-4 p-md-5 text-center">
+    <img src="{{ url_for('static', filename='images/truehair-logo.png') }}"
+         alt="TrueHair AI"
+         height="48"
+         class="mb-3">
+    <h1 class="fw-bold h3 mb-2 text-white">Welcome to TrueHair AI</h1>
+    <p class="text-secondary mb-4">Sign in to visualize hairstyles and find a stylist.</p>
+
+    <a href="{{ url_for('google.login') }}"
+       class="btn btn-light fw-semibold w-100 py-3 rounded-3 d-flex align-items-center justify-content-center gap-2">
+      <i class="bi bi-google" style="font-size: 1.25rem;"></i>
+      <span>Sign in with Google</span>
+    </a>
+
+    <p class="text-secondary small mt-4 mb-0">
+      By signing in, you agree to our
+      <a href="{{ url_for('main.terms') }}" class="text-yellow text-decoration-none">Terms</a>
+      and
+      <a href="{{ url_for('main.privacy') }}" class="text-yellow text-decoration-none">Privacy</a>.
+    </p>
+  </div>
+</div>
+{% endblock %}
+
+{% block navbar %}
+<nav class="navbar py-3 px-4 w-100">
+  <a class="navbar-brand d-flex align-items-center gap-2" href="{{ url_for('main.index') }}">
+    <img src="{{ url_for('static', filename='images/truehair-logo.png') }}" alt="TrueHair Logo" height="32">
+    <span class="text-white fw-bold">TrueHair AI</span>
+  </a>
+</nav>
+{% endblock %}

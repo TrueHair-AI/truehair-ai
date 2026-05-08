@@ -31,8 +31,9 @@ class Config:
     R2_SECRET_ACCESS_KEY = os.environ.get("R2_SECRET_ACCESS_KEY")
     R2_BUCKET_NAME = os.environ.get("R2_BUCKET_NAME")
 
-    # Admin dashboard OAuth gate (issue #63). Operational auth only — not part
-    # of the study protocol; participants never see this flow.
-    ADMIN_EMAILS = os.environ.get("ADMIN_EMAILS", "")
+    # Google OAuth — single sign-in flow used by every TrueHair user.
     GOOGLE_OAUTH_CLIENT_ID = os.environ.get("GOOGLE_OAUTH_CLIENT_ID")
     GOOGLE_OAUTH_CLIENT_SECRET = os.environ.get("GOOGLE_OAUTH_CLIENT_SECRET")
+    # ADMIN_EMAILS is consumed only by the auth-foundation migration to seed
+    # is_admin=True on existing admins. Runtime admin status lives on User.is_admin.
+    ADMIN_EMAILS = os.environ.get("ADMIN_EMAILS", "")
