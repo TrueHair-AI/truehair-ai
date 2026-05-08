@@ -153,13 +153,6 @@
                         style="background: var(--th-yellow); color: #000; padding: 4px 10px; border-radius: 999px; font-size: 0.7rem; font-weight: 700; z-index: 10;">
                         ✨ Recommended
                     </div>
-                    <!-- Pre-generation spinner: shown while a preview for this recommended style is being generated. -->
-                    <div class="pregen-spinner position-absolute top-50 start-50 translate-middle d-none"
-                        aria-hidden="true" style="z-index: 9;">
-                        <div class="spinner-border text-yellow" role="status" style="width: 2rem; height: 2rem;">
-                            <span class="visually-hidden">Generating preview...</span>
-                        </div>
-                    </div>
                     <!-- Selection check: hidden by default -->
                     <div class="selection-indicator position-absolute top-0 end-0 m-3 bg-warning text-dark rounded-circle d-none align-items-center justify-content-center"
                         style="width: 24px; height: 24px; z-index: 10;">
@@ -186,7 +179,15 @@
                             </div>
 
                             <div id="ai-panel-content" class="d-none align-items-center gap-3 w-100">
-                                <img id="ai-panel-thumb" src="" alt="" class="rounded-3 flex-shrink-0" style="width: 64px; height: 64px; object-fit: cover;">
+                                <div class="position-relative flex-shrink-0" style="width: 64px; height: 64px;">
+                                    <img id="ai-panel-thumb" src="" alt="" class="rounded-3 w-100 h-100" style="object-fit: cover;">
+                                    <div id="ai-panel-spinner" class="position-absolute top-0 start-0 w-100 h-100 d-none align-items-center justify-content-center rounded-3"
+                                        style="background: rgba(0, 0, 0, 0.55); backdrop-filter: blur(2px);" aria-hidden="true">
+                                        <div class="spinner-border text-yellow" role="status" style="width: 1.4rem; height: 1.4rem; border-width: 2px;">
+                                            <span class="visually-hidden">Generating preview...</span>
+                                        </div>
+                                    </div>
+                                </div>
                                 <div class="flex-grow-1" style="min-width: 0;">
                                     <div class="d-flex align-items-center gap-2 mb-1">
                                         <span style="color: var(--th-yellow); font-size: 0.9rem;">✨</span>
@@ -396,6 +397,7 @@
     const aiPanelEmpty = document.getElementById('ai-panel-empty');
     const aiPanelContent = document.getElementById('ai-panel-content');
     const aiPanelThumb = document.getElementById('ai-panel-thumb');
+    const aiPanelSpinner = document.getElementById('ai-panel-spinner');
     const aiPanelName = document.getElementById('ai-panel-name');
     const aiPanelReasoning = document.getElementById('ai-panel-reasoning');
     
@@ -628,29 +630,25 @@
             state.recommendations = data.recommendations;
             applyRecommendationHighlights();
             showPhase("catalog");
-            // Fan out parallel pre-generations so thumbnails are ready when the
-            // user hovers a recommended card. Browsers cap connections per
-            // origin; recs are 2-4 server-side so a flat fan-out is safe.
-            preGenerateRecommendations(state.recommendations);
         } catch (e) {
             showAnalyzingError("Network error. Please try again.");
         }
     });
 
-    // --- Pre-generation fan-out (B10) ---
-    function setCardSpinner(hairstyleId, show) {
-        const item = document.querySelector(`.hairstyle-item[data-id="${hairstyleId}"]`);
-        if (!item) return;
-        const spinner = item.querySelector('.pregen-spinner');
-        if (!spinner) return;
-        spinner.classList.toggle('d-none', !show);
-    }
-
+    // --- Lazy hover-triggered pre-generation ---
+    // We deliberately do NOT fan out generations on rec-success. The first
+    // hover/focus on a recommended card kicks off a single /api/generate; the
+    // result is cached so subsequent hovers and the eventual Generate-button
+    // click reuse it instantly. The catalog appears immediately, and the only
+    // wait the user sees is the spinner over the AI panel's thumbnail when
+    // they choose to inspect a specific recommendation.
     function preGenerateOne(hairstyleId) {
         const idStr = String(hairstyleId);
-        setCardSpinner(idStr, true);
+        const existing = state.preGenerated.get(idStr);
+        if (existing) return existing;
 
-        const promise = (async () => {
+        const entry = { promise: null, result: null };
+        entry.promise = (async () => {
             try {
                 const fd = new FormData();
                 fd.append("photo", state.photoFile);
@@ -669,28 +667,17 @@
                 }
                 const blob = await res.blob();
                 const blobUrl = URL.createObjectURL(blob);
-
-                // If the panel is currently displaying this item (via hover or
-                // click), upgrade the thumb to the freshly-generated preview.
-                if (state.aiPanelCurrentId === idStr) {
-                    aiPanelThumb.src = blobUrl;
-                }
                 return { ok: true, blob, blobUrl, generatedImageId };
             } catch (e) {
                 return { ok: false, error: e };
-            } finally {
-                setCardSpinner(idStr, false);
             }
-        })();
+        })().then(result => {
+            entry.result = result;
+            return result;
+        });
 
-        state.preGenerated.set(idStr, { promise });
-        return promise;
-    }
-
-    function preGenerateRecommendations(recommendations) {
-        if (!state.photoFile || !recommendations?.length) return;
-        // Cap at 4 parallel fetches; recs are already capped at 4 server-side.
-        recommendations.slice(0, 4).forEach(r => preGenerateOne(r.hairstyle_id));
+        state.preGenerated.set(idStr, entry);
+        return entry;
     }
 
     function clearPreGenerated() {
@@ -701,7 +688,6 @@
             });
         }
         state.preGenerated.clear();
-        document.querySelectorAll('.pregen-spinner').forEach(el => el.classList.add('d-none'));
     }
 
     function showAnalyzingError(msg) {
@@ -764,6 +750,11 @@
         });
     });
 
+    function setPanelSpinner(show) {
+        aiPanelSpinner.classList.toggle('d-none', !show);
+        aiPanelSpinner.classList.toggle('d-flex', show);
+    }
+
     function showAIPanelForItem(item) {
         const card = item.querySelector('.style-card');
         if (!card.classList.contains('is-recommended')) return;
@@ -772,10 +763,6 @@
         const id = item.dataset.id;
         const img = item.querySelector('img');
 
-        // Show the catalog image as a placeholder, then upgrade to the
-        // pre-generated thumbnail once it's ready (or immediately if it's already
-        // resolved). The .then guard skips updates after the panel has moved on
-        // to a different item.
         aiPanelThumb.src = img ? img.src : '';
         aiPanelThumb.alt = name;
         aiPanelName.textContent = name;
@@ -785,12 +772,20 @@
         aiPanelContent.classList.add('d-flex');
         state.aiPanelCurrentId = id;
 
-        const cached = state.preGenerated.get(id);
-        if (cached) {
-            cached.promise.then(result => {
-                if (result?.ok && state.aiPanelCurrentId === id) {
-                    aiPanelThumb.src = result.blobUrl;
-                }
+        // Kick off (or reuse) pre-generation for this style. If it's already
+        // resolved we can swap the thumb in synchronously; otherwise show a
+        // spinner over the catalog placeholder until the call lands.
+        const entry = preGenerateOne(id);
+        if (entry.result) {
+            setPanelSpinner(false);
+            if (entry.result.ok) aiPanelThumb.src = entry.result.blobUrl;
+        } else {
+            setPanelSpinner(true);
+            entry.promise.then(result => {
+                // Skip if the panel has moved on to a different item.
+                if (state.aiPanelCurrentId !== id) return;
+                setPanelSpinner(false);
+                if (result?.ok) aiPanelThumb.src = result.blobUrl;
             });
         }
     }
@@ -799,6 +794,7 @@
         aiPanelContent.classList.add('d-none');
         aiPanelContent.classList.remove('d-flex');
         aiPanelEmpty.classList.remove('d-none');
+        setPanelSpinner(false);
         state.aiPanelCurrentId = null;
     }
 
