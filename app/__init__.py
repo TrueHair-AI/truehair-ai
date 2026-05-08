@@ -70,6 +70,7 @@ def create_app(config_class=Config):
     from app.routes.auth import auth_bp, google_bp
     from app.routes.main import main_bp
     from app.services.auth import current_user
+    from app.services.error_logging import install_error_logging
 
     app.register_blueprint(main_bp)
     # Flask-Dance owns /oauth/google and /oauth/google/authorized so the
@@ -78,5 +79,7 @@ def create_app(config_class=Config):
     app.register_blueprint(auth_bp)
 
     app.jinja_env.globals["current_user"] = current_user
+
+    install_error_logging(app)
 
     return app
