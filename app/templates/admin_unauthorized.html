@@ -9,18 +9,24 @@
     <div class="text-yellow mb-3">
       <i class="bi bi-shield-lock-fill" style="font-size: 3rem;"></i>
     </div>
-    <h1 class="fw-bold h3 mb-3">Access denied</h1>
+    <h1 class="fw-bold h3 mb-3">Admin access required</h1>
     <p class="text-secondary mb-2">
-      The Google account <strong class="text-white">{{ email }}</strong>
-      is not on the admin allowlist.
+      Your account <strong class="text-white">{{ email }}</strong>
+      doesn't have admin access.
     </p>
     <p class="text-secondary small mb-4">
-      If you believe you should have access, contact the study administrator.
+      If you believe this is wrong, contact the team.
     </p>
-    <a href="{{ url_for('admin.logout') }}"
-       class="btn btn-outline-yellow fw-bold w-100 py-3 rounded-3">
-      Sign out
-    </a>
+    <div class="d-grid gap-2">
+      <a href="{{ url_for('main.style_studio') }}"
+         class="btn btn-outline-yellow fw-bold w-100 py-3 rounded-3">
+        Back to Style Studio
+      </a>
+      <a href="{{ url_for('auth.logout') }}"
+         class="btn btn-link text-secondary text-decoration-none small">
+        Sign out
+      </a>
+    </div>
   </div>
 </div>
 {% endblock %}

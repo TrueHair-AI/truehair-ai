@@ -1,8 +1,31 @@
+import secrets
 from datetime import datetime, timezone
 
 from flask_sqlalchemy import SQLAlchemy
 
 db = SQLAlchemy()
+
+
+class User(db.Model):
+    """A signed-in TrueHair user. Identity comes from Google OAuth."""
+
+    id = db.Column(db.Integer, primary_key=True)
+    google_sub = db.Column(db.String(255), unique=True, nullable=False, index=True)
+    email = db.Column(db.String(255), unique=True, nullable=False)
+    display_name = db.Column(db.String(255))
+    avatar_url = db.Column(db.String(500))
+    is_admin = db.Column(db.Boolean, nullable=False, default=False)
+    terms_accepted_at = db.Column(db.DateTime(timezone=True), nullable=True)
+    storage_salt = db.Column(
+        db.String(64), nullable=False, default=lambda: secrets.token_hex(32)
+    )
+    created_at = db.Column(
+        db.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+    last_login_at = db.Column(db.DateTime(timezone=True), nullable=True)
+
+    def __repr__(self):
+        return f"<User id={self.id} email={self.email} is_admin={self.is_admin}>"
 
 
 class Visit(db.Model):
@@ -11,6 +34,7 @@ class Visit(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     page = db.Column(db.String(200), nullable=False)
     session_id = db.Column(db.String(36), nullable=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=True)
     timestamp = db.Column(
         db.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
@@ -57,6 +81,7 @@ class GeneratedImage(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
     session_id = db.Column(db.String(36), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=True)
     hairstyle_id = db.Column(db.Integer, db.ForeignKey("hairstyle.id"), nullable=True)
     was_ai_recommended = db.Column(db.Boolean, nullable=True)
     created_at = db.Column(
@@ -77,6 +102,7 @@ class Rating(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
     session_id = db.Column(db.String(36), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=True)
     generated_image_id = db.Column(
         db.Integer, db.ForeignKey("generated_image.id"), nullable=False, unique=True
     )
@@ -107,6 +133,7 @@ class Recommendation(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
     session_id = db.Column(db.String(36), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=True)
     hairstyle_id = db.Column(db.Integer, db.ForeignKey("hairstyle.id"), nullable=False)
     reasoning = db.Column(db.Text)
     created_at = db.Column(

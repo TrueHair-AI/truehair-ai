@@ -13,6 +13,7 @@ from flask import (
     redirect,
     render_template,
     request,
+    session,
     url_for,
 )
 from google import genai
@@ -33,7 +34,7 @@ from app.models import (
     Visit,
     db,
 )
-from app.routes.admin import admin_required
+from app.services.auth import admin_required, login_required
 from app.services.session_identity import (
     consent_required,
     get_session_id,
@@ -120,7 +121,11 @@ def inject_experiment_group():
 
 
 def log_visit(page_name):
-    visit = Visit(page=page_name, session_id=get_session_id())
+    visit = Visit(
+        page=page_name,
+        session_id=get_session_id(),
+        user_id=session.get("user_id"),
+    )
     db.session.add(visit)
     db.session.commit()
 
@@ -188,7 +193,7 @@ def submit_consent():
 
 
 @main_bp.route("/style-studio")
-@consent_required
+@login_required
 def style_studio():
     """Render the style studio where users can select hairstyles."""
     log_visit("Style Studio")
@@ -207,7 +212,7 @@ def style_studio():
 
 
 @main_bp.route("/stylists")
-@consent_required
+@login_required
 def stylists():
     """Render the directory of stylists, optionally filtered by search query."""
     log_visit("Stylist Directory")
@@ -721,7 +726,7 @@ def export_data():
 
 @main_bp.route("/result")
 @main_bp.route("/result/<int:image_id>")
-@consent_required
+@login_required
 def result(image_id=None):
     """Render the result page for an AI hairstyle generation.
 
@@ -766,7 +771,7 @@ def privacy():
 
 
 @main_bp.route("/api/recommend", methods=["POST"])
-@consent_required
+@login_required
 def recommend():
     """Generate hairstyle recommendations for a user based on their image."""
     import json
@@ -852,6 +857,7 @@ Respond with a JSON object in this exact format:
 
                 db_rec = Recommendation(
                     session_id=sid,
+                    user_id=session.get("user_id"),
                     hairstyle_id=h.id,
                     reasoning=reasoning,
                 )
@@ -877,7 +883,7 @@ Respond with a JSON object in this exact format:
 
 
 @main_bp.route("/api/generate", methods=["POST"])
-@consent_required
+@login_required
 def generate():
     """Generate a new image with the selected hairstyle using Gemini."""
     # IRB compliance: photo bytes must not be logged or persisted.
@@ -950,6 +956,7 @@ def generate():
 
         gen_img = GeneratedImage(
             session_id=sid,
+            user_id=session.get("user_id"),
             hairstyle_id=hairstyle.id,
             was_ai_recommended=was_ai_recommended,
         )
@@ -967,11 +974,10 @@ def generate():
 
 
 @main_bp.route("/api/rate", methods=["POST"])
+@login_required
 def api_rate():
     """Submit or update a rating for a generated image."""
     sid = get_session_id()
-    if not sid:
-        return jsonify({"error": "Authentication required"}), 401
     data = request.get_json(silent=True) or {}
     raw_gen_id = data.get("generated_image_id")
     raw_rating = data.get("rating")
@@ -1005,6 +1011,7 @@ def api_rate():
             db.session.add(
                 Rating(
                     session_id=sid,
+                    user_id=session.get("user_id"),
                     generated_image_id=gen_id,
                     rating=rating_val,
                 )
