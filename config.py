@@ -14,6 +14,15 @@ class Config:
         os.environ.get("DATABASE_URL") or "sqlite:///truehair.db"
     ).replace("postgres://", "postgresql://", 1)
     SQLALCHEMY_TRACK_MODIFICATIONS = False
+    # Match the gunicorn gthread fan-out (1 worker × 8 threads in the
+    # Procfile). pool_size/max_overflow are QueuePool-only — they're rejected
+    # by StaticPool/SingletonThreadPool used for SQLite in dev and tests, so
+    # gate the QueuePool-specific args on the URI scheme.
+    SQLALCHEMY_ENGINE_OPTIONS = (
+        {"pool_size": 8, "max_overflow": 2, "pool_pre_ping": True}
+        if SQLALCHEMY_DATABASE_URI.startswith("postgresql")
+        else {}
+    )
     AUTO_CREATE_SCHEMA = True
     MAX_CONTENT_LENGTH = 10 * 1024 * 1024  # 10MB
 

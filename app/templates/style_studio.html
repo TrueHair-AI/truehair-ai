@@ -356,7 +356,9 @@
         aiPanelCurrentId: null,         // currently displayed item id (hover or click)
         generatedImageId: null,         // set after /api/generate
         generatedImageBlobUrl: null,    // set after /api/generate
-        // hairstyle_id (string) -> { promise: Promise<{ok, blob, blobUrl, generatedImageId} | {ok:false, error}> }
+        // hairstyle_id (string) -> { promise: Promise<Result>, result: Result | null }
+        // where Result = { ok: true, blob, blobUrl, generatedImageId } | { ok: false, error }.
+        // result mirrors the resolved promise so re-hovers settle without a microtask round-trip.
         // blobUrl is owned by the map entry until taken (see Generate handler).
         preGenerated: new Map(),
     };
@@ -466,6 +468,11 @@
     function handleFileSelection(file) {
         state.photoFile = file;
         state.observation = null;
+        // Drop any cache entries from the previous photo — they were generated
+        // against a different selfie and would otherwise leak into hover/Generate
+        // for any hairstyle id that overlaps between the two recommendation
+        // sets. Mirrors the analyzeRequestId guard used for /api/analyze-photo.
+        clearPreGenerated();
 
         const reader = new FileReader();
         reader.onload = function (e) {
@@ -680,6 +687,10 @@
                 const blobUrl = URL.createObjectURL(blob);
                 return { ok: true, blob, blobUrl, generatedImageId };
             } catch (e) {
+                // Surface pre-gen failures in DevTools so we have *some* signal
+                // when Vertex 429s or Gemini returns text-only — the user-visible
+                // fallback (live /api/generate on Generate click) is silent.
+                console.warn(`Pre-generation failed for hairstyle_id=${idStr}:`, e);
                 return { ok: false, error: e };
             }
         })().then(result => {
@@ -730,13 +741,19 @@
         });
 
         // Reorder so recommended cards lead the catalog in recommendation order.
+        // Anchor inserts on the first .hairstyle-item child (rather than
+        // grid.children[insertPos]) so a future header/divider as a direct
+        // child of #hairstyle-grid wouldn't get bumped into the wrong slot.
         const grid = document.getElementById("hairstyle-grid");
-        let insertPos = 0;
+        const firstItem = () => grid.querySelector(".hairstyle-item");
+        let anchor = firstItem();
         state.recommendations.forEach(rec => {
             const item = grid.querySelector(`.hairstyle-item[data-id="${rec.hairstyle_id}"]`);
-            if (!item) return;
-            grid.insertBefore(item, grid.children[insertPos]);
-            insertPos++;
+            if (!item || item === anchor) {
+                if (item === anchor) anchor = item.nextElementSibling;
+                return;
+            }
+            grid.insertBefore(item, anchor);
         });
     }
 
