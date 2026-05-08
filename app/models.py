@@ -148,6 +148,12 @@ class ErrorLog(db.Model):
     rendering 500) and exceptions that view code caught and logged via
     current_app.logger.error/.exception(). The DBErrorLogHandler writes one
     row per logger record at ERROR level or above.
+
+    PII warning: `message` is persisted verbatim from `record.getMessage()`,
+    so do not interpolate emails, names, photo bytes, or other user content
+    into `current_app.logger.error/.exception(...)` calls — they will land
+    in this table. Stick to identifiers (user_id, request id, etc.) and let
+    the route + exception_class + traceback carry the diagnostic signal.
     """
 
     id = db.Column(db.Integer, primary_key=True)
@@ -161,7 +167,11 @@ class ErrorLog(db.Model):
     exception_class = db.Column(db.String(255))
     message = db.Column(db.Text)
     traceback = db.Column(db.Text)
-    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=True)
+    user_id = db.Column(
+        db.Integer,
+        db.ForeignKey("user.id", ondelete="SET NULL"),
+        nullable=True,
+    )
 
 
 class Stylist(db.Model):

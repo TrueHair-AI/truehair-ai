@@ -29,7 +29,12 @@ def upgrade():
         sa.Column("message", sa.Text(), nullable=True),
         sa.Column("traceback", sa.Text(), nullable=True),
         sa.Column("user_id", sa.Integer(), nullable=True),
-        sa.ForeignKeyConstraint(["user_id"], ["user.id"], name="fk_error_log_user_id"),
+        sa.ForeignKeyConstraint(
+            ["user_id"],
+            ["user.id"],
+            name="fk_error_log_user_id",
+            ondelete="SET NULL",
+        ),
         sa.PrimaryKeyConstraint("id"),
     )
     with op.batch_alter_table("error_log") as batch_op:

@@ -169,6 +169,23 @@ def test_request_body_fields_are_not_persisted(app, client):
             )
 
 
+def test_install_error_logging_is_idempotent(app):
+    """Re-invoking `install_error_logging` must not stack handlers and must
+    leave exactly one DBErrorLogHandler bound to the current app."""
+    from app.services.error_logging import (
+        DBErrorLogHandler,
+        install_error_logging,
+    )
+
+    install_error_logging(app)
+    install_error_logging(app)
+    install_error_logging(app)
+
+    db_handlers = [h for h in app.logger.handlers if isinstance(h, DBErrorLogHandler)]
+    assert len(db_handlers) == 1
+    assert db_handlers[0].app is app
+
+
 def test_warning_level_does_not_create_row(app, client):
     """Handler is set at ERROR level; warnings/info should be ignored."""
     bp = Blueprint(f"warntest_{id(app)}", __name__)

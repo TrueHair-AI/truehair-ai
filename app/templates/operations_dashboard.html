@@ -157,7 +157,7 @@
                     <div class="card bg-card border border-secondary border-opacity-25 rounded-4 p-4 shadow-sm">
                         <div class="d-flex justify-content-between align-items-center mb-4">
                             <h5 class="text-white fw-bold mb-0">Recent Errors</h5>
-                            <span class="text-secondary text-sm">Last {{ recent_errors|length }} of latest 50</span>
+                            <span class="text-secondary text-sm">Showing {{ recent_errors|length }} (max 50)</span>
                         </div>
                         {% if recent_errors %}
                         <div class="table-responsive">

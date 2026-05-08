@@ -100,6 +100,15 @@ class DBErrorLogHandler(logging.Handler):
 
 
 def install_error_logging(app):
-    """Attach the DB error log handler to `app.logger`."""
-    handler = DBErrorLogHandler(app)
-    app.logger.addHandler(handler)
+    """Attach the DB error log handler to `app.logger`.
+
+    Idempotent — re-invoking `create_app` in the same process replaces any
+    prior `DBErrorLogHandler` rather than stacking. Replace (not skip),
+    because Flask's `app.logger` is keyed by `app.name`, so successive
+    `create_app()` calls share a single logger; a stale handler from a
+    torn-down app would otherwise commit against a defunct DB.
+    """
+    app.logger.handlers = [
+        h for h in app.logger.handlers if not isinstance(h, DBErrorLogHandler)
+    ]
+    app.logger.addHandler(DBErrorLogHandler(app))
