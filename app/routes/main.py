@@ -107,21 +107,6 @@ def get_genai_client():
         return None
 
 
-@main_bp.app_context_processor
-def inject_experiment_group():
-    sid = get_session_id()
-    experiment_group = None
-    if sid:
-        exp = (
-            ExperimentSession.query.filter_by(session_id=sid)
-            .order_by(ExperimentSession.started_at.desc())
-            .first()
-        )
-        if exp:
-            experiment_group = exp.experiment_group
-    return {"experiment_group": experiment_group}
-
-
 def log_visit(page_name):
     visit = Visit(
         page=page_name,
@@ -788,14 +773,6 @@ def recommend():
     import json
 
     sid = get_session_id()
-    exp = (
-        ExperimentSession.query.filter_by(session_id=sid)
-        .order_by(ExperimentSession.started_at.desc())
-        .first()
-    )
-    if not exp or exp.experiment_group != "experimental":
-        abort(403)
-
     photo_file = request.files.get("photo")
     if not photo_file:
         return jsonify({"error": "Missing photo"}), 400
