@@ -179,7 +179,15 @@
                             </div>
 
                             <div id="ai-panel-content" class="d-none align-items-center gap-3 w-100">
-                                <img id="ai-panel-thumb" src="" alt="" class="rounded-3 flex-shrink-0" style="width: 64px; height: 64px; object-fit: cover;">
+                                <div class="position-relative flex-shrink-0" style="width: 64px; height: 64px;">
+                                    <img id="ai-panel-thumb" src="" alt="" class="rounded-3 w-100 h-100" style="object-fit: cover;">
+                                    <div id="ai-panel-spinner" class="position-absolute top-0 start-0 w-100 h-100 d-none align-items-center justify-content-center rounded-3"
+                                        style="background: rgba(0, 0, 0, 0.55); backdrop-filter: blur(2px);" aria-hidden="true">
+                                        <div class="spinner-border text-yellow" role="status" style="width: 1.4rem; height: 1.4rem; border-width: 2px;">
+                                            <span class="visually-hidden">Generating preview...</span>
+                                        </div>
+                                    </div>
+                                </div>
                                 <div class="flex-grow-1" style="min-width: 0;">
                                     <div class="d-flex align-items-center gap-2 mb-1">
                                         <span style="color: var(--th-yellow); font-size: 0.9rem;">✨</span>
@@ -345,8 +353,14 @@
         selectedHairstyleName: null,
         selectedHairstyleDesc: null,
         aiPanelClickedId: null,
+        aiPanelCurrentId: null,         // currently displayed item id (hover or click)
         generatedImageId: null,         // set after /api/generate
         generatedImageBlobUrl: null,    // set after /api/generate
+        // hairstyle_id (string) -> { promise: Promise<Result>, result: Result | null }
+        // where Result = { ok: true, blob, blobUrl, generatedImageId } | { ok: false, error }.
+        // result mirrors the resolved promise so re-hovers settle without a microtask round-trip.
+        // blobUrl is owned by the map entry until taken (see Generate handler).
+        preGenerated: new Map(),
     };
 
     // --- DOM Elements ---
@@ -385,6 +399,7 @@
     const aiPanelEmpty = document.getElementById('ai-panel-empty');
     const aiPanelContent = document.getElementById('ai-panel-content');
     const aiPanelThumb = document.getElementById('ai-panel-thumb');
+    const aiPanelSpinner = document.getElementById('ai-panel-spinner');
     const aiPanelName = document.getElementById('ai-panel-name');
     const aiPanelReasoning = document.getElementById('ai-panel-reasoning');
     
@@ -453,6 +468,11 @@
     function handleFileSelection(file) {
         state.photoFile = file;
         state.observation = null;
+        // Drop any cache entries from the previous photo — they were generated
+        // against a different selfie and would otherwise leak into hover/Generate
+        // for any hairstyle id that overlaps between the two recommendation
+        // sets. Mirrors the analyzeRequestId guard used for /api/analyze-photo.
+        clearPreGenerated();
 
         const reader = new FileReader();
         reader.onload = function (e) {
@@ -489,6 +509,7 @@
         placeholder.classList.remove('d-none');
         imageInput.value = '';
         resetObservationUI();
+        clearPreGenerated();
     }
 
     removeBtn.addEventListener('click', clearPhoto);
@@ -616,10 +637,80 @@
             state.recommendations = data.recommendations;
             applyRecommendationHighlights();
             showPhase("catalog");
+            // Pre-generate previews for the top recommendations only. Vertex AI
+            // image-edit reliably 429s above ~2 concurrent calls per project,
+            // so we cap fan-out at PREGEN_LIMIT and let the rest fall through
+            // to live /api/generate when the user actually clicks Generate.
+            preGenerateTopRecommendations(state.recommendations);
         } catch (e) {
             showAnalyzingError("Network error. Please try again.");
         }
     });
+
+    // --- Pre-generation for top recommendations ---
+    // Capped at PREGEN_LIMIT styles. Vertex AI image-edit is flaky under
+    // higher parallelism (text-only fallbacks, 429 RESOURCE_EXHAUSTED), and 2
+    // concurrent calls is the largest fan-out we've measured to land
+    // reliably. Recommendations beyond the cap show the catalog placeholder
+    // in the AI panel and trigger a live generation when the user clicks the
+    // Generate button.
+    const PREGEN_LIMIT = 2;
+    function preGenerateTopRecommendations(recommendations) {
+        if (!state.photoFile || !recommendations?.length) return;
+        recommendations.slice(0, PREGEN_LIMIT).forEach(r => preGenerateOne(r.hairstyle_id));
+    }
+
+    function preGenerateOne(hairstyleId) {
+        const idStr = String(hairstyleId);
+        const existing = state.preGenerated.get(idStr);
+        if (existing) return existing;
+
+        const entry = { promise: null, result: null };
+        entry.promise = (async () => {
+            try {
+                const fd = new FormData();
+                fd.append("photo", state.photoFile);
+                fd.append("hairstyle_id", idStr);
+                if (state.observation) fd.append("observation", state.observation);
+
+                const res = await fetch("{{ url_for('main.generate') }}", { method: "POST", body: fd });
+                if (!res.ok) {
+                    const err = await res.json().catch(() => ({}));
+                    throw new Error(err.error || "Pre-generation failed");
+                }
+                const idHeader = res.headers.get("X-Generated-Image-Id");
+                const generatedImageId = parseInt(idHeader, 10);
+                if (!Number.isFinite(generatedImageId)) {
+                    throw new Error("Server did not return a valid image id");
+                }
+                const blob = await res.blob();
+                const blobUrl = URL.createObjectURL(blob);
+                return { ok: true, blob, blobUrl, generatedImageId };
+            } catch (e) {
+                // Surface pre-gen failures in DevTools so we have *some* signal
+                // when Vertex 429s or Gemini returns text-only — the user-visible
+                // fallback (live /api/generate on Generate click) is silent.
+                console.warn(`Pre-generation failed for hairstyle_id=${idStr}:`, e);
+                return { ok: false, error: e };
+            }
+        })().then(result => {
+            entry.result = result;
+            return result;
+        });
+
+        state.preGenerated.set(idStr, entry);
+        return entry;
+    }
+
+    function clearPreGenerated() {
+        // Revoke owned blob URLs once the in-flight promises settle.
+        for (const entry of state.preGenerated.values()) {
+            entry.promise.then(result => {
+                if (result?.ok && result.blobUrl) URL.revokeObjectURL(result.blobUrl);
+            });
+        }
+        state.preGenerated.clear();
+    }
 
     function showAnalyzingError(msg) {
         analyzingErrorMessage.textContent = msg;
@@ -647,6 +738,22 @@
                 item.querySelector(".rec-badge").classList.remove("d-none");
                 item.dataset.reasoning = reasoning;
             }
+        });
+
+        // Reorder so recommended cards lead the catalog in recommendation order.
+        // Anchor inserts on the first .hairstyle-item child (rather than
+        // grid.children[insertPos]) so a future header/divider as a direct
+        // child of #hairstyle-grid wouldn't get bumped into the wrong slot.
+        const grid = document.getElementById("hairstyle-grid");
+        const firstItem = () => grid.querySelector(".hairstyle-item");
+        let anchor = firstItem();
+        state.recommendations.forEach(rec => {
+            const item = grid.querySelector(`.hairstyle-item[data-id="${rec.hairstyle_id}"]`);
+            if (!item || item === anchor) {
+                if (item === anchor) anchor = item.nextElementSibling;
+                return;
+            }
+            grid.insertBefore(item, anchor);
         });
     }
 
@@ -681,12 +788,19 @@
         });
     });
 
+    function setPanelSpinner(show) {
+        aiPanelSpinner.classList.toggle('d-none', !show);
+        aiPanelSpinner.classList.toggle('d-flex', show);
+    }
+
     function showAIPanelForItem(item) {
         const card = item.querySelector('.style-card');
         if (!card.classList.contains('is-recommended')) return;
         const reasoning = item.dataset.reasoning || '';
         const name = item.dataset.name || '';
+        const id = item.dataset.id;
         const img = item.querySelector('img');
+
         aiPanelThumb.src = img ? img.src : '';
         aiPanelThumb.alt = name;
         aiPanelName.textContent = name;
@@ -694,12 +808,37 @@
         aiPanelEmpty.classList.add('d-none');
         aiPanelContent.classList.remove('d-none');
         aiPanelContent.classList.add('d-flex');
+        state.aiPanelCurrentId = id;
+
+        // Read-only cache lookup: only the top PREGEN_LIMIT recommendations
+        // get pre-generated, so most hovers fall through to the catalog
+        // placeholder. Don't kick off a generation here — that would
+        // re-introduce the 429 storm we hit when fanning out to all 4 recs.
+        const entry = state.preGenerated.get(id);
+        if (!entry) {
+            setPanelSpinner(false);
+            return;
+        }
+        if (entry.result) {
+            setPanelSpinner(false);
+            if (entry.result.ok) aiPanelThumb.src = entry.result.blobUrl;
+        } else {
+            setPanelSpinner(true);
+            entry.promise.then(result => {
+                // Skip if the panel has moved on to a different item.
+                if (state.aiPanelCurrentId !== id) return;
+                setPanelSpinner(false);
+                if (result?.ok) aiPanelThumb.src = result.blobUrl;
+            });
+        }
     }
 
     function resetAIPanel() {
         aiPanelContent.classList.add('d-none');
         aiPanelContent.classList.remove('d-flex');
         aiPanelEmpty.classList.remove('d-none');
+        setPanelSpinner(false);
+        state.aiPanelCurrentId = null;
     }
 
     function refreshAIPanel() {
@@ -814,38 +953,49 @@
         btnText.textContent = "GENERATING (may take 1 min)...";
         btnSpinner.classList.remove('d-none');
 
-        const wasAIRecommended = state.recommendations
-            ? state.recommendations.some(r => r.hairstyle_id === parseInt(state.selectedHairstyleId, 10))
-            : false;
-
-        const fd = new FormData();
-        fd.append("photo", state.photoFile);
-        fd.append("hairstyle_id", state.selectedHairstyleId);
-        fd.append("was_ai_recommended", wasAIRecommended ? "true" : "false");
-        if (state.observation) {
-            fd.append("observation", state.observation);
-        }
+        const idStr = String(state.selectedHairstyleId);
 
         try {
-            const res = await fetch("{{ url_for('main.generate') }}", { method: "POST", body: fd });
-            
-            if (!res.ok) {
-                const err = await res.json().catch(() => ({ error: "Generation failed" }));
-                throw new Error(err.error || "Generation failed");
+            let parsedId, blobUrl;
+            // If a pre-generation is in flight or already done for this style,
+            // reuse it instead of triggering another Gemini call.
+            const cached = state.preGenerated.get(idStr);
+            if (cached) {
+                const result = await cached.promise;
+                if (result?.ok) {
+                    // Take ownership: drop the entry so clearPreGenerated()
+                    // doesn't revoke the URL we're now displaying.
+                    state.preGenerated.delete(idStr);
+                    parsedId = result.generatedImageId;
+                    blobUrl = result.blobUrl;
+                }
             }
 
-            const idHeader = res.headers.get("X-Generated-Image-Id");
-            const parsedId = parseInt(idHeader, 10);
-            if (!Number.isFinite(parsedId)) {
-                throw new Error("Server did not return a valid image id");
+            if (parsedId === undefined) {
+                // Live call: cache miss, pre-gen failed, or non-recommended pick.
+                const fd = new FormData();
+                fd.append("photo", state.photoFile);
+                fd.append("hairstyle_id", state.selectedHairstyleId);
+                if (state.observation) fd.append("observation", state.observation);
+
+                const res = await fetch("{{ url_for('main.generate') }}", { method: "POST", body: fd });
+                if (!res.ok) {
+                    const err = await res.json().catch(() => ({ error: "Generation failed" }));
+                    throw new Error(err.error || "Generation failed");
+                }
+                const idHeader = res.headers.get("X-Generated-Image-Id");
+                parsedId = parseInt(idHeader, 10);
+                if (!Number.isFinite(parsedId)) {
+                    throw new Error("Server did not return a valid image id");
+                }
+                blobUrl = URL.createObjectURL(await res.blob());
             }
+
             state.generatedImageId = parsedId;
-            const blob = await res.blob();
-            
             if (state.generatedImageBlobUrl) {
                 URL.revokeObjectURL(state.generatedImageBlobUrl);
             }
-            state.generatedImageBlobUrl = URL.createObjectURL(blob);
+            state.generatedImageBlobUrl = blobUrl;
 
             // Populate Result Phase
             resultImg.src = state.generatedImageBlobUrl;
