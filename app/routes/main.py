@@ -334,6 +334,32 @@ def operations_dashboard():
     )
     retention_change = retention_rate - retention_rate_last_week
 
+    # AI-recommended selection rate: of generations whose recommendation context
+    # is known (was_ai_recommended is non-null), the share that came from an AI
+    # recommendation. Legacy rows with null are excluded.
+    ai_rec_total = GeneratedImage.query.filter(
+        GeneratedImage.was_ai_recommended.isnot(None)
+    ).count()
+    ai_rec_hits = GeneratedImage.query.filter(
+        GeneratedImage.was_ai_recommended.is_(True)
+    ).count()
+    ai_rec_rate = int(ai_rec_hits / ai_rec_total * 100) if ai_rec_total > 0 else 0
+
+    ai_rec_total_last_week = GeneratedImage.query.filter(
+        GeneratedImage.was_ai_recommended.isnot(None),
+        GeneratedImage.created_at < week_ago,
+    ).count()
+    ai_rec_hits_last_week = GeneratedImage.query.filter(
+        GeneratedImage.was_ai_recommended.is_(True),
+        GeneratedImage.created_at < week_ago,
+    ).count()
+    ai_rec_rate_last_week = (
+        int(ai_rec_hits_last_week / ai_rec_total_last_week * 100)
+        if ai_rec_total_last_week > 0
+        else 0
+    )
+    ai_rec_change = ai_rec_rate - ai_rec_rate_last_week
+
     this_week_gens = {str(i): 0 for i in range(7)}
     last_week_gens = {str(i): 0 for i in range(7)}
 
@@ -390,6 +416,8 @@ def operations_dashboard():
         activation_change=activation_change,
         retention_rate=retention_rate,
         retention_change=retention_change,
+        ai_rec_rate=ai_rec_rate,
+        ai_rec_change=ai_rec_change,
         total_users=total_users,
         total_users_change=round(total_users_change, 1),
         today_gen_count=today_gen_count,

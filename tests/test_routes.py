@@ -252,6 +252,34 @@ def test_operations_dashboard_does_not_include_export_buttons(admin_client):
     assert b"Experiment Data Export" not in response.data
 
 
+def test_operations_dashboard_renders_ai_recommended_card(admin_client):
+    """The Operations dashboard surfaces the AI-recommended selection rate metric."""
+    response = admin_client.get("/dashboard/operations")
+    assert response.status_code == 200
+    assert b"AI-Recommended Rate" in response.data
+
+
+def test_operations_dashboard_ai_rec_rate_with_data(app, admin_client, hairstyle):
+    """AI-recommended rate is the share of generations where was_ai_recommended is True."""
+    with app.app_context():
+        # 3 known-context generations: 2 AI-recommended, 1 not. Plus 1 legacy null
+        # row that should be excluded from the denominator.
+        for was_ai in (True, True, False, None):
+            db.session.add(
+                GeneratedImage(
+                    session_id=str(uuid.uuid4()),
+                    hairstyle_id=hairstyle.id,
+                    was_ai_recommended=was_ai,
+                )
+            )
+        db.session.commit()
+
+    response = admin_client.get("/dashboard/operations")
+    assert response.status_code == 200
+    # 2 / 3 = 66%
+    assert b">66%<" in response.data
+
+
 def test_admin_export_redirects_when_unauthenticated(client):
     response = client.get("/api/admin/export")
     assert response.status_code == 302
