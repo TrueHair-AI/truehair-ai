@@ -167,6 +167,20 @@ a.logout-btn:hover, a.logout-btn:focus, a.logout-btn:active {
     color: #000;
 }
 
+/* Filled secondary action — sits visually back from the solid yellow primary CTA. */
+.btn-soft-yellow {
+    background-color: rgba(248, 205, 36, 0.12);
+    border: 1px solid rgba(248, 205, 36, 0.35);
+    color: var(--th-yellow);
+    transition: all 0.2s ease;
+}
+
+.btn-soft-yellow:hover {
+    background-color: rgba(248, 205, 36, 0.22);
+    border-color: rgba(248, 205, 36, 0.55);
+    color: var(--th-yellow);
+}
+
 #googleLoginBtn.login-cta-disabled {
     pointer-events: none;
     opacity: 0.6;

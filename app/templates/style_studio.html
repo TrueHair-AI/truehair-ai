@@ -43,24 +43,72 @@
                     </div>
                 </div>
                 
-                <div class="mt-4 d-none" id="upload-continue-container">
-                    <button id="upload-continue-btn" class="btn btn-primary w-100 py-3 fw-bold fs-5 shadow rounded-3 text-dark">
-                        Continue <i class="bi bi-arrow-right ms-2"></i>
+                <div id="analyzing-photo-container" class="mt-4 d-none">
+                    <div class="d-flex align-items-center justify-content-center gap-3 py-3">
+                        <div class="spinner-border text-yellow" style="width: 2rem; height: 2rem;" role="status">
+                            <span class="visually-hidden">Analyzing...</span>
+                        </div>
+                        <div class="text-start">
+                            <div class="fw-bold text-white">Analyzing your photo...</div>
+                            <div class="text-secondary text-sm">We're describing what we see so we can find styles that suit you.</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="analyze-error-container" class="mt-4 d-none">
+                    <div class="alert alert-danger mb-2" role="alert" id="analyze-error-message"></div>
+                    <button class="btn btn-soft-yellow fw-bold py-2 px-3" id="retry-analyze-btn">
+                        <i class="bi bi-arrow-clockwise me-1"></i> Try a different photo
                     </button>
+                </div>
+
+                <div id="observation-card"
+                    class="mt-4 d-none text-start bg-card rounded-4 border border-secondary border-opacity-25 p-4">
+                    <h6 class="fw-bold text-white mb-2 d-flex align-items-center gap-2">
+                        <i class="bi bi-eye text-yellow"></i> Here's what we see
+                    </h6>
+                    <p id="observation-text" class="text-secondary mb-3" style="line-height: 1.5;"></p>
+
+                    <div id="observation-edit" class="d-none mb-3">
+                        <label for="observation-edit-input" class="form-label text-secondary text-sm mb-1">
+                            Add anything we missed (e.g., "I'm planning a hair transplant", "My natural color is grey").
+                        </label>
+                        <textarea id="observation-edit-input"
+                            class="form-control bg-dark text-white border-secondary"
+                            rows="3" maxlength="2000"
+                            placeholder="Tell us anything the photo doesn't show..."></textarea>
+                        <div id="observation-edit-error" class="text-danger small mt-2 d-none"></div>
+                        <div class="d-flex gap-2 mt-2">
+                            <button id="observation-cancel-btn" class="btn btn-outline-secondary btn-sm">Cancel</button>
+                            <button id="observation-save-btn" class="btn btn-primary btn-sm text-dark fw-bold">
+                                <span id="observation-save-text">Save</span>
+                                <span id="observation-save-spinner" class="spinner-border spinner-border-sm ms-1 d-none" role="status"></span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div id="observation-actions" class="d-flex gap-2 flex-wrap">
+                        <button id="observation-edit-btn" class="btn btn-soft-yellow fw-bold py-2 px-3">
+                            <i class="bi bi-pencil me-1"></i> Edit details
+                        </button>
+                        <button id="find-styles-btn" class="btn btn-primary fw-bold flex-grow-1 text-dark py-2">
+                            Find my styles <i class="bi bi-arrow-right ms-1"></i>
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
     </section>
 
-    <!-- Section 2: Analyzing (experimental only) -->
+    <!-- Section 2: Finding styles (after "Find my styles" click) -->
     <section id="phase-analyzing" class="phase" hidden>
         <div class="row justify-content-center align-items-center" style="min-height: 60vh;">
             <div class="col-md-6 text-center">
                 <div class="spinner-border text-yellow mb-4" style="width: 4rem; height: 4rem;" role="status">
                     <span class="visually-hidden">Loading...</span>
                 </div>
-                <h3 class="fw-bold text-white mb-3">Analyzing your photo...</h3>
-                <p class="text-secondary fs-5">Finding styles that suit your face shape and features.</p>
+                <h3 class="fw-bold text-white mb-3">Finding styles for you...</h3>
+                <p class="text-secondary fs-5">Cross-referencing your observation against our catalog.</p>
                 <div id="analyzing-error-container" class="mt-4 d-none">
                     <div class="alert alert-danger" role="alert" id="analyzing-error-message"></div>
                     <button class="btn btn-outline-light mt-2" id="retry-analyzing-btn">Try Again</button>
@@ -291,6 +339,7 @@
     // Module-level state
     const state = {
         photoFile: null,                // the File object
+        observation: null,              // current merged observation string
         recommendations: null,          // array of {hairstyle_id, reasoning}
         selectedHairstyleId: null,
         selectedHairstyleName: null,
@@ -307,9 +356,24 @@
     const placeholder = document.getElementById('upload-placeholder');
     const previewImg = document.getElementById('image-preview');
     const removeBtn = document.getElementById('remove-image');
-    const uploadContinueContainer = document.getElementById('upload-continue-container');
-    const uploadContinueBtn = document.getElementById('upload-continue-btn');
-    
+
+    const analyzingPhotoContainer = document.getElementById('analyzing-photo-container');
+    const analyzeErrorContainer = document.getElementById('analyze-error-container');
+    const analyzeErrorMessage = document.getElementById('analyze-error-message');
+    const retryAnalyzeBtn = document.getElementById('retry-analyze-btn');
+
+    const observationCard = document.getElementById('observation-card');
+    const observationText = document.getElementById('observation-text');
+    const observationEdit = document.getElementById('observation-edit');
+    const observationEditInput = document.getElementById('observation-edit-input');
+    const observationEditError = document.getElementById('observation-edit-error');
+    const observationActions = document.getElementById('observation-actions');
+    const observationEditBtn = document.getElementById('observation-edit-btn');
+    const observationCancelBtn = document.getElementById('observation-cancel-btn');
+    const observationSaveBtn = document.getElementById('observation-save-btn');
+    const observationSaveSpinner = document.getElementById('observation-save-spinner');
+    const findStylesBtn = document.getElementById('find-styles-btn');
+
     const analyzingErrorContainer = document.getElementById('analyzing-error-container');
     const analyzingErrorMessage = document.getElementById('analyzing-error-message');
     const retryAnalyzingBtn = document.getElementById('retry-analyzing-btn');
@@ -388,29 +452,150 @@
 
     function handleFileSelection(file) {
         state.photoFile = file;
+        state.observation = null;
 
         const reader = new FileReader();
         reader.onload = function (e) {
             previewImg.src = e.target.result;
             previewContainer.classList.remove('d-none');
             placeholder.classList.add('d-none');
-            uploadContinueContainer.classList.remove('d-none');
+            analyzePhoto();
         };
         reader.readAsDataURL(file);
     }
 
-    removeBtn.addEventListener('click', () => {
+    function resetObservationUI() {
+        analyzingPhotoContainer.classList.add('d-none');
+        analyzeErrorContainer.classList.add('d-none');
+        observationCard.classList.add('d-none');
+        observationEdit.classList.add('d-none');
+        observationActions.classList.remove('d-none');
+        observationEditError.classList.add('d-none');
+        observationEditInput.value = '';
+    }
+
+    // Monotonic counter — bumped on every new analyze and on clearPhoto so a
+    // fast photo swap doesn't let the older response overwrite the newer photo's
+    // observation. Each analyzePhoto() call captures its id at start and gates
+    // every subsequent UI mutation on it still being the latest.
+    let analyzeRequestId = 0;
+
+    function clearPhoto() {
+        analyzeRequestId += 1;
         state.photoFile = null;
+        state.observation = null;
         previewImg.src = '';
         previewContainer.classList.add('d-none');
         placeholder.classList.remove('d-none');
-        uploadContinueContainer.classList.add('d-none');
         imageInput.value = '';
+        resetObservationUI();
+    }
+
+    removeBtn.addEventListener('click', clearPhoto);
+
+    // --- /api/analyze-photo (auto-fires after upload) ---
+    async function analyzePhoto() {
+        if (!state.photoFile) return;
+        const requestId = ++analyzeRequestId;
+
+        resetObservationUI();
+        analyzingPhotoContainer.classList.remove('d-none');
+
+        try {
+            const fd = new FormData();
+            fd.append("photo", state.photoFile);
+            const res = await fetch("{{ url_for('main.analyze_photo') }}", { method: "POST", body: fd });
+            if (requestId !== analyzeRequestId) return;
+
+            analyzingPhotoContainer.classList.add('d-none');
+
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({ error: "Could not analyze photo" }));
+                analyzeErrorMessage.textContent = err.error || "Could not analyze photo";
+                analyzeErrorContainer.classList.remove('d-none');
+                return;
+            }
+
+            const data = await res.json();
+            if (requestId !== analyzeRequestId) return;
+            state.observation = data.raw_observation;
+            observationText.textContent = data.raw_observation;
+            observationCard.classList.remove('d-none');
+        } catch (e) {
+            if (requestId !== analyzeRequestId) return;
+            analyzingPhotoContainer.classList.add('d-none');
+            analyzeErrorMessage.textContent = "Network error. Please try again.";
+            analyzeErrorContainer.classList.remove('d-none');
+        }
+    }
+
+    retryAnalyzeBtn.addEventListener('click', () => {
+        clearPhoto();
+        imageInput.click();
     });
 
-    // --- Phase 1 → 2 (analyzing) → 3 (catalog) ---
-    uploadContinueBtn.addEventListener("click", async () => {
-        if (!state.photoFile) return;
+    // --- Observation edit / save (refine-observation) ---
+    observationEditBtn.addEventListener('click', () => {
+        observationActions.classList.add('d-none');
+        observationEdit.classList.remove('d-none');
+        observationEditError.classList.add('d-none');
+        observationEditInput.value = '';
+        observationEditInput.focus();
+    });
+
+    observationCancelBtn.addEventListener('click', () => {
+        observationEdit.classList.add('d-none');
+        observationActions.classList.remove('d-none');
+        observationEditError.classList.add('d-none');
+        observationEditInput.value = '';
+    });
+
+    observationSaveBtn.addEventListener('click', async () => {
+        const edits = observationEditInput.value.trim();
+        if (!edits) {
+            observationEditError.textContent = "Add some details before saving.";
+            observationEditError.classList.remove('d-none');
+            return;
+        }
+        if (!state.observation) return;
+
+        observationEditError.classList.add('d-none');
+        observationSaveSpinner.classList.remove('d-none');
+        observationSaveBtn.disabled = true;
+
+        try {
+            const res = await fetch("{{ url_for('main.refine_observation') }}", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    original_observation: state.observation,
+                    user_edits: edits,
+                }),
+            });
+
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({ error: "Could not save edits" }));
+                throw new Error(err.error || "Could not save edits");
+            }
+
+            const data = await res.json();
+            state.observation = data.raw_observation;
+            observationText.textContent = data.raw_observation;
+            observationEdit.classList.add('d-none');
+            observationActions.classList.remove('d-none');
+            observationEditInput.value = '';
+        } catch (e) {
+            observationEditError.textContent = e.message || "Could not save your edits.";
+            observationEditError.classList.remove('d-none');
+        } finally {
+            observationSaveSpinner.classList.add('d-none');
+            observationSaveBtn.disabled = false;
+        }
+    });
+
+    // --- "Find my styles" → /api/recommend → catalog phase ---
+    findStylesBtn.addEventListener("click", async () => {
+        if (!state.photoFile || !state.observation) return;
 
         showPhase("analyzing");
         analyzingErrorContainer.classList.add('d-none');
@@ -418,11 +603,12 @@
         try {
             const fd = new FormData();
             fd.append("photo", state.photoFile);
+            fd.append("observation", state.observation);
             const res = await fetch("{{ url_for('main.recommend') }}", { method: "POST", body: fd });
 
             if (!res.ok) {
                 const err = await res.json().catch(() => ({ error: "Unknown error" }));
-                showAnalyzingError(err.error || "Failed to analyze photo");
+                showAnalyzingError(err.error || "Failed to find styles");
                 return;
             }
 
@@ -441,7 +627,7 @@
     }
 
     retryAnalyzingBtn.addEventListener('click', () => {
-        uploadContinueBtn.click();
+        findStylesBtn.click();
     });
 
     // --- Section 3: Catalog ---
@@ -636,6 +822,9 @@
         fd.append("photo", state.photoFile);
         fd.append("hairstyle_id", state.selectedHairstyleId);
         fd.append("was_ai_recommended", wasAIRecommended ? "true" : "false");
+        if (state.observation) {
+            fd.append("observation", state.observation);
+        }
 
         try {
             const res = await fetch("{{ url_for('main.generate') }}", { method: "POST", body: fd });
