@@ -153,6 +153,13 @@
                         style="background: var(--th-yellow); color: #000; padding: 4px 10px; border-radius: 999px; font-size: 0.7rem; font-weight: 700; z-index: 10;">
                         ✨ Recommended
                     </div>
+                    <!-- Pre-generation spinner: shown while a preview for this recommended style is being generated. -->
+                    <div class="pregen-spinner position-absolute top-50 start-50 translate-middle d-none"
+                        aria-hidden="true" style="z-index: 9;">
+                        <div class="spinner-border text-yellow" role="status" style="width: 2rem; height: 2rem;">
+                            <span class="visually-hidden">Generating preview...</span>
+                        </div>
+                    </div>
                     <!-- Selection check: hidden by default -->
                     <div class="selection-indicator position-absolute top-0 end-0 m-3 bg-warning text-dark rounded-circle d-none align-items-center justify-content-center"
                         style="width: 24px; height: 24px; z-index: 10;">
@@ -345,8 +352,12 @@
         selectedHairstyleName: null,
         selectedHairstyleDesc: null,
         aiPanelClickedId: null,
+        aiPanelCurrentId: null,         // currently displayed item id (hover or click)
         generatedImageId: null,         // set after /api/generate
         generatedImageBlobUrl: null,    // set after /api/generate
+        // hairstyle_id (string) -> { promise: Promise<{ok, blob, blobUrl, generatedImageId} | {ok:false, error}> }
+        // blobUrl is owned by the map entry until taken (see Generate handler).
+        preGenerated: new Map(),
     };
 
     // --- DOM Elements ---
@@ -489,6 +500,7 @@
         placeholder.classList.remove('d-none');
         imageInput.value = '';
         resetObservationUI();
+        clearPreGenerated();
     }
 
     removeBtn.addEventListener('click', clearPhoto);
@@ -616,10 +628,81 @@
             state.recommendations = data.recommendations;
             applyRecommendationHighlights();
             showPhase("catalog");
+            // Fan out parallel pre-generations so thumbnails are ready when the
+            // user hovers a recommended card. Browsers cap connections per
+            // origin; recs are 2-4 server-side so a flat fan-out is safe.
+            preGenerateRecommendations(state.recommendations);
         } catch (e) {
             showAnalyzingError("Network error. Please try again.");
         }
     });
+
+    // --- Pre-generation fan-out (B10) ---
+    function setCardSpinner(hairstyleId, show) {
+        const item = document.querySelector(`.hairstyle-item[data-id="${hairstyleId}"]`);
+        if (!item) return;
+        const spinner = item.querySelector('.pregen-spinner');
+        if (!spinner) return;
+        spinner.classList.toggle('d-none', !show);
+    }
+
+    function preGenerateOne(hairstyleId) {
+        const idStr = String(hairstyleId);
+        setCardSpinner(idStr, true);
+
+        const promise = (async () => {
+            try {
+                const fd = new FormData();
+                fd.append("photo", state.photoFile);
+                fd.append("hairstyle_id", idStr);
+                if (state.observation) fd.append("observation", state.observation);
+
+                const res = await fetch("{{ url_for('main.generate') }}", { method: "POST", body: fd });
+                if (!res.ok) {
+                    const err = await res.json().catch(() => ({}));
+                    throw new Error(err.error || "Pre-generation failed");
+                }
+                const idHeader = res.headers.get("X-Generated-Image-Id");
+                const generatedImageId = parseInt(idHeader, 10);
+                if (!Number.isFinite(generatedImageId)) {
+                    throw new Error("Server did not return a valid image id");
+                }
+                const blob = await res.blob();
+                const blobUrl = URL.createObjectURL(blob);
+
+                // If the panel is currently displaying this item (via hover or
+                // click), upgrade the thumb to the freshly-generated preview.
+                if (state.aiPanelCurrentId === idStr) {
+                    aiPanelThumb.src = blobUrl;
+                }
+                return { ok: true, blob, blobUrl, generatedImageId };
+            } catch (e) {
+                return { ok: false, error: e };
+            } finally {
+                setCardSpinner(idStr, false);
+            }
+        })();
+
+        state.preGenerated.set(idStr, { promise });
+        return promise;
+    }
+
+    function preGenerateRecommendations(recommendations) {
+        if (!state.photoFile || !recommendations?.length) return;
+        // Cap at 4 parallel fetches; recs are already capped at 4 server-side.
+        recommendations.slice(0, 4).forEach(r => preGenerateOne(r.hairstyle_id));
+    }
+
+    function clearPreGenerated() {
+        // Revoke owned blob URLs once the in-flight promises settle.
+        for (const entry of state.preGenerated.values()) {
+            entry.promise.then(result => {
+                if (result?.ok && result.blobUrl) URL.revokeObjectURL(result.blobUrl);
+            });
+        }
+        state.preGenerated.clear();
+        document.querySelectorAll('.pregen-spinner').forEach(el => el.classList.add('d-none'));
+    }
 
     function showAnalyzingError(msg) {
         analyzingErrorMessage.textContent = msg;
@@ -686,7 +769,13 @@
         if (!card.classList.contains('is-recommended')) return;
         const reasoning = item.dataset.reasoning || '';
         const name = item.dataset.name || '';
+        const id = item.dataset.id;
         const img = item.querySelector('img');
+
+        // Show the catalog image as a placeholder, then upgrade to the
+        // pre-generated thumbnail once it's ready (or immediately if it's already
+        // resolved). The .then guard skips updates after the panel has moved on
+        // to a different item.
         aiPanelThumb.src = img ? img.src : '';
         aiPanelThumb.alt = name;
         aiPanelName.textContent = name;
@@ -694,12 +783,23 @@
         aiPanelEmpty.classList.add('d-none');
         aiPanelContent.classList.remove('d-none');
         aiPanelContent.classList.add('d-flex');
+        state.aiPanelCurrentId = id;
+
+        const cached = state.preGenerated.get(id);
+        if (cached) {
+            cached.promise.then(result => {
+                if (result?.ok && state.aiPanelCurrentId === id) {
+                    aiPanelThumb.src = result.blobUrl;
+                }
+            });
+        }
     }
 
     function resetAIPanel() {
         aiPanelContent.classList.add('d-none');
         aiPanelContent.classList.remove('d-flex');
         aiPanelEmpty.classList.remove('d-none');
+        state.aiPanelCurrentId = null;
     }
 
     function refreshAIPanel() {
@@ -814,38 +914,49 @@
         btnText.textContent = "GENERATING (may take 1 min)...";
         btnSpinner.classList.remove('d-none');
 
-        const wasAIRecommended = state.recommendations
-            ? state.recommendations.some(r => r.hairstyle_id === parseInt(state.selectedHairstyleId, 10))
-            : false;
-
-        const fd = new FormData();
-        fd.append("photo", state.photoFile);
-        fd.append("hairstyle_id", state.selectedHairstyleId);
-        fd.append("was_ai_recommended", wasAIRecommended ? "true" : "false");
-        if (state.observation) {
-            fd.append("observation", state.observation);
-        }
+        const idStr = String(state.selectedHairstyleId);
 
         try {
-            const res = await fetch("{{ url_for('main.generate') }}", { method: "POST", body: fd });
-            
-            if (!res.ok) {
-                const err = await res.json().catch(() => ({ error: "Generation failed" }));
-                throw new Error(err.error || "Generation failed");
+            let parsedId, blobUrl;
+            // If a pre-generation is in flight or already done for this style,
+            // reuse it instead of triggering another Gemini call.
+            const cached = state.preGenerated.get(idStr);
+            if (cached) {
+                const result = await cached.promise;
+                if (result?.ok) {
+                    // Take ownership: drop the entry so clearPreGenerated()
+                    // doesn't revoke the URL we're now displaying.
+                    state.preGenerated.delete(idStr);
+                    parsedId = result.generatedImageId;
+                    blobUrl = result.blobUrl;
+                }
             }
 
-            const idHeader = res.headers.get("X-Generated-Image-Id");
-            const parsedId = parseInt(idHeader, 10);
-            if (!Number.isFinite(parsedId)) {
-                throw new Error("Server did not return a valid image id");
+            if (parsedId === undefined) {
+                // Live call: cache miss, pre-gen failed, or non-recommended pick.
+                const fd = new FormData();
+                fd.append("photo", state.photoFile);
+                fd.append("hairstyle_id", state.selectedHairstyleId);
+                if (state.observation) fd.append("observation", state.observation);
+
+                const res = await fetch("{{ url_for('main.generate') }}", { method: "POST", body: fd });
+                if (!res.ok) {
+                    const err = await res.json().catch(() => ({ error: "Generation failed" }));
+                    throw new Error(err.error || "Generation failed");
+                }
+                const idHeader = res.headers.get("X-Generated-Image-Id");
+                parsedId = parseInt(idHeader, 10);
+                if (!Number.isFinite(parsedId)) {
+                    throw new Error("Server did not return a valid image id");
+                }
+                blobUrl = URL.createObjectURL(await res.blob());
             }
+
             state.generatedImageId = parsedId;
-            const blob = await res.blob();
-            
             if (state.generatedImageBlobUrl) {
                 URL.revokeObjectURL(state.generatedImageBlobUrl);
             }
-            state.generatedImageBlobUrl = URL.createObjectURL(blob);
+            state.generatedImageBlobUrl = blobUrl;
 
             // Populate Result Phase
             resultImg.src = state.generatedImageBlobUrl;
