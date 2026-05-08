@@ -861,7 +861,12 @@ Respond with a JSON object in this exact shape:
             }
         ), 400
 
-    raw_observation = (data.get("raw_observation") or "").strip()
+    # Truncate (rather than reject) so a long Gemini response doesn't strand
+    # the user on a value they didn't write — /api/recommend and /api/generate
+    # both hard-reject anything over MAX_OBSERVATION_LENGTH.
+    raw_observation = (data.get("raw_observation") or "").strip()[
+        :MAX_OBSERVATION_LENGTH
+    ]
     if not raw_observation:
         current_app.logger.error("Gemini returned ok status but empty raw_observation")
         return jsonify({"error": "Photo analysis failed. Please try again."}), 500
@@ -938,7 +943,10 @@ Respond with a JSON object in this exact shape:
         current_app.logger.error(f"Gemini observation merge failed: {e}")
         return jsonify({"error": "Could not save your edits. Please try again."}), 500
 
-    raw_observation = (merged.get("raw_observation") or "").strip()
+    # Match analyze: truncate at the cap so the next recommend/generate doesn't reject.
+    raw_observation = (merged.get("raw_observation") or "").strip()[
+        :MAX_OBSERVATION_LENGTH
+    ]
     if not raw_observation:
         return jsonify({"error": "Could not save your edits. Please try again."}), 500
 

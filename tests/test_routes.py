@@ -1022,6 +1022,35 @@ def test_api_analyze_photo_empty_observation_returns_500(mock_get_client, auth_c
     assert response.status_code == 500
 
 
+@patch("app.routes.main.get_genai_client")
+def test_api_analyze_photo_truncates_oversized_observation(
+    mock_get_client, auth_client
+):
+    """Gemini may overshoot MAX_OBSERVATION_LENGTH; we truncate so the next call doesn't 400."""
+    from app.routes.main import MAX_OBSERVATION_LENGTH
+
+    mock_get_client.return_value = _mock_analyze_response(
+        {
+            "photo_validation_status": "ok",
+            "hair_type": "Type 1A",
+            "length": "long",
+            "thickness": "fine",
+            "color": "blonde",
+            "notes": "",
+            "raw_observation": "X" * (MAX_OBSERVATION_LENGTH + 1000),
+        }
+    )
+
+    response = auth_client.post(
+        "/api/analyze-photo",
+        data={"photo": (make_test_image(), "test.jpg")},
+        content_type="multipart/form-data",
+    )
+    assert response.status_code == 200
+    data = response.get_json()
+    assert len(data["raw_observation"]) == MAX_OBSERVATION_LENGTH
+
+
 # ---------------------------------------------------------------------------
 # POST /api/refine-observation
 # ---------------------------------------------------------------------------
@@ -1104,6 +1133,29 @@ def test_api_refine_observation_gemini_failure_returns_500(
         },
     )
     assert response.status_code == 500
+
+
+@patch("app.routes.main.get_genai_client")
+def test_api_refine_observation_truncates_oversized_observation(
+    mock_get_client, auth_client
+):
+    """Same truncation guarantee as analyze."""
+    from app.routes.main import MAX_OBSERVATION_LENGTH
+
+    mock_get_client.return_value = _mock_analyze_response(
+        {"raw_observation": "X" * (MAX_OBSERVATION_LENGTH + 500)}
+    )
+
+    response = auth_client.post(
+        "/api/refine-observation",
+        json={
+            "original_observation": "Short hair",
+            "user_edits": "Going grey",
+        },
+    )
+    assert response.status_code == 200
+    data = response.get_json()
+    assert len(data["raw_observation"]) == MAX_OBSERVATION_LENGTH
 
 
 # ---------------------------------------------------------------------------
