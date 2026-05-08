@@ -26,8 +26,8 @@ def make_test_image():
     return buf
 
 
-def _consent_and_login(app, client, experiment_group="control"):
-    """Helper: create a Consent + ExperimentSession and attach the session_id to client."""
+def _make_participant_data(app, experiment_group="control"):
+    """Create a Consent + ExperimentSession row pair (participant export data)."""
     sid = str(uuid.uuid4())
     with app.app_context():
         db.session.add(Consent(session_id=sid, experiment_group=experiment_group))
@@ -40,8 +40,6 @@ def _consent_and_login(app, client, experiment_group="control"):
             )
         )
         db.session.commit()
-    with client.session_transaction() as sess:
-        sess["session_id"] = sid
     return sid
 
 
@@ -150,16 +148,16 @@ def test_terms_page_public(client):
 # ---------------------------------------------------------------------------
 
 
-def test_stylists_redirect_unconsented(client):
+def test_stylists_redirect_unauthenticated(client):
     response = client.get("/stylists")
     assert response.status_code == 302
-    assert "/consent" in response.location
+    assert "/login" in response.location
 
 
-def test_style_studio_redirect_unconsented(client):
+def test_style_studio_redirect_unauthenticated(client):
     response = client.get("/style-studio")
     assert response.status_code == 302
-    assert "/consent" in response.location
+    assert "/login" in response.location
 
 
 def test_style_studio_consented(auth_client, hairstyle):
@@ -185,23 +183,21 @@ def test_stylists_search(auth_client, stylist):
 
 
 def test_dashboard_redirects_to_login_when_unauthenticated(client):
-    """No admin_email cookie -> redirect to /admin/login."""
+    """Anonymous request to /dashboard -> redirect to /login."""
     response = client.get("/dashboard")
     assert response.status_code == 302
-    assert "/admin/login" in response.location
+    assert "/login" in response.location
 
 
-def test_dashboard_redirects_to_login_for_non_allowlisted_admin_email(client):
-    """admin_email set but not on the allowlist -> redirect to /admin/login (no trust)."""
-    with client.session_transaction() as sess:
-        sess["admin_email"] = "random@evil.example"
-    response = client.get("/dashboard")
-    assert response.status_code == 302
-    assert "/admin/login" in response.location
+def test_dashboard_blocks_non_admin_user(auth_client):
+    """A signed-in non-admin gets 403 + the admin_unauthorized page."""
+    response = auth_client.get("/dashboard")
+    assert response.status_code == 403
+    assert b"Admin access required" in response.data
 
 
-def test_dashboard_allowed_for_allowlisted_admin(admin_client):
-    """admin_email on the allowlist -> /dashboard redirects to the Experiment tab, which renders."""
+def test_dashboard_allowed_for_admin_user(admin_client):
+    """An admin user lands on the Experiment tab via /dashboard -> /dashboard/experiment."""
     response = admin_client.get("/dashboard")
     assert response.status_code == 302
     assert "/dashboard/experiment" in response.location
@@ -210,15 +206,8 @@ def test_dashboard_allowed_for_allowlisted_admin(admin_client):
     assert followed.status_code == 200
 
 
-def test_dashboard_blocks_participant_session(auth_client):
-    """A consented participant (session_id only, no admin_email) cannot access /dashboard."""
-    response = auth_client.get("/dashboard")
-    assert response.status_code == 302
-    assert "/admin/login" in response.location
-
-
-def test_admin_cookie_independent_of_session_id(app, admin_client):
-    """An admin cookie without a session_id can access dashboards and /api/admin/export."""
+def test_admin_user_does_not_need_session_id(app, admin_client):
+    """An admin user with no session_id cookie can still access dashboards and export."""
     with admin_client.session_transaction() as sess:
         assert "session_id" not in sess
     assert admin_client.get("/dashboard/experiment").status_code == 200
@@ -232,7 +221,7 @@ def test_admin_cookie_independent_of_session_id(app, admin_client):
 
 
 def test_dashboard_redirects_to_experiment_for_admin(admin_client):
-    """GET /dashboard redirects admins to the Experiment tab (new default landing)."""
+    """GET /dashboard redirects admins to the Experiment tab (current default landing)."""
     response = admin_client.get("/dashboard")
     assert response.status_code == 302
     assert "/dashboard/experiment" in response.location
@@ -258,20 +247,20 @@ def test_operations_dashboard_renders_for_admin(admin_client):
 def test_experiment_dashboard_blocks_unauthenticated(client):
     response = client.get("/dashboard/experiment")
     assert response.status_code == 302
-    assert "/admin/login" in response.location
+    assert "/login" in response.location
 
 
 def test_operations_dashboard_blocks_unauthenticated(client):
     response = client.get("/dashboard/operations")
     assert response.status_code == 302
-    assert "/admin/login" in response.location
+    assert "/login" in response.location
 
 
-def test_experiment_dashboard_blocks_participant_session(auth_client):
-    """A consented participant cannot access the Experiment dashboard."""
+def test_experiment_dashboard_blocks_non_admin_user(auth_client):
+    """A signed-in non-admin gets 403 on the Experiment dashboard."""
     response = auth_client.get("/dashboard/experiment")
-    assert response.status_code == 302
-    assert "/admin/login" in response.location
+    assert response.status_code == 403
+    assert b"Admin access required" in response.data
 
 
 def test_experiment_dashboard_renders_with_no_data(admin_client):
@@ -301,11 +290,11 @@ def test_operations_dashboard_does_not_include_export_buttons(admin_client):
 def test_admin_export_redirects_when_unauthenticated(client):
     response = client.get("/api/admin/export")
     assert response.status_code == 302
-    assert "/admin/login" in response.location
+    assert "/login" in response.location
 
 
 def test_admin_export_json(app, admin_client):
-    _consent_and_login(app, admin_client)
+    _make_participant_data(app)
     response = admin_client.get("/api/admin/export?format=json")
     assert response.status_code == 200
 
@@ -331,7 +320,7 @@ def test_admin_export_json(app, admin_client):
 
 
 def test_admin_export_csv(app, admin_client):
-    _consent_and_login(app, admin_client)
+    _make_participant_data(app)
     response = admin_client.get("/api/admin/export")
     assert response.status_code == 200
     assert response.headers["Content-Type"].startswith("text/csv")
@@ -344,8 +333,8 @@ def test_admin_export_csv(app, admin_client):
 
 def test_admin_export_one_row_per_participant(app, admin_client):
     """Export emits one row per unique session_id, not per ExperimentSession row."""
-    _consent_and_login(app, admin_client, experiment_group="control")
-    _consent_and_login(app, admin_client, experiment_group="experimental")
+    _make_participant_data(app, experiment_group="control")
+    _make_participant_data(app, experiment_group="experimental")
     response = admin_client.get("/api/admin/export?format=json")
     data = response.get_json()
     assert len(data) == 2
@@ -471,6 +460,7 @@ def test_api_rate_updates_existing(auth_client, generated_image, app):
 
 
 def test_api_session_start_unconsented(client):
+    """No session_id cookie -> consent_required redirects to /consent (Sa2 will delete this route)."""
     response = client.post("/api/session/start")
     assert response.status_code == 302
 
@@ -543,13 +533,13 @@ def test_api_session_end_computes_duration(auth_client, app):
 # ---------------------------------------------------------------------------
 
 
-def test_api_recommend_redirect_unconsented(client):
+def test_api_recommend_unauthenticated_returns_401(client):
     response = client.post(
         "/api/recommend",
         data={"photo": (make_test_image(), "test.jpg")},
         content_type="multipart/form-data",
     )
-    assert response.status_code == 302
+    assert response.status_code == 401
 
 
 def test_api_recommend_control_group_forbidden(auth_client):

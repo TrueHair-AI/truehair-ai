@@ -1,3 +1,4 @@
+import secrets
 import uuid
 from datetime import datetime, timezone
 
@@ -10,6 +11,7 @@ from app.models import (
     GeneratedImage,
     Hairstyle,
     Stylist,
+    User,
     db,
 )
 from config import Config
@@ -69,6 +71,21 @@ def _make_consented_session(app, experiment_group="control"):
     return sid
 
 
+def _make_user(app, email="user@example.com", is_admin=False):
+    """Create a User row and return its id."""
+    with app.app_context():
+        u = User(
+            google_sub=f"test-{secrets.token_hex(8)}",
+            email=email,
+            display_name=email.split("@")[0].title(),
+            is_admin=is_admin,
+            storage_salt=secrets.token_hex(32),
+        )
+        db.session.add(u)
+        db.session.commit()
+        return u.id
+
+
 @pytest.fixture
 def session_id(app):
     """Create a consented session and return the session_id."""
@@ -77,28 +94,37 @@ def session_id(app):
 
 @pytest.fixture
 def auth_client(app, session_id):
-    """Test client with a consented session cookie set."""
+    """Test client signed in as a non-admin user, with a control-group session.
+
+    Sets both `user_id` (for login_required) and `session_id` (for the
+    legacy experimental_group lookup that lives until F2 strips it).
+    """
+    user_id = _make_user(app, email="user@example.com")
     client = app.test_client()
     with client.session_transaction() as sess:
+        sess["user_id"] = user_id
         sess["session_id"] = session_id
     return client
 
 
 @pytest.fixture
 def admin_client(app):
-    """Test client with an allowlisted admin_email cookie set (no session_id)."""
+    """Test client signed in as an admin user (User.is_admin=True)."""
+    user_id = _make_user(app, email="admin@example.com", is_admin=True)
     client = app.test_client()
     with client.session_transaction() as sess:
-        sess["admin_email"] = "admin@example.com"
+        sess["user_id"] = user_id
     return client
 
 
 @pytest.fixture
 def experimental_client(app):
-    """Test client consented into the experimental group."""
+    """Test client signed in as a non-admin user assigned to the experimental group."""
     sid = _make_consented_session(app, experiment_group="experimental")
+    user_id = _make_user(app, email="experimental@example.com")
     client = app.test_client()
     with client.session_transaction() as sess:
+        sess["user_id"] = user_id
         sess["session_id"] = sid
     return client, sid
 
