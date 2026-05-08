@@ -881,3 +881,360 @@ def test_api_rate_other_session_image_403(app, auth_client, hairstyle):
         content_type="application/json",
     )
     assert response.status_code == 403
+
+
+# ---------------------------------------------------------------------------
+# POST /api/analyze-photo
+# ---------------------------------------------------------------------------
+
+
+def _mock_analyze_response(payload):
+    """Build a mocked genai client whose generate_content returns `payload` as JSON."""
+    import json as _json
+
+    mock_client = MagicMock()
+    mock_response = MagicMock()
+    mock_response.text = _json.dumps(payload)
+    mock_client.models.generate_content.return_value = mock_response
+    return mock_client
+
+
+def test_api_analyze_photo_unauthenticated_returns_401(client):
+    response = client.post(
+        "/api/analyze-photo",
+        data={"photo": (make_test_image(), "test.jpg")},
+        content_type="multipart/form-data",
+    )
+    assert response.status_code == 401
+
+
+def test_api_analyze_photo_missing_photo(auth_client):
+    response = auth_client.post(
+        "/api/analyze-photo",
+        data={},
+        content_type="multipart/form-data",
+    )
+    assert response.status_code == 400
+
+
+@patch("app.routes.main.get_genai_client")
+def test_api_analyze_photo_no_gemini_client(mock_get_client, auth_client):
+    mock_get_client.return_value = None
+    response = auth_client.post(
+        "/api/analyze-photo",
+        data={"photo": (make_test_image(), "test.jpg")},
+        content_type="multipart/form-data",
+    )
+    assert response.status_code == 500
+
+
+@patch("app.routes.main.get_genai_client")
+def test_api_analyze_photo_success(mock_get_client, auth_client):
+    mock_get_client.return_value = _mock_analyze_response(
+        {
+            "photo_validation_status": "ok",
+            "hair_type": "Type 4C coily",
+            "length": "medium",
+            "thickness": "thick",
+            "color": "dark brown",
+            "notes": "natural texture, no chemical processing",
+            "raw_observation": "Type 4C hair, medium length, dark brown, naturally curly.",
+        }
+    )
+
+    response = auth_client.post(
+        "/api/analyze-photo",
+        data={"photo": (make_test_image(), "test.jpg")},
+        content_type="multipart/form-data",
+    )
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["status"] == "success"
+    assert data["photo_validation_status"] == "ok"
+    assert data["raw_observation"].startswith("Type 4C")
+    assert data["hair_type"] == "Type 4C coily"
+
+
+@pytest.mark.parametrize(
+    "status,expected_phrase",
+    [
+        ("no_face", b"face"),
+        ("multiple_faces", b"more than one"),
+        ("non_human", b"person"),
+    ],
+)
+@patch("app.routes.main.get_genai_client")
+def test_api_analyze_photo_rejects_bad_validation(
+    mock_get_client, auth_client, status, expected_phrase
+):
+    mock_get_client.return_value = _mock_analyze_response(
+        {
+            "photo_validation_status": status,
+            "hair_type": "",
+            "length": "",
+            "thickness": "",
+            "color": "",
+            "notes": "",
+            "raw_observation": "",
+        }
+    )
+
+    response = auth_client.post(
+        "/api/analyze-photo",
+        data={"photo": (make_test_image(), "test.jpg")},
+        content_type="multipart/form-data",
+    )
+    assert response.status_code == 400
+    body = response.get_json()
+    assert body["photo_validation_status"] == status
+    assert expected_phrase in response.data
+
+
+@patch("app.routes.main.get_genai_client")
+def test_api_analyze_photo_unknown_status_returns_500(mock_get_client, auth_client):
+    mock_get_client.return_value = _mock_analyze_response(
+        {
+            "photo_validation_status": "blurry",
+            "raw_observation": "",
+        }
+    )
+
+    response = auth_client.post(
+        "/api/analyze-photo",
+        data={"photo": (make_test_image(), "test.jpg")},
+        content_type="multipart/form-data",
+    )
+    assert response.status_code == 500
+
+
+@patch("app.routes.main.get_genai_client")
+def test_api_analyze_photo_empty_observation_returns_500(mock_get_client, auth_client):
+    """An 'ok' status with an empty observation is a server error, not a user error."""
+    mock_get_client.return_value = _mock_analyze_response(
+        {"photo_validation_status": "ok", "raw_observation": ""}
+    )
+
+    response = auth_client.post(
+        "/api/analyze-photo",
+        data={"photo": (make_test_image(), "test.jpg")},
+        content_type="multipart/form-data",
+    )
+    assert response.status_code == 500
+
+
+# ---------------------------------------------------------------------------
+# POST /api/refine-observation
+# ---------------------------------------------------------------------------
+
+
+def test_api_refine_observation_unauthenticated_returns_401(client):
+    response = client.post(
+        "/api/refine-observation",
+        json={"original_observation": "Short hair", "user_edits": "Going grey"},
+    )
+    assert response.status_code == 401
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"user_edits": "Going grey"},
+        {"original_observation": "Short hair"},
+        {"original_observation": "  ", "user_edits": "Going grey"},
+        {"original_observation": "Short hair", "user_edits": "  "},
+    ],
+)
+def test_api_refine_observation_missing_fields(auth_client, payload):
+    response = auth_client.post("/api/refine-observation", json=payload)
+    assert response.status_code == 400
+
+
+def test_api_refine_observation_rejects_oversized_input(auth_client):
+    response = auth_client.post(
+        "/api/refine-observation",
+        json={
+            "original_observation": "A" * 4001,
+            "user_edits": "Going grey",
+        },
+    )
+    assert response.status_code == 400
+
+    response = auth_client.post(
+        "/api/refine-observation",
+        json={
+            "original_observation": "Short hair",
+            "user_edits": "B" * 2001,
+        },
+    )
+    assert response.status_code == 400
+
+
+@patch("app.routes.main.get_genai_client")
+def test_api_refine_observation_success(mock_get_client, auth_client):
+    mock_get_client.return_value = _mock_analyze_response(
+        {"raw_observation": "Type 4C hair, medium length, naturally grey."}
+    )
+
+    response = auth_client.post(
+        "/api/refine-observation",
+        json={
+            "original_observation": "Type 4C hair, medium length, dark brown.",
+            "user_edits": "My natural color is grey.",
+        },
+    )
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["status"] == "success"
+    assert "grey" in data["raw_observation"]
+
+
+@patch("app.routes.main.get_genai_client")
+def test_api_refine_observation_gemini_failure_returns_500(
+    mock_get_client, auth_client
+):
+    mock_client = MagicMock()
+    mock_client.models.generate_content.side_effect = Exception("API error")
+    mock_get_client.return_value = mock_client
+
+    response = auth_client.post(
+        "/api/refine-observation",
+        json={
+            "original_observation": "Short hair",
+            "user_edits": "Going grey",
+        },
+    )
+    assert response.status_code == 500
+
+
+# ---------------------------------------------------------------------------
+# Observation propagation through /api/recommend and /api/generate
+# ---------------------------------------------------------------------------
+
+
+@patch("app.routes.main.get_genai_client")
+def test_api_recommend_passes_observation_to_prompt(
+    mock_get_client, app, experimental_client, hairstyle
+):
+    """Server should embed the observation form field into the Gemini prompt."""
+    import json as _json
+
+    client, _sid = experimental_client
+    mock_client = MagicMock()
+    mock_response = MagicMock()
+    mock_response.text = _json.dumps(
+        {"recommendations": [{"hairstyle_id": hairstyle.id, "reasoning": "Suits you."}]}
+    )
+    mock_client.models.generate_content.return_value = mock_response
+    mock_get_client.return_value = mock_client
+
+    observation = "Type 4C hair, planning a hair transplant."
+    response = client.post(
+        "/api/recommend",
+        data={
+            "photo": (make_test_image(), "test.jpg"),
+            "observation": observation,
+        },
+        content_type="multipart/form-data",
+    )
+    assert response.status_code == 200
+    call_kwargs = mock_client.models.generate_content.call_args.kwargs
+    prompt_text = call_kwargs["contents"][0]
+    assert observation in prompt_text
+    assert "authoritative" in prompt_text.lower()
+
+
+@patch("app.routes.main.get_genai_client")
+def test_api_recommend_caps_at_four(mock_get_client, app, experimental_client):
+    """Even if Gemini returns more than 4, only the first 4 are persisted/returned."""
+    import json as _json
+    from app.models import Hairstyle, Recommendation
+
+    client, sid = experimental_client
+    with app.app_context():
+        for i in range(6):
+            db.session.add(
+                Hairstyle(
+                    name=f"Cut {i}",
+                    description=f"Style {i}",
+                    category="MODERN",
+                    image_url=f"/static/cut{i}.png",
+                )
+            )
+        db.session.commit()
+        all_styles = Hairstyle.query.all()
+
+    mock_client = MagicMock()
+    mock_response = MagicMock()
+    mock_response.text = _json.dumps(
+        {
+            "recommendations": [
+                {"hairstyle_id": h.id, "reasoning": f"Reason for {h.name}"}
+                for h in all_styles
+            ]
+        }
+    )
+    mock_client.models.generate_content.return_value = mock_response
+    mock_get_client.return_value = mock_client
+
+    response = client.post(
+        "/api/recommend",
+        data={"photo": (make_test_image(), "test.jpg")},
+        content_type="multipart/form-data",
+    )
+    assert response.status_code == 200
+    data = response.get_json()
+    assert len(data["recommendations"]) == 4
+
+    with app.app_context():
+        assert Recommendation.query.filter_by(session_id=sid).count() == 4
+
+
+def test_api_recommend_rejects_oversized_observation(experimental_client):
+    client, _sid = experimental_client
+    response = client.post(
+        "/api/recommend",
+        data={
+            "photo": (make_test_image(), "test.jpg"),
+            "observation": "A" * 4001,
+        },
+        content_type="multipart/form-data",
+    )
+    assert response.status_code == 400
+
+
+@patch("app.routes.main.get_genai_client")
+def test_api_generate_passes_observation_to_prompt(
+    mock_get_client, app, auth_client, hairstyle
+):
+    """Generate prompt should include the observation as authoritative."""
+    mock_get_client.return_value = _mock_generate_client()
+
+    observation = "Currently bald, planning a hair transplant."
+    response = auth_client.post(
+        "/api/generate",
+        data={
+            "photo": (make_test_image(), "test.jpg"),
+            "hairstyle_id": str(hairstyle.id),
+            "observation": observation,
+        },
+        content_type="multipart/form-data",
+    )
+    assert response.status_code == 200
+
+    call_kwargs = mock_get_client.return_value.models.generate_content.call_args.kwargs
+    prompt_text = call_kwargs["contents"][0]
+    assert observation in prompt_text
+    assert "authoritative" in prompt_text.lower()
+
+
+def test_api_generate_rejects_oversized_observation(auth_client, hairstyle):
+    response = auth_client.post(
+        "/api/generate",
+        data={
+            "photo": (make_test_image(), "test.jpg"),
+            "hairstyle_id": str(hairstyle.id),
+            "observation": "A" * 4001,
+        },
+        content_type="multipart/form-data",
+    )
+    assert response.status_code == 400
