@@ -717,6 +717,16 @@
                 item.dataset.reasoning = reasoning;
             }
         });
+
+        // Reorder so recommended cards lead the catalog in recommendation order.
+        const grid = document.getElementById("hairstyle-grid");
+        let insertPos = 0;
+        state.recommendations.forEach(rec => {
+            const item = grid.querySelector(`.hairstyle-item[data-id="${rec.hairstyle_id}"]`);
+            if (!item) return;
+            grid.insertBefore(item, grid.children[insertPos]);
+            insertPos++;
+        });
     }
 
     function setFilterButtonState(activeButton) {
