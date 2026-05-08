@@ -81,6 +81,32 @@ body {
     justify-content: center;
 }
 
+.th-stylist-action {
+    background-color: #2a2a2d;
+    transition: background-color 0.15s ease, transform 0.12s ease;
+}
+
+.th-stylist-action i {
+    color: var(--th-text-muted);
+    transition: color 0.15s ease;
+}
+
+.th-stylist-action:hover,
+.th-stylist-action:focus-visible {
+    background-color: var(--th-yellow);
+    transform: translateY(-1px);
+}
+
+.th-stylist-action:hover i,
+.th-stylist-action:focus-visible i {
+    color: #000;
+}
+
+.th-stylist-action:focus-visible {
+    outline: 2px solid var(--th-yellow-hover);
+    outline-offset: 2px;
+}
+
 /* Custom Scrollbar */
 ::-webkit-scrollbar {
     width: 8px;

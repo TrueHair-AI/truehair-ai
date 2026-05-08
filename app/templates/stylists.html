@@ -86,21 +86,22 @@
                 <div class="card-footer bg-transparent border-0 p-3 d-flex justify-content-between">
                     {% if stylist.instagram %}
                     <a href="{{ stylist.instagram }}"
-                        class="btn btn-dark w-100 border-0 me-1 d-flex justify-content-center align-items-center rounded-3 p-2"
-                        style="background-color: #2a2a2d;" title="Instagram"><i
+                        class="btn btn-dark th-stylist-action w-100 border-0 me-1 d-flex justify-content-center align-items-center rounded-3 p-2" title="Instagram"><i
                             class="bi bi-instagram text-secondary"></i></a>
                     {% endif %}
+                    {% if stylist.google_maps_url %}
+                    <a href="{{ stylist.google_maps_url }}" target="_blank" rel="noopener"
+                        class="btn btn-dark th-stylist-action w-100 border-0 mx-1 d-flex justify-content-center align-items-center rounded-3 p-2" title="Open in Google Maps"><i
+                            class="bi bi-geo-alt text-secondary"></i></a>
+                    {% endif %}
                     <a href="{{ stylist.website if stylist.website else '#' }}" target="_blank"
-                        class="btn btn-dark w-100 border-0 mx-1 d-flex justify-content-center align-items-center rounded-3 p-2"
-                        style="background-color: #2a2a2d;" title="Website"><i
+                        class="btn btn-dark th-stylist-action w-100 border-0 mx-1 d-flex justify-content-center align-items-center rounded-3 p-2" title="Website"><i
                             class="bi bi-globe2 text-secondary"></i></a>
                     <a href="{{ 'mailto:' + stylist.email if stylist.email else '#' }}"
-                        class="btn btn-dark w-100 border-0 mx-1 d-flex justify-content-center align-items-center rounded-3 p-2"
-                        style="background-color: #2a2a2d;" title="Email"><i
+                        class="btn btn-dark th-stylist-action w-100 border-0 mx-1 d-flex justify-content-center align-items-center rounded-3 p-2" title="Email"><i
                             class="bi bi-envelope text-secondary"></i></a>
                     <a href="{{ 'tel:' + stylist.phone if stylist.phone else '#' }}"
-                        class="btn btn-dark w-100 border-0 ms-1 d-flex justify-content-center align-items-center rounded-3 p-2"
-                        style="background-color: #2a2a2d;" title="Phone"><i
+                        class="btn btn-dark th-stylist-action w-100 border-0 ms-1 d-flex justify-content-center align-items-center rounded-3 p-2" title="Phone"><i
                             class="bi bi-telephone text-secondary"></i></a>
                 </div>
             </div>

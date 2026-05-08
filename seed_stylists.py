@@ -1,9 +1,12 @@
-import urllib.parse
-
 from app import create_app
 from app.models import Stylist, db
 
-# Stylist initial data
+# Stylist initial data. `image_filename` is a file under
+# `app/static/images/stylists/`; the seeder writes the corresponding
+# `/static/images/stylists/<file>` path into `image_url` so the template's
+# `<img src>` works without extra Jinja plumbing.
+STATIC_IMAGE_DIR = "/static/images/stylists"
+
 stylists_data = [
     {
         "name": "Supercuts",
@@ -12,6 +15,8 @@ stylists_data = [
         "instagram": "https://www.instagram.com/supercuts/",
         "email": "",
         "specialties": "Haircut, Color",
+        "image_filename": "supercuts.png",
+        "google_maps_url": "https://maps.app.goo.gl/M38NdkvxgUVmfxDQA",
     },
     {
         "name": "Salon Renu & Co",
@@ -20,6 +25,8 @@ stylists_data = [
         "instagram": "https://www.instagram.com/salonrenu/",
         "email": "",
         "specialties": "Haircut, Styling",
+        "image_filename": "salon-renu.png",
+        "google_maps_url": "https://maps.app.goo.gl/6FjWrbiGHwQf9qwj6",
     },
     {
         "name": "Salon LaFleur",
@@ -28,6 +35,8 @@ stylists_data = [
         "instagram": "https://www.instagram.com/salon.lafleur.waterville/",
         "email": "",
         "specialties": "Haircut",
+        "image_filename": "salon-lafleur.png",
+        "google_maps_url": "https://maps.app.goo.gl/qXDzKWivm7AeeobJ6",
     },
     {
         "name": "Couture Styles",
@@ -36,6 +45,8 @@ stylists_data = [
         "instagram": "",
         "email": "",
         "specialties": "Haircut, Braids",
+        "image_filename": "couture-styles.png",
+        "google_maps_url": "https://maps.app.goo.gl/JXptr6Wczb2ouhVU8",
     },
     {
         "name": "People's Salon & Spa",
@@ -44,6 +55,8 @@ stylists_data = [
         "instagram": "https://www.instagram.com/peoplessalonspa/",
         "email": "",
         "specialties": "Haircut, Spa",
+        "image_filename": "peoples-salon.png",
+        "google_maps_url": "https://maps.app.goo.gl/g9sHsYKhHFXVyihx9",
     },
     {
         "name": "Evolution",
@@ -52,6 +65,8 @@ stylists_data = [
         "instagram": "",
         "email": "",
         "specialties": "Balayage, Locs",
+        "image_filename": "evolution.jpg",
+        "google_maps_url": "https://maps.app.goo.gl/sAkd5A46Bi3H3EF6A",
     },
     {
         "name": "SmartStyle",
@@ -60,6 +75,8 @@ stylists_data = [
         "instagram": "https://www.instagram.com/smartstylesalon/",
         "email": "",
         "specialties": "Haircut",
+        "image_filename": "smartstyle.png",
+        "google_maps_url": "https://maps.app.goo.gl/qPCArnfgbeDhLqgj9",
     },
     {
         "name": "Hair Studio One",
@@ -68,6 +85,8 @@ stylists_data = [
         "instagram": "",
         "email": "",
         "specialties": "Haircut, Styling",
+        "image_filename": "hair-studio-one.png",
+        "google_maps_url": "https://maps.app.goo.gl/uHEQtApCyHYNe1uX9",
     },
     {
         "name": "Apollo Salon & Spa",
@@ -76,6 +95,8 @@ stylists_data = [
         "instagram": "https://www.instagram.com/apollosalonspa/",
         "email": "",
         "specialties": "Haircut, Spa",
+        "image_filename": "apollo.png",
+        "google_maps_url": "https://maps.app.goo.gl/GgQ24pw9qeeNTcAf8",
     },
     {
         "name": "Heavenly Spa and Cosmetic Ink",
@@ -84,6 +105,8 @@ stylists_data = [
         "instagram": "https://www.instagram.com/heavenlyspame/",
         "email": "",
         "specialties": "Spa, Cosmetics",
+        "image_filename": "heavenly-spa.png",
+        "google_maps_url": "https://maps.app.goo.gl/RJ9PL7VsYV8YAr6o8",
     },
     {
         "name": "The Hair Gallery",
@@ -92,6 +115,8 @@ stylists_data = [
         "instagram": "https://www.instagram.com/thehairgallerymaine/",
         "email": "",
         "specialties": "Haircut, Styling",
+        "image_filename": "hair-gallery.jpg",
+        "google_maps_url": "https://maps.app.goo.gl/3A2zzLnQAXEsA8H36",
     },
 ]
 
@@ -107,12 +132,6 @@ def seed_database():
 
         print("Seeding stylists...")
         for data in stylists_data:
-            # Generate placeholder image URL
-            name_encoded = urllib.parse.quote_plus(data["name"])
-            image_url = (
-                f"https://placehold.co/400x300/1E1F23/A1A1AA?text={name_encoded}"
-            )
-
             stylist = Stylist(
                 name=data["name"],
                 phone=data["phone"],
@@ -120,7 +139,8 @@ def seed_database():
                 instagram=data["instagram"],
                 email=data["email"],
                 specialties=data["specialties"],
-                image_url=image_url,
+                image_url=f"{STATIC_IMAGE_DIR}/{data['image_filename']}",
+                google_maps_url=data["google_maps_url"],
             )
             db.session.add(stylist)
 
