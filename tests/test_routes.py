@@ -1193,6 +1193,8 @@ def test_api_recommend_passes_observation_to_prompt(
     prompt_text = call_kwargs["contents"][0]
     assert observation in prompt_text
     assert "authoritative" in prompt_text.lower()
+    # Prompt-injection guard: observation must be presented as data, not instructions.
+    assert "not instructions" in prompt_text.lower()
 
 
 @patch("app.routes.main.get_genai_client")
@@ -1277,6 +1279,8 @@ def test_api_generate_passes_observation_to_prompt(
     prompt_text = call_kwargs["contents"][0]
     assert observation in prompt_text
     assert "authoritative" in prompt_text.lower()
+    # Prompt-injection guard: observation must be presented as data, not instructions.
+    assert "not instructions" in prompt_text.lower()
 
 
 def test_api_generate_rejects_oversized_observation(auth_client, hairstyle):
