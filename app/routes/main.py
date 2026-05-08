@@ -914,7 +914,15 @@ Respond with a JSON object in this exact format:
 @main_bp.route("/api/generate", methods=["POST"])
 @login_required
 def generate():
-    """Generate a new image with the selected hairstyle using Gemini."""
+    """Generate a new image using Gemini.
+
+    Two mutually exclusive paths:
+    - Catalog: caller supplies `hairstyle_id` and we transplant that named
+      style onto the user's photo.
+    - Custom reference: caller supplies a `reference_photo` multipart field
+      (a hairstyle they already like) and we transplant the hair from that
+      onto the user's photo. `hairstyle_id` is ignored on this path.
+    """
     # IRB compliance: photo bytes must not be logged or persisted.
     # Do not log request.files, request.data, or photo_bytes.
     import json
@@ -925,14 +933,18 @@ def generate():
     if not photo_file:
         return jsonify({"error": "Missing photo"}), 400
 
-    hairstyle_id = request.form.get("hairstyle_id", type=int)
+    reference_file = request.files.get("reference_photo")
+    using_reference = reference_file is not None
 
-    if not hairstyle_id:
-        return jsonify({"error": "Select a hairstyle"}), 400
+    hairstyle = None
+    if not using_reference:
+        hairstyle_id = request.form.get("hairstyle_id", type=int)
+        if not hairstyle_id:
+            return jsonify({"error": "Select a hairstyle"}), 400
 
-    hairstyle = db.session.get(Hairstyle, hairstyle_id)
-    if not hairstyle:
-        return jsonify({"error": "Invalid hairstyle"}), 400
+        hairstyle = db.session.get(Hairstyle, hairstyle_id)
+        if not hairstyle:
+            return jsonify({"error": "Invalid hairstyle"}), 400
 
     observation = (request.form.get("observation") or "").strip()
     if len(observation) > MAX_OBSERVATION_LENGTH:
@@ -942,23 +954,30 @@ def generate():
     if err:
         return err
 
+    reference_photo = None
+    if using_reference:
+        reference_photo, err = _load_validated_photo(reference_file)
+        if err:
+            return err
+
     client = get_genai_client()
     if not client:
         return jsonify({"error": "Internal server error"}), 500
 
-    exp = (
-        ExperimentSession.query.filter_by(session_id=sid)
-        .order_by(ExperimentSession.started_at.desc())
-        .first()
-    )
-
     was_ai_recommended = None
-    if exp and exp.experiment_group == "experimental":
-        rec_exists = Recommendation.query.filter_by(
-            session_id=sid,
-            hairstyle_id=hairstyle_id,
-        ).first()
-        was_ai_recommended = rec_exists is not None
+    if not using_reference:
+        exp = (
+            ExperimentSession.query.filter_by(session_id=sid)
+            .order_by(ExperimentSession.started_at.desc())
+            .first()
+        )
+
+        if exp and exp.experiment_group == "experimental":
+            rec_exists = Recommendation.query.filter_by(
+                session_id=sid,
+                hairstyle_id=hairstyle.id,
+            ).first()
+            was_ai_recommended = rec_exists is not None
 
     try:
         # Same data-not-instructions wrapping as /api/recommend.
@@ -970,16 +989,26 @@ def generate():
             if observation
             else ""
         )
-        prompt = (
-            f"Edit this person's photo to give them a '{hairstyle.name}' hairstyle. "
-            f"{hairstyle.description}. "
-            f"Keep the person's face, skin tone, and body exactly the same. "
-            f"Only change their hair.{observation_clause} Return the edited photo."
-        )
+        if using_reference:
+            prompt = (
+                "Edit this person's photo to match the hairstyle in the reference image. "
+                "The reference image shows just the hairstyle. "
+                "Keep the person's face, skin tone, and body exactly the same. "
+                f"Only change their hair.{observation_clause} Return the edited photo."
+            )
+            contents = [prompt, user_photo, reference_photo]
+        else:
+            prompt = (
+                f"Edit this person's photo to give them a '{hairstyle.name}' hairstyle. "
+                f"{hairstyle.description}. "
+                f"Keep the person's face, skin tone, and body exactly the same. "
+                f"Only change their hair.{observation_clause} Return the edited photo."
+            )
+            contents = [prompt, user_photo]
 
         response = client.models.generate_content(
             model="gemini-2.5-flash-image",
-            contents=[prompt, user_photo],
+            contents=contents,
             config=types.GenerateContentConfig(
                 response_modalities=["IMAGE"],
                 http_options=types.HttpOptions(timeout=120000),
@@ -1001,8 +1030,9 @@ def generate():
         gen_img = GeneratedImage(
             session_id=sid,
             user_id=session.get("user_id"),
-            hairstyle_id=hairstyle.id,
+            hairstyle_id=hairstyle.id if hairstyle else None,
             was_ai_recommended=was_ai_recommended,
+            used_custom_reference=using_reference,
         )
         db.session.add(gen_img)
         db.session.commit()

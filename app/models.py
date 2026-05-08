@@ -84,6 +84,9 @@ class GeneratedImage(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=True)
     hairstyle_id = db.Column(db.Integer, db.ForeignKey("hairstyle.id"), nullable=True)
     was_ai_recommended = db.Column(db.Boolean, nullable=True)
+    used_custom_reference = db.Column(
+        db.Boolean, nullable=False, server_default=db.false(), default=False
+    )
     created_at = db.Column(
         db.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
