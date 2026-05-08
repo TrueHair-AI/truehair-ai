@@ -474,7 +474,7 @@
         observationEditInput.value = '';
     }
 
-    removeBtn.addEventListener('click', () => {
+    function clearPhoto() {
         state.photoFile = null;
         state.observation = null;
         previewImg.src = '';
@@ -482,7 +482,9 @@
         placeholder.classList.remove('d-none');
         imageInput.value = '';
         resetObservationUI();
-    });
+    }
+
+    removeBtn.addEventListener('click', clearPhoto);
 
     // --- /api/analyze-photo (auto-fires after upload) ---
     async function analyzePhoto() {
@@ -516,7 +518,10 @@
         }
     }
 
-    retryAnalyzeBtn.addEventListener('click', () => analyzePhoto());
+    retryAnalyzeBtn.addEventListener('click', () => {
+        clearPhoto();
+        imageInput.click();
+    });
 
     // --- Observation edit / save (refine-observation) ---
     observationEditBtn.addEventListener('click', () => {
