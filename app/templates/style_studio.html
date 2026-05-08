@@ -630,18 +630,29 @@
             state.recommendations = data.recommendations;
             applyRecommendationHighlights();
             showPhase("catalog");
+            // Pre-generate previews for the top recommendations only. Vertex AI
+            // image-edit reliably 429s above ~2 concurrent calls per project,
+            // so we cap fan-out at PREGEN_LIMIT and let the rest fall through
+            // to live /api/generate when the user actually clicks Generate.
+            preGenerateTopRecommendations(state.recommendations);
         } catch (e) {
             showAnalyzingError("Network error. Please try again.");
         }
     });
 
-    // --- Lazy hover-triggered pre-generation ---
-    // We deliberately do NOT fan out generations on rec-success. The first
-    // hover/focus on a recommended card kicks off a single /api/generate; the
-    // result is cached so subsequent hovers and the eventual Generate-button
-    // click reuse it instantly. The catalog appears immediately, and the only
-    // wait the user sees is the spinner over the AI panel's thumbnail when
-    // they choose to inspect a specific recommendation.
+    // --- Pre-generation for top recommendations ---
+    // Capped at PREGEN_LIMIT styles. Vertex AI image-edit is flaky under
+    // higher parallelism (text-only fallbacks, 429 RESOURCE_EXHAUSTED), and 2
+    // concurrent calls is the largest fan-out we've measured to land
+    // reliably. Recommendations beyond the cap show the catalog placeholder
+    // in the AI panel and trigger a live generation when the user clicks the
+    // Generate button.
+    const PREGEN_LIMIT = 2;
+    function preGenerateTopRecommendations(recommendations) {
+        if (!state.photoFile || !recommendations?.length) return;
+        recommendations.slice(0, PREGEN_LIMIT).forEach(r => preGenerateOne(r.hairstyle_id));
+    }
+
     function preGenerateOne(hairstyleId) {
         const idStr = String(hairstyleId);
         const existing = state.preGenerated.get(idStr);
@@ -782,10 +793,15 @@
         aiPanelContent.classList.add('d-flex');
         state.aiPanelCurrentId = id;
 
-        // Kick off (or reuse) pre-generation for this style. If it's already
-        // resolved we can swap the thumb in synchronously; otherwise show a
-        // spinner over the catalog placeholder until the call lands.
-        const entry = preGenerateOne(id);
+        // Read-only cache lookup: only the top PREGEN_LIMIT recommendations
+        // get pre-generated, so most hovers fall through to the catalog
+        // placeholder. Don't kick off a generation here — that would
+        // re-introduce the 429 storm we hit when fanning out to all 4 recs.
+        const entry = state.preGenerated.get(id);
+        if (!entry) {
+            setPanelSpinner(false);
+            return;
+        }
         if (entry.result) {
             setPanelSpinner(false);
             if (entry.result.ok) aiPanelThumb.src = entry.result.blobUrl;
