@@ -11,7 +11,9 @@
             style="background-color: rgba(248, 205, 36, 0.1); border-color: rgba(248, 205, 36, 0.3) !important;">
             <i class="bi bi-stars"></i> TRANSFORMATION COMPLETE
         </div>
-        {% if latest_gen %}
+        {% if latest_gen and latest_gen.used_custom_reference %}
+        <h1 class="fw-bold mb-2 display-5 text-white">Your custom look is ready!</h1>
+        {% elif latest_gen and latest_gen.hairstyle %}
         <h1 class="fw-bold mb-2 display-5 text-white">The '{{ latest_gen.hairstyle.name }}' looks incredible!</h1>
         {% else %}
         <h1 class="fw-bold mb-2 display-5 text-white">Your new look is ready!</h1>
@@ -76,7 +78,7 @@
                 </a>
                 <a id="result-download"
                     href="#"
-                    {% if latest_gen %}data-download-filename="truehair_{{ latest_gen.hairstyle.name | replace(' ', '_') }}_{{ latest_gen.id }}.webp"{% endif %}
+                    {% if latest_gen %}data-download-filename="truehair_{{ (latest_gen.hairstyle.name if latest_gen.hairstyle else 'custom_reference') | replace(' ', '_') }}_{{ latest_gen.id }}.webp"{% endif %}
                     class="btn btn-dark border border-secondary border-opacity-50 rounded-3 d-flex align-items-center justify-content-center px-4 py-3 opacity-50 pointer-events-none"
                     style="background-color: #2a2a2d;" title="Download Result" aria-disabled="true">
                     <i class="bi bi-download text-white fs-5"></i>
@@ -106,8 +108,13 @@
                     <div class="mb-4">
                         <h6 class="text-yellow fw-bold mb-2">Selected Style</h6>
                         <div class="p-3 bg-dark bg-opacity-50 rounded-3 border border-secondary border-opacity-25">
+                            {% if latest_gen.used_custom_reference %}
+                            <div class="fw-bold text-white">Custom reference</div>
+                            <div class="text-secondary text-sm">Generated from a reference photo you uploaded.</div>
+                            {% elif latest_gen.hairstyle %}
                             <div class="fw-bold text-white">{{ latest_gen.hairstyle.name }}</div>
                             <div class="text-secondary text-sm">{{ latest_gen.hairstyle.description }}</div>
+                            {% endif %}
                         </div>
                     </div>
                     {% endif %}

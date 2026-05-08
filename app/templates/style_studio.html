@@ -137,6 +137,21 @@
         </div>
 
         <div class="row g-4 mb-5" id="hairstyle-grid">
+            <!-- Bring-your-own reference tile: peer to the catalog cards. Clicking
+                 opens a file picker; uploading a valid image fires /api/generate
+                 with reference_photo and skips catalog selection. -->
+            <div class="col-12 col-sm-6 col-md-4 col-lg-3 col-xl-2" id="reference-tile-wrapper">
+                <input type="file" id="reference-image-input" class="d-none" accept="image/png, image/jpeg, image/webp">
+                <div id="reference-tile"
+                    class="reference-tile rounded-4 position-relative overflow-hidden border border-secondary border-opacity-50 h-100 d-flex flex-column align-items-center justify-content-center text-center p-3"
+                    style="cursor: pointer; transition: all 0.2s ease; aspect-ratio: 1/1; border-style: dashed !important;"
+                    role="button" tabindex="0"
+                    aria-label="Bring your own reference photo">
+                    <i class="bi bi-cloud-upload text-yellow" style="font-size: 2rem;"></i>
+                    <div class="fw-bold text-white mt-2 text-sm">Bring your own reference</div>
+                    <div class="text-secondary mt-1" style="font-size: 0.75rem; line-height: 1.3;">Upload a photo of a hairstyle you like</div>
+                </div>
+            </div>
             {% for style in hairstyles %}
             <div class="col-12 col-sm-6 col-md-4 col-lg-3 col-xl-2 hairstyle-item" data-id="{{ style.id }}" data-category="{{ (style.category or 'UNCATEGORIZED') | upper }}" data-name="{{ style.name }}" data-description="{{ style.description or '' }}" tabindex="0">
                 <div class="style-card rounded-4 position-relative overflow-hidden border border-secondary border-opacity-25 h-100"
@@ -341,6 +356,23 @@
         transform: translateY(-4px);
         box-shadow: 0 8px 20px rgba(0,0,0,0.4);
     }
+
+    .reference-tile {
+        background-color: rgba(248, 205, 36, 0.04);
+    }
+
+    .reference-tile:hover,
+    .reference-tile:focus-visible {
+        transform: translateY(-4px);
+        box-shadow: 0 8px 20px rgba(0,0,0,0.4);
+        border-color: var(--th-yellow) !important;
+        background-color: rgba(248, 205, 36, 0.08);
+    }
+
+    .reference-tile.is-busy {
+        opacity: 0.6;
+        cursor: progress;
+    }
 </style>
 
 <script type="module">
@@ -352,6 +384,7 @@
         selectedHairstyleId: null,
         selectedHairstyleName: null,
         selectedHairstyleDesc: null,
+        referenceFile: null,            // user-uploaded reference image (catalog OR reference, not both)
         aiPanelClickedId: null,
         aiPanelCurrentId: null,         // currently displayed item id (hover or click)
         generatedImageId: null,         // set after /api/generate
@@ -406,6 +439,9 @@
     const categoryFilterButtons = document.querySelectorAll('.category-filter');
     const hairstyleItems = document.querySelectorAll('.hairstyle-item');
     
+    const referenceTile = document.getElementById('reference-tile');
+    const referenceImageInput = document.getElementById('reference-image-input');
+
     const tryAnotherBtn = document.getElementById('try-another-btn');
     const resultImg = document.getElementById('result-img');
     const resultImgModal = document.getElementById('result-image-modal');
@@ -946,36 +982,51 @@
     }
 
     // --- Phase 3 → 4 (Generate) ---
-    generateBtn.addEventListener("click", async () => {
-        if (!state.photoFile || !state.selectedHairstyleId) return;
+    async function runGenerate({ useReference }) {
+        if (!state.photoFile) return;
+        if (useReference) {
+            if (!state.referenceFile) return;
+        } else if (!state.selectedHairstyleId) {
+            return;
+        }
 
         generateBtn.disabled = true;
         btnText.textContent = "GENERATING (may take 1 min)...";
         btnSpinner.classList.remove('d-none');
-
-        const idStr = String(state.selectedHairstyleId);
+        if (useReference) referenceTile.classList.add('is-busy');
 
         try {
             let parsedId, blobUrl;
-            // If a pre-generation is in flight or already done for this style,
-            // reuse it instead of triggering another Gemini call.
-            const cached = state.preGenerated.get(idStr);
-            if (cached) {
-                const result = await cached.promise;
-                if (result?.ok) {
-                    // Take ownership: drop the entry so clearPreGenerated()
-                    // doesn't revoke the URL we're now displaying.
-                    state.preGenerated.delete(idStr);
-                    parsedId = result.generatedImageId;
-                    blobUrl = result.blobUrl;
+
+            if (!useReference) {
+                // Catalog path: if a pre-generation is in flight or already done
+                // for this style, reuse it instead of triggering another Gemini
+                // call. Reference uploads bypass the cache — there's no pre-gen
+                // for an image the user just picked.
+                const idStr = String(state.selectedHairstyleId);
+                const cached = state.preGenerated.get(idStr);
+                if (cached) {
+                    const result = await cached.promise;
+                    if (result?.ok) {
+                        // Take ownership: drop the entry so clearPreGenerated()
+                        // doesn't revoke the URL we're now displaying.
+                        state.preGenerated.delete(idStr);
+                        parsedId = result.generatedImageId;
+                        blobUrl = result.blobUrl;
+                    }
                 }
             }
 
             if (parsedId === undefined) {
-                // Live call: cache miss, pre-gen failed, or non-recommended pick.
+                // Live call: cache miss, pre-gen failed, non-recommended pick,
+                // or reference path.
                 const fd = new FormData();
                 fd.append("photo", state.photoFile);
-                fd.append("hairstyle_id", state.selectedHairstyleId);
+                if (useReference) {
+                    fd.append("reference_photo", state.referenceFile);
+                } else {
+                    fd.append("hairstyle_id", state.selectedHairstyleId);
+                }
                 if (state.observation) fd.append("observation", state.observation);
 
                 const res = await fetch("{{ url_for('main.generate') }}", { method: "POST", body: fd });
@@ -1000,16 +1051,25 @@
             // Populate Result Phase
             resultImg.src = state.generatedImageBlobUrl;
             resultImgModal.src = state.generatedImageBlobUrl;
-            
+
+            const downloadLabel = useReference
+                ? "custom_reference"
+                : state.selectedHairstyleName.replace(/\s+/g, '_');
             resultDownload.href = state.generatedImageBlobUrl;
-            resultDownload.setAttribute('download', `truehair_${state.selectedHairstyleName.replace(/\s+/g, '_')}_${state.generatedImageId}.webp`);
-            
-            resultTitle.textContent = `The '${state.selectedHairstyleName}' looks incredible!`;
-            resultStyleName.textContent = state.selectedHairstyleName;
-            resultStyleDesc.textContent = state.selectedHairstyleDesc;
-            
+            resultDownload.setAttribute('download', `truehair_${downloadLabel}_${state.generatedImageId}.webp`);
+
+            if (useReference) {
+                resultTitle.textContent = "Your custom look is ready!";
+                resultStyleName.textContent = "Custom reference";
+                resultStyleDesc.textContent = "Generated from a reference photo you uploaded.";
+            } else {
+                resultTitle.textContent = `The '${state.selectedHairstyleName}' looks incredible!`;
+                resultStyleName.textContent = state.selectedHairstyleName;
+                resultStyleDesc.textContent = state.selectedHairstyleDesc;
+            }
+
             initRatingWidget(state.generatedImageId);
-            
+
             showPhase("result");
         } catch (err) {
             console.error(err);
@@ -1018,7 +1078,45 @@
             generateBtn.disabled = false;
             btnText.textContent = "GENERATE MY NEW LOOK";
             btnSpinner.classList.add('d-none');
+            referenceTile.classList.remove('is-busy');
+            checkEnableGenerate();
         }
+    }
+
+    generateBtn.addEventListener("click", () => runGenerate({ useReference: false }));
+
+    // --- Reference tile (bring-your-own hairstyle) ---
+    const ALLOWED_REFERENCE_TYPES = ['image/png', 'image/jpeg', 'image/webp'];
+
+    function openReferencePicker() {
+        if (referenceTile.classList.contains('is-busy')) return;
+        referenceImageInput.click();
+    }
+
+    referenceTile.addEventListener('click', openReferencePicker);
+    referenceTile.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            openReferencePicker();
+        }
+    });
+
+    referenceImageInput.addEventListener('change', function () {
+        if (!this.files || !this.files[0]) return;
+        const file = this.files[0];
+        // Reset the input value so re-picking the same file still fires `change`.
+        this.value = '';
+
+        if (!ALLOWED_REFERENCE_TYPES.includes(file.type)) {
+            showFlashMessage('Please pick a PNG, JPG, or WebP image.');
+            return;
+        }
+
+        // Catalog OR reference, not both — clear any catalog selection so we
+        // don't silently override the user's earlier pick.
+        clearCatalogSelection();
+        state.referenceFile = file;
+        runGenerate({ useReference: true });
     });
 
     // --- Section 4: Rating Widget ---
@@ -1073,7 +1171,8 @@
             URL.revokeObjectURL(state.generatedImageBlobUrl);
             state.generatedImageBlobUrl = null;
         }
-        // Keep photoFile, keep recommendations, clear selection
+        // Keep photoFile, keep recommendations, clear selection + any reference.
+        state.referenceFile = null;
         clearCatalogSelection();
         showPhase("catalog");
         window.scrollTo({ top: 0, behavior: "smooth" });

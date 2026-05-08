@@ -831,6 +831,107 @@ def test_api_generate_sets_was_ai_recommended_false_when_style_not_recommended(
 
 
 # ---------------------------------------------------------------------------
+# Custom reference upload path (issue #97)
+# ---------------------------------------------------------------------------
+
+
+@patch("app.routes.main.get_genai_client")
+def test_api_generate_with_reference_photo_records_custom_reference(
+    mock_get_client, app, auth_client, hairstyle
+):
+    """A reference_photo upload generates an image with hairstyle_id NULL
+    and used_custom_reference=True."""
+    mock_get_client.return_value = _mock_generate_client()
+
+    response = auth_client.post(
+        "/api/generate",
+        data={
+            "photo": (make_test_image(), "selfie.jpg"),
+            "reference_photo": (make_test_image(), "inspiration.jpg"),
+        },
+        content_type="multipart/form-data",
+    )
+
+    assert response.status_code == 200
+    gen_id = int(response.headers["X-Generated-Image-Id"])
+    with app.app_context():
+        gen_img = db.session.get(GeneratedImage, gen_id)
+        assert gen_img.hairstyle_id is None
+        assert gen_img.used_custom_reference is True
+        assert gen_img.was_ai_recommended is None
+
+
+@patch("app.routes.main.get_genai_client")
+def test_api_generate_with_reference_photo_ignores_hairstyle_id(
+    mock_get_client, app, auth_client, hairstyle
+):
+    """When reference_photo is present, hairstyle_id is ignored — catalog OR reference,
+    not both. The row stores hairstyle_id=NULL even if the form submitted one."""
+    mock_get_client.return_value = _mock_generate_client()
+
+    response = auth_client.post(
+        "/api/generate",
+        data={
+            "photo": (make_test_image(), "selfie.jpg"),
+            "reference_photo": (make_test_image(), "inspiration.jpg"),
+            "hairstyle_id": str(hairstyle.id),
+        },
+        content_type="multipart/form-data",
+    )
+
+    assert response.status_code == 200
+    gen_id = int(response.headers["X-Generated-Image-Id"])
+    with app.app_context():
+        gen_img = db.session.get(GeneratedImage, gen_id)
+        assert gen_img.hairstyle_id is None
+        assert gen_img.used_custom_reference is True
+
+
+@patch("app.routes.main.get_genai_client")
+def test_api_generate_with_reference_photo_passes_both_images_to_gemini(
+    mock_get_client, app, auth_client
+):
+    """The Gemini call sees the user's selfie and the reference image, plus
+    a prompt that targets the reference's hair (not a catalog name)."""
+    mock_get_client.return_value = _mock_generate_client()
+
+    response = auth_client.post(
+        "/api/generate",
+        data={
+            "photo": (make_test_image(), "selfie.jpg"),
+            "reference_photo": (make_test_image(), "inspiration.jpg"),
+        },
+        content_type="multipart/form-data",
+    )
+
+    assert response.status_code == 200
+    call_kwargs = mock_get_client.return_value.models.generate_content.call_args.kwargs
+    contents = call_kwargs["contents"]
+    # prompt + selfie + reference
+    assert len(contents) == 3
+    prompt = contents[0]
+    assert "reference image" in prompt.lower()
+
+
+def test_api_generate_rejects_corrupted_reference_photo(auth_client):
+    """A corrupted reference_photo is rejected before Gemini is called."""
+    response = auth_client.post(
+        "/api/generate",
+        data={
+            "photo": (make_test_image(), "selfie.jpg"),
+            "reference_photo": (
+                io.BytesIO(b"not-an-image"),
+                "ref.jpg",
+                "image/jpeg",
+            ),
+        },
+        content_type="multipart/form-data",
+    )
+    assert response.status_code == 400
+    assert b"Invalid or corrupted" in response.data
+
+
+# ---------------------------------------------------------------------------
 # Upload validation (size / MIME / corruption) for /api/generate and /api/recommend
 # ---------------------------------------------------------------------------
 
