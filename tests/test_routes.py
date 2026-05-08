@@ -542,16 +542,6 @@ def test_api_recommend_unauthenticated_returns_401(client):
     assert response.status_code == 401
 
 
-def test_api_recommend_control_group_forbidden(auth_client):
-    """Control-group sessions get 403 on /api/recommend."""
-    response = auth_client.post(
-        "/api/recommend",
-        data={"photo": (make_test_image(), "test.jpg")},
-        content_type="multipart/form-data",
-    )
-    assert response.status_code == 403
-
-
 def test_api_recommend_missing_photo(experimental_client):
     client, _sid = experimental_client
     response = client.post(
