@@ -474,7 +474,14 @@
         observationEditInput.value = '';
     }
 
+    // Monotonic counter — bumped on every new analyze and on clearPhoto so a
+    // fast photo swap doesn't let the older response overwrite the newer photo's
+    // observation. Each analyzePhoto() call captures its id at start and gates
+    // every subsequent UI mutation on it still being the latest.
+    let analyzeRequestId = 0;
+
     function clearPhoto() {
+        analyzeRequestId += 1;
         state.photoFile = null;
         state.observation = null;
         previewImg.src = '';
@@ -489,6 +496,7 @@
     // --- /api/analyze-photo (auto-fires after upload) ---
     async function analyzePhoto() {
         if (!state.photoFile) return;
+        const requestId = ++analyzeRequestId;
 
         resetObservationUI();
         analyzingPhotoContainer.classList.remove('d-none');
@@ -497,6 +505,7 @@
             const fd = new FormData();
             fd.append("photo", state.photoFile);
             const res = await fetch("{{ url_for('main.analyze_photo') }}", { method: "POST", body: fd });
+            if (requestId !== analyzeRequestId) return;
 
             analyzingPhotoContainer.classList.add('d-none');
 
@@ -508,10 +517,12 @@
             }
 
             const data = await res.json();
+            if (requestId !== analyzeRequestId) return;
             state.observation = data.raw_observation;
             observationText.textContent = data.raw_observation;
             observationCard.classList.remove('d-none');
         } catch (e) {
+            if (requestId !== analyzeRequestId) return;
             analyzingPhotoContainer.classList.add('d-none');
             analyzeErrorMessage.textContent = "Network error. Please try again.";
             analyzeErrorContainer.classList.remove('d-none');
