@@ -30,6 +30,7 @@ from app.models import (
     Rating,
     Recommendation,
     Stylist,
+    User,
     Visit,
     db,
 )
@@ -255,56 +256,58 @@ def operations_dashboard():
     elif visits_today > 0:
         visit_change = 100
 
-    # Each consented participant gets one ExperimentSession row at consent time,
-    # so started_at is our "participant joined at" signal.
-    new_participants = ExperimentSession.query.filter(
-        ExperimentSession.started_at >= week_ago
-    ).count()
-    new_participants_last_week = ExperimentSession.query.filter(
-        ExperimentSession.started_at >= two_weeks_ago,
-        ExperimentSession.started_at < week_ago,
+    # User.created_at is the "joined at" signal now that login is required.
+    new_users = User.query.filter(User.created_at >= week_ago).count()
+    new_users_last_week = User.query.filter(
+        User.created_at >= two_weeks_ago,
+        User.created_at < week_ago,
     ).count()
 
     user_change = 0
-    if new_participants_last_week > 0:
-        user_change = (
-            (new_participants - new_participants_last_week) / new_participants_last_week
-        ) * 100
-    elif new_participants > 0:
+    if new_users_last_week > 0:
+        user_change = ((new_users - new_users_last_week) / new_users_last_week) * 100
+    elif new_users > 0:
         user_change = 100
 
-    total_participants = ExperimentSession.query.count()
-    participants_before_this_week = total_participants - new_participants
+    total_users = User.query.count()
+    users_before_this_week = total_users - new_users
     total_users_change = 0
-    if participants_before_this_week > 0:
-        total_users_change = (new_participants / participants_before_this_week) * 100
-    elif total_participants > 0:
+    if users_before_this_week > 0:
+        total_users_change = (new_users / users_before_this_week) * 100
+    elif total_users > 0:
         total_users_change = 100
 
-    activated_count = db.session.query(GeneratedImage.session_id).distinct().count()
-    activation_rate = (
-        int(activated_count / total_participants * 100) if total_participants > 0 else 0
-    )
-
-    activated_before_week_ago = (
-        db.session.query(GeneratedImage.session_id)
-        .filter(GeneratedImage.created_at < week_ago)
+    # Activation = % of users who have generated at least one image. Legacy
+    # session_id-only rows (pre-login) are excluded by filtering on user_id.
+    activated_count = (
+        db.session.query(GeneratedImage.user_id)
+        .filter(GeneratedImage.user_id.isnot(None))
         .distinct()
         .count()
     )
-    participants_before_week_ago = ExperimentSession.query.filter(
-        ExperimentSession.started_at < week_ago
-    ).count()
+    activation_rate = int(activated_count / total_users * 100) if total_users > 0 else 0
+
+    activated_before_week_ago = (
+        db.session.query(GeneratedImage.user_id)
+        .filter(
+            GeneratedImage.user_id.isnot(None),
+            GeneratedImage.created_at < week_ago,
+        )
+        .distinct()
+        .count()
+    )
+    users_before_week_ago = User.query.filter(User.created_at < week_ago).count()
     activation_rate_last_week = (
-        int(activated_before_week_ago / participants_before_week_ago * 100)
-        if participants_before_week_ago > 0
+        int(activated_before_week_ago / users_before_week_ago * 100)
+        if users_before_week_ago > 0
         else 0
     )
     activation_change = activation_rate - activation_rate_last_week
 
     retained_count = (
-        db.session.query(GeneratedImage.session_id)
-        .group_by(GeneratedImage.session_id)
+        db.session.query(GeneratedImage.user_id)
+        .filter(GeneratedImage.user_id.isnot(None))
+        .group_by(GeneratedImage.user_id)
         .having(func.count(GeneratedImage.id) > 1)
         .count()
     )
@@ -313,9 +316,12 @@ def operations_dashboard():
     )
 
     retained_before_week_ago_query = (
-        db.session.query(GeneratedImage.session_id)
-        .filter(GeneratedImage.created_at < week_ago)
-        .group_by(GeneratedImage.session_id)
+        db.session.query(GeneratedImage.user_id)
+        .filter(
+            GeneratedImage.user_id.isnot(None),
+            GeneratedImage.created_at < week_ago,
+        )
+        .group_by(GeneratedImage.user_id)
         .having(func.count(GeneratedImage.id) > 1)
     )
     retained_before_week_ago_count = db.session.query(
@@ -378,13 +384,13 @@ def operations_dashboard():
         "operations_dashboard.html",
         visits_today=visits_today,
         visit_change=round(visit_change, 1),
-        new_users=new_participants,
+        new_users=new_users,
         user_change=round(user_change, 1),
         activation_rate=activation_rate,
         activation_change=activation_change,
         retention_rate=retention_rate,
         retention_change=retention_change,
-        total_users=total_participants,
+        total_users=total_users,
         total_users_change=round(total_users_change, 1),
         today_gen_count=today_gen_count,
         generations_this_week=this_week_arr,
