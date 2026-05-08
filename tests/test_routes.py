@@ -89,11 +89,11 @@ def test_get_genai_client_returns_none_on_client_init_error(app):
 
 
 def test_index_renders_landing_for_unconsented(client):
-    """/ renders landing page with a CTA to /consent when no session cookie is set."""
+    """/ renders the consumer landing page with a CTA to /login when no session cookie is set."""
     response = client.get("/")
     assert response.status_code == 200
-    assert b"What this is" in response.data
-    assert b'href="/consent"' in response.data
+    assert b"See yourself in any hairstyle, instantly." in response.data
+    assert b'href="/login"' in response.data
 
 
 def test_index_redirects_to_style_studio_when_consented(auth_client):
