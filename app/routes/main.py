@@ -89,8 +89,8 @@ def _day_of_week(date_column):
 def get_genai_client():
     """Return a google.genai Client configured for Vertex AI.
 
-    Required by IRB Section 4.1 to ensure Zero Data Retention (ZDR).
-    Do not replace with Gemini Developer API.
+    Vertex AI mode gives us Zero Data Retention (ZDR); do not replace with
+    the Gemini Developer API.
     """
     project = current_app.config.get("GOOGLE_CLOUD_PROJECT")
     location = current_app.config.get("GOOGLE_CLOUD_LOCATION", "us-central1")
@@ -123,11 +123,6 @@ def index():
     if sid and Consent.query.filter_by(session_id=sid).first():
         return redirect(url_for("main.style_studio"))
     return render_template("landing.html")
-
-
-# ---------------------------------------------------------------------------
-# Consent (minimal PR1 stub — issue #4 replaces this with IRB-verbatim content)
-# ---------------------------------------------------------------------------
 
 
 @main_bp.route("/consent", methods=["GET"])
@@ -562,10 +557,10 @@ def export_data():
 def result(image_id=None):
     """Render the result page for an AI hairstyle generation.
 
-    The generated image bytes are never persisted server-side (IRB Section 6.1);
-    the client holds the only copy in sessionStorage after /api/generate streams
-    the WebP back. This view renders metadata only (hairstyle name, rating state);
-    the template hydrates the <img> src from sessionStorage on load.
+    The generated image bytes are never persisted server-side; the client holds
+    the only copy in sessionStorage after /api/generate streams the WebP back.
+    This view renders metadata only (hairstyle name, rating state); the template
+    hydrates the <img> src from sessionStorage on load.
     """
     log_visit("Results Page")
     sid = get_session_id()
