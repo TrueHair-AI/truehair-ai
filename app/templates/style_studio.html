@@ -75,11 +75,7 @@
             <div>
                 <h2 class="fw-bold mb-1">Pick a hairstyle</h2>
                 <p class="text-secondary mb-0">
-                    {% if experiment_group == 'experimental' %}
                     Styles with a ✨ are AI-recommended based on your photo. Hover for why.
-                    {% else %}
-                    Browse the full catalog and pick a style to visualize.
-                    {% endif %}
                 </p>
             </div>
             <div class="d-flex gap-2 flex-wrap" id="category-filters">
@@ -295,12 +291,11 @@
     // Module-level state
     const state = {
         photoFile: null,                // the File object
-        recommendations: null,          // array of {hairstyle_id, reasoning} for experimental
+        recommendations: null,          // array of {hairstyle_id, reasoning}
         selectedHairstyleId: null,
         selectedHairstyleName: null,
         selectedHairstyleDesc: null,
         aiPanelClickedId: null,
-        experimentGroup: "{{ experiment_group }}",  // rendered by Jinja
         generatedImageId: null,         // set after /api/generate
         generatedImageBlobUrl: null,    // set after /api/generate
     };
@@ -413,37 +408,30 @@
         imageInput.value = '';
     });
 
-    // --- Phase 1 → 2/3 ---
+    // --- Phase 1 → 2 (analyzing) → 3 (catalog) ---
     uploadContinueBtn.addEventListener("click", async () => {
         if (!state.photoFile) return;
 
-        // Documented decision: Control group skips analyzing phase entirely.
-        // This creates a time/anticipation confound, but is accepted per IRB and experimental design.
-        if (state.experimentGroup === "experimental") {
-            showPhase("analyzing");
-            analyzingErrorContainer.classList.add('d-none');
-            
-            try {
-                const fd = new FormData();
-                fd.append("photo", state.photoFile);
-                const res = await fetch("{{ url_for('main.recommend') }}", { method: "POST", body: fd });
-                
-                if (!res.ok) {
-                    const err = await res.json().catch(() => ({ error: "Unknown error" }));
-                    showAnalyzingError(err.error || "Failed to analyze photo");
-                    return;
-                }
-                
-                const data = await res.json();
-                state.recommendations = data.recommendations;
-                applyRecommendationHighlights();
-                showPhase("catalog");
-            } catch (e) {
-                showAnalyzingError("Network error. Please try again.");
+        showPhase("analyzing");
+        analyzingErrorContainer.classList.add('d-none');
+
+        try {
+            const fd = new FormData();
+            fd.append("photo", state.photoFile);
+            const res = await fetch("{{ url_for('main.recommend') }}", { method: "POST", body: fd });
+
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({ error: "Unknown error" }));
+                showAnalyzingError(err.error || "Failed to analyze photo");
+                return;
             }
-        } else {
-            // Control: jump straight to catalog
+
+            const data = await res.json();
+            state.recommendations = data.recommendations;
+            applyRecommendationHighlights();
             showPhase("catalog");
+        } catch (e) {
+            showAnalyzingError("Network error. Please try again.");
         }
     });
 
@@ -458,7 +446,7 @@
 
     // --- Section 3: Catalog ---
     function applyRecommendationHighlights() {
-        if (!state.recommendations || state.experimentGroup !== "experimental") return;
+        if (!state.recommendations) return;
 
         const recById = new Map(state.recommendations.map(r => [r.hairstyle_id, r.reasoning]));
 
