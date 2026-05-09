@@ -4,11 +4,11 @@
 
 # TrueHair AI
 
-**See yourself in any hairstyle, instantly.**
+**The smart way to style your hair.**
 
 [![Python](https://img.shields.io/badge/Python-3.14-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
 [![Flask](https://img.shields.io/badge/Flask-3.1-000000?style=for-the-badge&logo=flask&logoColor=white)](https://flask.palletsprojects.com/)
-[![SQLAlchemy](https://img.shields.io/badge/SQLAlchemy-3.1-D71F00?style=for-the-badge&logo=sqlalchemy&logoColor=white)](https://www.sqlalchemy.org/)
+[![SQLAlchemy](https://img.shields.io/badge/SQLAlchemy-2.0-D71F00?style=for-the-badge&logo=sqlalchemy&logoColor=white)](https://www.sqlalchemy.org/)
 [![SQLite](https://img.shields.io/badge/SQLite-dev-003B57?style=for-the-badge&logo=sqlite&logoColor=white)](https://www.sqlite.org/)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-prod-4169E1?style=for-the-badge&logo=postgresql&logoColor=white)](https://www.postgresql.org/)
 [![Bootstrap](https://img.shields.io/badge/Bootstrap-5.3-7952B3?style=for-the-badge&logo=bootstrap&logoColor=white)](https://getbootstrap.com/)
@@ -21,9 +21,9 @@
 
 ---
 
-TrueHair AI is a web app that lets you preview hairstyles on your own photo before you commit. Upload a selfie, pick a style from the catalog (or describe your own), and TrueHair generates a realistic visualization powered by Google's Gemini image model on Vertex AI. From there you can save styles to a private gallery and connect with local stylists to book the look.
+TrueHair AI is a web app that lets you preview hairstyles on your own photo before you commit to a salon visit. Upload a selfie, pick a style from the catalog (or upload a reference photo of a look you've seen elsewhere), and TrueHair generates a realistic visualization powered by Google's Gemini image model on Vertex AI. Looks you want to keep go into a personal, encrypted on-device gallery, and a built-in directory helps you find local stylists who specialize in the techniques you're after.
 
-The platform runs on Vertex AI in **Zero Data Retention (ZDR)** mode — Google does not retain your photos or prompts, and TrueHair only stores results you explicitly save to your gallery.
+The platform runs on Vertex AI in **Zero Data Retention (ZDR)** mode — Google does not retain your photos or prompts, and TrueHair never stores your photo or generated images on the server: the gallery lives in your browser's IndexedDB, encrypted with a per-user key.
 
 ## Local development
 
@@ -52,6 +52,8 @@ DATABASE_URL=sqlite:///truehair.db          # leave unset for the default
 # Google OAuth (sign-in)
 GOOGLE_OAUTH_CLIENT_ID=your-oauth-client-id
 GOOGLE_OAUTH_CLIENT_SECRET=your-oauth-client-secret
+# Local-dev only: Flask-Dance refuses to do OAuth over plain HTTP without this.
+OAUTHLIB_INSECURE_TRANSPORT=1
 
 # Vertex AI (image generation)
 GOOGLE_CLOUD_PROJECT=your-gcp-project-id
@@ -62,23 +64,25 @@ GOOGLE_APPLICATION_CREDENTIALS_JSON='{"type":"service_account",...}'   # full JS
 ADMIN_EMAILS=you@example.com
 ```
 
-> `GOOGLE_OAUTH_CLIENT_ID` / `GOOGLE_OAUTH_CLIENT_SECRET` come from the Google Cloud Console → APIs & Services → Credentials. Add `http://localhost:5000/login/google/authorized` to the authorized redirect URIs.
+> `GOOGLE_OAUTH_CLIENT_ID` / `GOOGLE_OAUTH_CLIENT_SECRET` come from the Google Cloud Console → APIs & Services → Credentials. Add `http://localhost:8000/login/google/authorized` to the authorized redirect URIs.
 
 ### 3. Initialize the database and seed catalogs
 
 ```bash
-uv run flask db upgrade
+uv run flask --app run db upgrade
 uv run python seed_hairstyles.py
 uv run python seed_stylists.py
 ```
 
+`--app run` points the Flask CLI at `run.py`, which exposes the `app` instance from the `create_app()` factory.
+
 ### 4. Run the dev server
 
 ```bash
-uv run flask run
+uv run python run.py
 ```
 
-The app is now live at http://localhost:5000.
+The app is now live at http://localhost:8000.
 
 ### Tests and lint
 
@@ -98,7 +102,7 @@ uv run ruff format .   # format
 | Auth | Google OAuth via `flask-dance` |
 | AI | Google Gemini on Vertex AI (ZDR mode) — see [`get_genai_client()` in app/routes/main.py](app/routes/main.py) |
 | Frontend | Bootstrap 5, vanilla JavaScript |
-| Client storage | IndexedDB-backed gallery — generated images are stored on-device until the user explicitly saves them server-side |
+| Client storage | IndexedDB-backed gallery — saved visualizations live encrypted on the user's device with a per-user key derived from `(user_id, storage_salt)`. No server-side photo storage. |
 | Server runtime | Gunicorn (1 worker × 8 threads, `gthread` worker class) |
 
 The Vertex AI client is constructed once via `get_genai_client()`. **Do not** swap it for the Gemini Developer API constructor — Vertex mode is what gives the app its ZDR guarantee.
@@ -121,4 +125,4 @@ Set the same environment variables listed above on the Heroku app, plus a manage
 
 ## Project history
 
-TrueHair began as an IRB-supervised research study at Colby College. Compliance notes from that phase — specifically the IP-stripping logging posture — are preserved in [docs/irb-archive.md](docs/irb-archive.md) for future reference.
+TrueHair began as an IRB-supervised research study before pivoting to a consumer product. Compliance notes from that phase — specifically the IP-stripping logging posture — are preserved in [docs/irb-archive.md](docs/irb-archive.md) for future reference.
