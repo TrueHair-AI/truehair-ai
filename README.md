@@ -60,12 +60,6 @@ GOOGLE_APPLICATION_CREDENTIALS_JSON='{"type":"service_account",...}'   # full JS
 
 # Admin seeding (comma-separated emails granted is_admin=True on first migration)
 ADMIN_EMAILS=you@example.com
-
-# Cloudflare R2 (optional — used for stylist portfolio assets)
-R2_ACCOUNT_ID=
-R2_ACCESS_KEY_ID=
-R2_SECRET_ACCESS_KEY=
-R2_BUCKET_NAME=
 ```
 
 > `GOOGLE_OAUTH_CLIENT_ID` / `GOOGLE_OAUTH_CLIENT_SECRET` come from the Google Cloud Console → APIs & Services → Credentials. Add `http://localhost:5000/login/google/authorized` to the authorized redirect URIs.
@@ -105,7 +99,6 @@ uv run ruff format .   # format
 | AI | Google Gemini on Vertex AI (ZDR mode) — see [`get_genai_client()` in app/routes/main.py](app/routes/main.py) |
 | Frontend | Bootstrap 5, vanilla JavaScript |
 | Client storage | IndexedDB-backed gallery — generated images are stored on-device until the user explicitly saves them server-side |
-| Object storage | Cloudflare R2 (stylist portfolio assets) |
 | Server runtime | Gunicorn (1 worker × 8 threads, `gthread` worker class) |
 
 The Vertex AI client is constructed once via `get_genai_client()`. **Do not** swap it for the Gemini Developer API constructor — Vertex mode is what gives the app its ZDR guarantee.
