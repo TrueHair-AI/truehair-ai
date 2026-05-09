@@ -2,15 +2,12 @@
 
 import io
 import uuid
-from datetime import datetime, timezone
 from unittest.mock import MagicMock, patch
 
 import pytest
 
 from app.routes.main import get_genai_client
 from app.models import (
-    Consent,
-    ExperimentSession,
     GeneratedImage,
     Stylist,
     db,
@@ -25,23 +22,6 @@ def make_test_image():
     img.save(buf, format="JPEG")
     buf.seek(0)
     return buf
-
-
-def _make_participant_data(app, experiment_group="control"):
-    """Create a Consent + ExperimentSession row pair (participant export data)."""
-    sid = str(uuid.uuid4())
-    with app.app_context():
-        db.session.add(Consent(session_id=sid, experiment_group=experiment_group))
-        db.session.add(
-            ExperimentSession(
-                session_id=sid,
-                experiment_group=experiment_group,
-                started_at=datetime.now(timezone.utc),
-                last_ping_at=datetime.now(timezone.utc),
-            )
-        )
-        db.session.commit()
-    return sid
 
 
 def test_get_genai_client_uses_vertex_ai_config(app):
@@ -84,54 +64,29 @@ def test_get_genai_client_returns_none_on_client_init_error(app):
 
 
 # ---------------------------------------------------------------------------
-# Index / consent gating
+# Index / login gating
 # ---------------------------------------------------------------------------
 
 
-def test_index_renders_landing_for_unconsented(client):
-    """/ renders the consumer landing page with a CTA to /login when no session cookie is set."""
+def test_index_renders_landing_for_logged_out(client):
+    """/ renders the consumer landing page with a CTA to /login when nobody is signed in."""
     response = client.get("/")
     assert response.status_code == 200
     assert b"See yourself in any hairstyle, instantly." in response.data
     assert b'href="/login"' in response.data
 
 
-def test_index_redirects_to_style_studio_when_consented(auth_client):
-    """/ redirects to /style-studio when the session has consented."""
+def test_index_redirects_to_style_studio_when_logged_in(auth_client):
+    """/ redirects to /style-studio for a signed-in user."""
     response = auth_client.get("/")
     assert response.status_code == 302
     assert "style-studio" in response.location
 
 
-def test_consent_page_renders(client):
-    """GET /consent renders the consent page."""
-    response = client.get("/consent")
-    assert response.status_code == 200
-    assert b"I Agree" in response.data
-
-
-def test_submit_consent_creates_records_and_redirects(app, client):
-    """POST /consent creates a Consent + ExperimentSession row and sets the session cookie."""
-    response = client.post("/consent")
-    assert response.status_code == 302
-    assert "style-studio" in response.location
-
-    with client.session_transaction() as sess:
-        sid = sess.get("session_id")
-    assert sid is not None
-
-    with app.app_context():
-        assert Consent.query.filter_by(session_id=sid).first() is not None
-        assert ExperimentSession.query.filter_by(session_id=sid).first() is not None
-
-
-def test_submit_consent_is_idempotent(app, auth_client):
-    """POST /consent twice doesn't create a second Consent row."""
-    with auth_client.session_transaction() as sess:
-        sid = sess["session_id"]
-    auth_client.post("/consent")
-    with app.app_context():
-        assert Consent.query.filter_by(session_id=sid).count() == 1
+def test_consent_page_returns_404(client):
+    """The legacy /consent route is gone."""
+    assert client.get("/consent").status_code == 404
+    assert client.post("/consent").status_code == 404
 
 
 def test_terms_page_public(client):
@@ -256,7 +211,7 @@ def test_login_page_renders_terms_modal(client):
 
 
 # ---------------------------------------------------------------------------
-# Consent-gated routes redirect to /consent when unconsented
+# Login-gated routes redirect to /login when not authenticated
 # ---------------------------------------------------------------------------
 
 
@@ -336,11 +291,10 @@ def test_dashboard_allowed_for_admin_user(admin_client):
 
 
 def test_admin_user_does_not_need_session_id(app, admin_client):
-    """An admin user with no session_id cookie can still access the dashboard and export."""
+    """An admin user with no session_id cookie can still access the dashboard."""
     with admin_client.session_transaction() as sess:
         assert "session_id" not in sess
     assert admin_client.get("/dashboard/operations").status_code == 200
-    assert admin_client.get("/api/admin/export?format=json").status_code == 200
 
 
 # -----------------------------------------------------------------------------
@@ -375,7 +329,7 @@ def test_operations_dashboard_blocks_unauthenticated(client):
 
 
 def test_operations_dashboard_does_not_include_export_buttons(admin_client):
-    """Export remains accessible via /api/admin/export but isn't surfaced on the dashboard."""
+    """The legacy experiment-data export UI must not reappear on the dashboard."""
     response = admin_client.get("/dashboard/operations")
     assert response.status_code == 200
     assert b"Experiment Data Export" not in response.data
@@ -389,11 +343,14 @@ def test_operations_dashboard_renders_ai_recommended_card(admin_client):
 
 
 def test_operations_dashboard_ai_rec_rate_with_data(app, admin_client, hairstyle):
-    """AI-recommended rate is the share of generations where was_ai_recommended is True."""
+    """AI-recommended rate is the share of catalog picks where was_ai_recommended is True.
+
+    Reference-photo generations skip the recommendation step, so they must be
+    excluded from both the denominator and numerator — otherwise the metric
+    drifts as that path's usage grows.
+    """
     with app.app_context():
-        # 3 known-context generations: 2 AI-recommended, 1 not. Plus 1 legacy null
-        # row that should be excluded from the denominator.
-        for was_ai in (True, True, False, None):
+        for was_ai in (True, True, False):
             db.session.add(
                 GeneratedImage(
                     session_id=str(uuid.uuid4()),
@@ -401,112 +358,28 @@ def test_operations_dashboard_ai_rec_rate_with_data(app, admin_client, hairstyle
                     was_ai_recommended=was_ai,
                 )
             )
+        # Reference-photo row: must NOT count toward the denominator even
+        # though was_ai_recommended is False.
+        db.session.add(
+            GeneratedImage(
+                session_id=str(uuid.uuid4()),
+                hairstyle_id=None,
+                used_custom_reference=True,
+                was_ai_recommended=False,
+            )
+        )
         db.session.commit()
 
     response = admin_client.get("/dashboard/operations")
     assert response.status_code == 200
-    # 2 / 3 = 66%
+    # 2 / 3 = 66% (the reference-photo row is excluded).
     assert b">66%<" in response.data
 
 
-def test_admin_export_redirects_when_unauthenticated(client):
-    response = client.get("/api/admin/export")
-    assert response.status_code == 302
-    assert "/login" in response.location
-
-
-def test_admin_export_json(app, admin_client):
-    _make_participant_data(app)
-    response = admin_client.get("/api/admin/export?format=json")
-    assert response.status_code == 200
-
-    data = response.get_json()
-    assert isinstance(data, list)
-    assert len(data) >= 1
-
-    row = data[0]
-    assert "participant_id" in row
-    assert "experiment_group" in row
-    assert "num_visualizations" in row
-    assert "avg_rating" in row
-    assert "num_ratings" in row
-    assert "session_duration_seconds" in row
-    assert "styles_selected" in row
-    assert "consented_at" in row
-
-    # Ensure no PII is exposed
-    assert "email" not in row
-    assert "username" not in row
-    assert "first_name" not in row
-    assert "last_name" not in row
-
-
-def test_admin_export_csv(app, admin_client):
-    _make_participant_data(app)
-    response = admin_client.get("/api/admin/export")
-    assert response.status_code == 200
-    assert response.headers["Content-Type"].startswith("text/csv")
-    assert "attachment" in response.headers["Content-Disposition"]
-
-    csv_data = response.data.decode("utf-8")
-    assert "participant_id" in csv_data
-    assert "experiment_group" in csv_data
-
-
-def test_admin_export_one_row_per_participant(app, admin_client):
-    """Export emits one row per unique session_id, not per ExperimentSession row."""
-    _make_participant_data(app, experiment_group="control")
-    _make_participant_data(app, experiment_group="experimental")
-    response = admin_client.get("/api/admin/export?format=json")
-    data = response.get_json()
-    assert len(data) == 2
-
-
-def test_admin_export_dedupes_timeout_resume_sessions(app, admin_client):
-    """A participant with multiple ExperimentSession rows (timeout+resume) yields one export row.
-
-    Images and ratings must not be double-counted; session_duration_seconds must
-    be the sum across rows for that participant.
-    """
-    sid = str(uuid.uuid4())
-    started = datetime.now(timezone.utc)
-
-    with app.app_context():
-        db.session.add(Consent(session_id=sid, experiment_group="control"))
-        db.session.add(
-            ExperimentSession(
-                session_id=sid,
-                experiment_group="control",
-                started_at=started,
-                last_ping_at=started,
-                ended_at=started,
-                duration_seconds=120,
-            )
-        )
-        db.session.add(
-            ExperimentSession(
-                session_id=sid,
-                experiment_group="control",
-                started_at=started,
-                last_ping_at=started,
-                ended_at=started,
-                duration_seconds=300,
-            )
-        )
-        db.session.commit()
-
-    response = admin_client.get("/api/admin/export?format=json")
-    assert response.status_code == 200
-    data = response.get_json()
-
-    matching = [r for r in data if r["session_duration_seconds"] == 420]
-    assert len(matching) == 1, f"expected one merged row, got {data}"
-    assert matching[0]["experiment_group"] == "control"
-
-
-def test_admin_export_invalid_format(admin_client):
-    response = admin_client.get("/api/admin/export?format=xml")
-    assert response.status_code == 400
+def test_admin_export_endpoint_removed(client, admin_client):
+    """The /api/admin/export endpoint was removed when the IRB-era schema was dropped."""
+    assert client.get("/api/admin/export").status_code == 404
+    assert admin_client.get("/api/admin/export").status_code == 404
 
 
 # ---------------------------------------------------------------------------
@@ -616,9 +489,8 @@ def test_api_recommend_unauthenticated_returns_401(client):
     assert response.status_code == 401
 
 
-def test_api_recommend_missing_photo(experimental_client):
-    client, _sid = experimental_client
-    response = client.post(
+def test_api_recommend_missing_photo(auth_client):
+    response = auth_client.post(
         "/api/recommend",
         data={},
         content_type="multipart/form-data",
@@ -627,11 +499,9 @@ def test_api_recommend_missing_photo(experimental_client):
 
 
 @patch("app.routes.main.get_genai_client")
-def test_api_recommend_no_gemini_key(mock_get_client, app, experimental_client):
-    client, _sid = experimental_client
-
+def test_api_recommend_no_gemini_key(mock_get_client, app, auth_client):
     mock_get_client.return_value = None
-    response = client.post(
+    response = auth_client.post(
         "/api/recommend",
         data={"photo": (make_test_image(), "test.jpg")},
         content_type="multipart/form-data",
@@ -640,14 +510,12 @@ def test_api_recommend_no_gemini_key(mock_get_client, app, experimental_client):
 
 
 @patch("app.routes.main.get_genai_client")
-def test_api_recommend_exception_returns_500(mock_get_client, app, experimental_client):
-    client, _sid = experimental_client
-
+def test_api_recommend_exception_returns_500(mock_get_client, app, auth_client):
     mock_get_client.return_value = MagicMock()
     mock_get_client.return_value.models.generate_content.side_effect = Exception(
         "API error"
     )
-    response = client.post(
+    response = auth_client.post(
         "/api/recommend",
         data={"photo": (make_test_image(), "test.jpg")},
         content_type="multipart/form-data",
@@ -656,10 +524,12 @@ def test_api_recommend_exception_returns_500(mock_get_client, app, experimental_
 
 
 @patch("app.routes.main.get_genai_client")
-def test_api_recommend_success(mock_get_client, app, experimental_client, hairstyle):
+def test_api_recommend_success(
+    mock_get_client, app, auth_client, session_id, hairstyle
+):
     import json
 
-    client, sid = experimental_client
+    sid = session_id
 
     mock_client = MagicMock()
 
@@ -677,7 +547,7 @@ def test_api_recommend_success(mock_get_client, app, experimental_client, hairst
     mock_client.models.generate_content.return_value = mock_response
     mock_get_client.return_value = mock_client
 
-    response = client.post(
+    response = auth_client.post(
         "/api/recommend",
         data={"photo": (make_test_image(), "test.jpg")},
         content_type="multipart/form-data",
@@ -736,7 +606,7 @@ def test_api_generate_success(mock_get_client, app, auth_client, hairstyle):
 
 
 # ---------------------------------------------------------------------------
-# was_ai_recommended flag on GeneratedImage (IRB primary metric)
+# was_ai_recommended flag on GeneratedImage
 # ---------------------------------------------------------------------------
 
 
@@ -757,10 +627,10 @@ def _mock_generate_client():
 
 
 @patch("app.routes.main.get_genai_client")
-def test_api_generate_sets_was_ai_recommended_null_for_control(
+def test_api_generate_sets_was_ai_recommended_false_when_no_recommendations(
     mock_get_client, app, auth_client, hairstyle
 ):
-    """Control-group sessions store was_ai_recommended as NULL (not applicable)."""
+    """A user who picks a catalog style without ever asking for AI recs gets False."""
     mock_get_client.return_value = _mock_generate_client()
 
     response = auth_client.post(
@@ -776,17 +646,17 @@ def test_api_generate_sets_was_ai_recommended_null_for_control(
     gen_id = int(response.headers["X-Generated-Image-Id"])
     with app.app_context():
         gen_img = db.session.get(GeneratedImage, gen_id)
-        assert gen_img.was_ai_recommended is None
+        assert gen_img.was_ai_recommended is False
 
 
 @patch("app.routes.main.get_genai_client")
 def test_api_generate_sets_was_ai_recommended_true_when_style_was_recommended(
-    mock_get_client, app, experimental_client, hairstyle
+    mock_get_client, app, auth_client, session_id, hairstyle
 ):
-    """Experimental group + selected style in Recommendation rows → True."""
+    """Selected style is in this session's Recommendation rows → True."""
     from app.models import Recommendation
 
-    client, sid = experimental_client
+    sid = session_id
     with app.app_context():
         db.session.add(
             Recommendation(
@@ -799,7 +669,7 @@ def test_api_generate_sets_was_ai_recommended_true_when_style_was_recommended(
 
     mock_get_client.return_value = _mock_generate_client()
 
-    response = client.post(
+    response = auth_client.post(
         "/api/generate",
         data={
             "photo": (make_test_image(), "test.jpg"),
@@ -817,12 +687,12 @@ def test_api_generate_sets_was_ai_recommended_true_when_style_was_recommended(
 
 @patch("app.routes.main.get_genai_client")
 def test_api_generate_sets_was_ai_recommended_false_when_style_not_recommended(
-    mock_get_client, app, experimental_client, hairstyle
+    mock_get_client, app, auth_client, session_id, hairstyle
 ):
-    """Experimental group + selected style absent from Recommendation rows → False."""
+    """Selected style is absent from this session's Recommendation rows → False."""
     from app.models import Hairstyle, Recommendation
 
-    client, sid = experimental_client
+    sid = session_id
     with app.app_context():
         other = Hairstyle(
             name="Other Cut",
@@ -843,7 +713,7 @@ def test_api_generate_sets_was_ai_recommended_false_when_style_not_recommended(
 
     mock_get_client.return_value = _mock_generate_client()
 
-    response = client.post(
+    response = auth_client.post(
         "/api/generate",
         data={
             "photo": (make_test_image(), "test.jpg"),
@@ -887,7 +757,7 @@ def test_api_generate_with_reference_photo_records_custom_reference(
         gen_img = db.session.get(GeneratedImage, gen_id)
         assert gen_img.hairstyle_id is None
         assert gen_img.used_custom_reference is True
-        assert gen_img.was_ai_recommended is None
+        assert gen_img.was_ai_recommended is False
 
 
 @patch("app.routes.main.get_genai_client")
@@ -1007,9 +877,8 @@ def test_api_generate_rejects_large_file(auth_client, hairstyle):
     assert response.status_code == 413
 
 
-def test_api_recommend_rejects_bad_mimetype(experimental_client):
-    client, _sid = experimental_client
-    response = client.post(
+def test_api_recommend_rejects_bad_mimetype(auth_client):
+    response = auth_client.post(
         "/api/recommend",
         data={
             "photo": (io.BytesIO(b"%PDF-1.4 fake"), "test.pdf", "application/pdf"),
@@ -1020,9 +889,8 @@ def test_api_recommend_rejects_bad_mimetype(experimental_client):
     assert b"Unsupported file type" in response.data
 
 
-def test_api_recommend_rejects_corrupted_bytes(experimental_client):
-    client, _sid = experimental_client
-    response = client.post(
+def test_api_recommend_rejects_corrupted_bytes(auth_client):
+    response = auth_client.post(
         "/api/recommend",
         data={
             "photo": (io.BytesIO(b"not-an-image"), "test.jpg", "image/jpeg"),
@@ -1340,12 +1208,11 @@ def test_api_refine_observation_truncates_oversized_observation(
 
 @patch("app.routes.main.get_genai_client")
 def test_api_recommend_passes_observation_to_prompt(
-    mock_get_client, app, experimental_client, hairstyle
+    mock_get_client, app, auth_client, hairstyle
 ):
     """Server should embed the observation form field into the Gemini prompt."""
     import json as _json
 
-    client, _sid = experimental_client
     mock_client = MagicMock()
     mock_response = MagicMock()
     mock_response.text = _json.dumps(
@@ -1355,7 +1222,7 @@ def test_api_recommend_passes_observation_to_prompt(
     mock_get_client.return_value = mock_client
 
     observation = "Type 4C hair, planning a hair transplant."
-    response = client.post(
+    response = auth_client.post(
         "/api/recommend",
         data={
             "photo": (make_test_image(), "test.jpg"),
@@ -1373,12 +1240,12 @@ def test_api_recommend_passes_observation_to_prompt(
 
 
 @patch("app.routes.main.get_genai_client")
-def test_api_recommend_caps_at_four(mock_get_client, app, experimental_client):
+def test_api_recommend_caps_at_four(mock_get_client, app, auth_client, session_id):
     """Even if Gemini returns more than 4, only the first 4 are persisted/returned."""
     import json as _json
     from app.models import Hairstyle, Recommendation
 
-    client, sid = experimental_client
+    sid = session_id
     with app.app_context():
         for i in range(6):
             db.session.add(
@@ -1405,7 +1272,7 @@ def test_api_recommend_caps_at_four(mock_get_client, app, experimental_client):
     mock_client.models.generate_content.return_value = mock_response
     mock_get_client.return_value = mock_client
 
-    response = client.post(
+    response = auth_client.post(
         "/api/recommend",
         data={"photo": (make_test_image(), "test.jpg")},
         content_type="multipart/form-data",
@@ -1418,9 +1285,8 @@ def test_api_recommend_caps_at_four(mock_get_client, app, experimental_client):
         assert Recommendation.query.filter_by(session_id=sid).count() == 4
 
 
-def test_api_recommend_rejects_oversized_observation(experimental_client):
-    client, _sid = experimental_client
-    response = client.post(
+def test_api_recommend_rejects_oversized_observation(auth_client):
+    response = auth_client.post(
         "/api/recommend",
         data={
             "photo": (make_test_image(), "test.jpg"),

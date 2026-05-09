@@ -1,8 +1,5 @@
-import csv
 import io
-import random
-from collections import defaultdict
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 
 from flask import (
     Blueprint,
@@ -23,9 +20,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import joinedload
 
 from app.models import (
-    Consent,
     ErrorLog,
-    ExperimentSession,
     GeneratedImage,
     Hairstyle,
     Rating,
@@ -36,10 +31,7 @@ from app.models import (
     db,
 )
 from app.services.auth import admin_required, current_user, login_required
-from app.services.session_identity import (
-    get_session_id,
-    new_session_id,
-)
+from app.services.session_identity import get_session_id
 
 main_bp = Blueprint("main", __name__)
 
@@ -118,58 +110,9 @@ def log_visit(page_name):
 @main_bp.route("/")
 def index():
     log_visit("Home")
-    sid = get_session_id()
-    if sid and Consent.query.filter_by(session_id=sid).first():
+    if session.get("user_id"):
         return redirect(url_for("main.style_studio"))
     return render_template("landing.html")
-
-
-@main_bp.route("/consent", methods=["GET"])
-def consent_page():
-    sid = get_session_id()
-    if sid and Consent.query.filter_by(session_id=sid).first():
-        return redirect(url_for("main.style_studio"))
-    return render_template("consent.html")
-
-
-@main_bp.route("/consent", methods=["POST"])
-def submit_consent():
-    sid = get_session_id() or new_session_id()
-
-    existing = Consent.query.filter_by(session_id=sid).first()
-    if existing:
-        return redirect(url_for("main.style_studio"))
-
-    control_count = Consent.query.filter_by(experiment_group="control").count()
-    experimental_count = Consent.query.filter_by(
-        experiment_group="experimental"
-    ).count()
-    if control_count < experimental_count:
-        group = "control"
-    elif experimental_count < control_count:
-        group = "experimental"
-    else:
-        group = random.choice(["control", "experimental"])
-
-    consent = Consent(session_id=sid, experiment_group=group)
-    exp_session = ExperimentSession(
-        session_id=sid,
-        experiment_group=group,
-        started_at=datetime.now(timezone.utc),
-        last_ping_at=datetime.now(timezone.utc),
-    )
-    db.session.add_all([consent, exp_session])
-    try:
-        db.session.commit()
-    except IntegrityError:
-        db.session.rollback()
-
-    return redirect(url_for("main.style_studio"))
-
-
-# ---------------------------------------------------------------------------
-# Study routes
-# ---------------------------------------------------------------------------
 
 
 @main_bp.route("/style-studio")
@@ -357,22 +300,24 @@ def operations_dashboard():
     )
     retention_change = retention_rate - retention_rate_last_week
 
-    # AI-recommended selection rate: of generations whose recommendation context
-    # is known (was_ai_recommended is non-null), the share that came from an AI
-    # recommendation. Legacy rows with null are excluded.
-    ai_rec_total = GeneratedImage.query.filter(
-        GeneratedImage.was_ai_recommended.isnot(None)
-    ).count()
+    # Scope the AI-recommended rate to catalog picks. Reference-photo
+    # generations skip the recommendation step entirely, so including them
+    # would pull the rate down as that path's usage grows even if the
+    # acceptance rate among catalog picks is unchanged.
+    catalog_only = GeneratedImage.used_custom_reference.is_(False)
+    ai_rec_total = GeneratedImage.query.filter(catalog_only).count()
     ai_rec_hits = GeneratedImage.query.filter(
-        GeneratedImage.was_ai_recommended.is_(True)
+        catalog_only,
+        GeneratedImage.was_ai_recommended.is_(True),
     ).count()
     ai_rec_rate = int(ai_rec_hits / ai_rec_total * 100) if ai_rec_total > 0 else 0
 
     ai_rec_total_last_week = GeneratedImage.query.filter(
-        GeneratedImage.was_ai_recommended.isnot(None),
+        catalog_only,
         GeneratedImage.created_at < week_ago,
     ).count()
     ai_rec_hits_last_week = GeneratedImage.query.filter(
+        catalog_only,
         GeneratedImage.was_ai_recommended.is_(True),
         GeneratedImage.created_at < week_ago,
     ).count()
@@ -458,124 +403,6 @@ def operations_dashboard():
         visit_data=visit_data,
         recent_errors=recent_errors,
     )
-
-
-@main_bp.route("/api/admin/export")
-@admin_required
-def export_data():
-    """Export anonymized experiment data, aggregated per participant (session_id).
-
-    A single participant may have multiple ExperimentSession rows from the
-    legacy heartbeat flow (timeout-then-resume). Iterating ExperimentSession
-    directly produces duplicate participant rows and double-counts images and
-    ratings (which are queried by session_id, not ExperimentSession.id).
-    """
-    all_sessions = ExperimentSession.query.order_by(ExperimentSession.started_at).all()
-
-    by_sid = defaultdict(list)
-    for s in all_sessions:
-        by_sid[s.session_id].append(s)
-
-    ordered_sids = sorted(by_sid.keys(), key=lambda sid: by_sid[sid][0].started_at)
-
-    rows = []
-    for i, sid in enumerate(ordered_sids, 1):
-        sess_rows = by_sid[sid]
-        experiment_group = sess_rows[0].experiment_group
-
-        total_duration = 0
-        have_any_duration = False
-        for sr in sess_rows:
-            if sr.duration_seconds is not None:
-                total_duration += sr.duration_seconds
-                have_any_duration = True
-            elif sr.last_ping_at and sr.started_at:
-                total_duration += int((sr.last_ping_at - sr.started_at).total_seconds())
-                have_any_duration = True
-        duration = total_duration if have_any_duration else None
-
-        gen_images = GeneratedImage.query.filter_by(session_id=sid).all()
-        num_visualizations = len(gen_images)
-
-        ai_recommended_count = GeneratedImage.query.filter_by(
-            session_id=sid, was_ai_recommended=True
-        ).count()
-
-        if experiment_group == "experimental":
-            ai_recommended_selection_rate = (
-                round(ai_recommended_count / num_visualizations, 3)
-                if num_visualizations > 0
-                else None
-            )
-        else:
-            ai_recommended_count = None
-            ai_recommended_selection_rate = None
-
-        ratings = Rating.query.filter_by(session_id=sid).all()
-        avg_rating = (
-            round(sum(r.rating for r in ratings) / len(ratings), 2) if ratings else None
-        )
-        num_ratings = len(ratings)
-
-        consent = Consent.query.filter_by(session_id=sid).first()
-        consented_at = consent.consented_at.isoformat() if consent else None
-
-        styles = ", ".join(
-            sorted({gi.hairstyle.name for gi in gen_images if gi.hairstyle})
-        )
-
-        rows.append(
-            {
-                "participant_id": i,
-                "experiment_group": experiment_group,
-                "num_visualizations": num_visualizations,
-                "ai_recommended_visualizations": ai_recommended_count,
-                "ai_recommended_selection_rate": ai_recommended_selection_rate,
-                "avg_rating": avg_rating,
-                "num_ratings": num_ratings,
-                "session_duration_seconds": duration,
-                "styles_selected": styles,
-                "consented_at": consented_at,
-            }
-        )
-
-    fmt = request.args.get("format", "csv").lower()
-
-    if fmt not in ["json", "csv"]:
-        return jsonify({"error": "Invalid format. Use 'json' or 'csv'."}), 400
-
-    if fmt == "json":
-        return jsonify(rows)
-
-    output = io.StringIO()
-
-    fieldnames = [
-        "participant_id",
-        "experiment_group",
-        "num_visualizations",
-        "ai_recommended_visualizations",
-        "ai_recommended_selection_rate",
-        "avg_rating",
-        "num_ratings",
-        "session_duration_seconds",
-        "styles_selected",
-        "consented_at",
-    ]
-
-    writer = csv.DictWriter(output, fieldnames=fieldnames)
-    writer.writeheader()
-
-    if rows:
-        writer.writerows(rows)
-
-    response = current_app.response_class(
-        output.getvalue(),
-        mimetype="text/csv",
-    )
-
-    response.headers["Content-Disposition"] = "attachment; filename=experiment_data.csv"
-
-    return response
 
 
 @main_bp.route("/result")
@@ -991,20 +818,13 @@ def generate():
     if not client:
         return jsonify({"error": "Internal server error"}), 500
 
-    was_ai_recommended = None
+    was_ai_recommended = False
     if not using_reference:
-        exp = (
-            ExperimentSession.query.filter_by(session_id=sid)
-            .order_by(ExperimentSession.started_at.desc())
-            .first()
-        )
-
-        if exp and exp.experiment_group == "experimental":
-            rec_exists = Recommendation.query.filter_by(
-                session_id=sid,
-                hairstyle_id=hairstyle.id,
-            ).first()
-            was_ai_recommended = rec_exists is not None
+        rec_exists = Recommendation.query.filter_by(
+            session_id=sid,
+            hairstyle_id=hairstyle.id,
+        ).first()
+        was_ai_recommended = rec_exists is not None
 
     try:
         # Same data-not-instructions wrapping as /api/recommend.
