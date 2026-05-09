@@ -43,26 +43,6 @@ class Visit(db.Model):
         return f"<Visit id={self.id} page='{self.page}' timestamp={self.timestamp}>"
 
 
-class ExperimentSession(db.Model):
-    """Tracks a user's session during an A/B test or experiment."""
-
-    id = db.Column(db.Integer, primary_key=True)
-    session_id = db.Column(db.String(36), nullable=False, index=True)
-    experiment_group = db.Column(db.String(20), nullable=False)
-    started_at = db.Column(
-        db.DateTime(timezone=True),
-        nullable=False,
-        default=lambda: datetime.now(timezone.utc),
-    )
-    last_ping_at = db.Column(
-        db.DateTime(timezone=True),
-        nullable=False,
-        default=lambda: datetime.now(timezone.utc),
-    )
-    ended_at = db.Column(db.DateTime(timezone=True), nullable=True)
-    duration_seconds = db.Column(db.Integer, nullable=True)
-
-
 class Hairstyle(db.Model):
     """Defines a hairstyle option available in the catalog."""
 
@@ -83,7 +63,9 @@ class GeneratedImage(db.Model):
     session_id = db.Column(db.String(36), nullable=False)
     user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=True)
     hairstyle_id = db.Column(db.Integer, db.ForeignKey("hairstyle.id"), nullable=True)
-    was_ai_recommended = db.Column(db.Boolean, nullable=True)
+    was_ai_recommended = db.Column(
+        db.Boolean, nullable=False, server_default=db.false(), default=False
+    )
     used_custom_reference = db.Column(
         db.Boolean, nullable=False, server_default=db.false(), default=False
     )
@@ -117,17 +99,6 @@ class Rating(db.Model):
     generated_image = db.relationship(
         "GeneratedImage",
         backref=db.backref("rating", uselist=False, lazy=True),
-    )
-
-
-class Consent(db.Model):
-    """Records user consent for participation in experiments."""
-
-    id = db.Column(db.Integer, primary_key=True)
-    session_id = db.Column(db.String(36), nullable=False, unique=True)
-    experiment_group = db.Column(db.String(20), nullable=False)
-    consented_at = db.Column(
-        db.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
 
 

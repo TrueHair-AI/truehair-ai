@@ -1,13 +1,10 @@
 import secrets
 import uuid
-from datetime import datetime, timezone
 
 import pytest
 
 from app import create_app
 from app.models import (
-    Consent,
-    ExperimentSession,
     GeneratedImage,
     Hairstyle,
     Stylist,
@@ -54,23 +51,6 @@ def runner(app):
     return app.test_cli_runner()
 
 
-def _make_consented_session(app, experiment_group="control"):
-    """Create a Consent + ExperimentSession row and return the session_id."""
-    sid = str(uuid.uuid4())
-    with app.app_context():
-        db.session.add(Consent(session_id=sid, experiment_group=experiment_group))
-        db.session.add(
-            ExperimentSession(
-                session_id=sid,
-                experiment_group=experiment_group,
-                started_at=datetime.now(timezone.utc),
-                last_ping_at=datetime.now(timezone.utc),
-            )
-        )
-        db.session.commit()
-    return sid
-
-
 def _make_user(app, email="user@example.com", is_admin=False):
     """Create a User row and return its id."""
     with app.app_context():
@@ -87,17 +67,17 @@ def _make_user(app, email="user@example.com", is_admin=False):
 
 
 @pytest.fixture
-def session_id(app):
-    """Create a consented session and return the session_id."""
-    return _make_consented_session(app)
+def session_id():
+    """Mint a session_id (the per-browser UUID) without persisting anything."""
+    return str(uuid.uuid4())
 
 
 @pytest.fixture
 def auth_client(app, session_id):
-    """Test client signed in as a non-admin user, with a control-group session.
+    """Test client signed in as a non-admin user.
 
-    Sets both `user_id` (for login_required) and `session_id` (for the
-    legacy experimental_group lookup that lives until F2 strips it).
+    Sets both `user_id` (for login_required) and `session_id` (the per-browser
+    UUID that GeneratedImage / Rating / Recommendation rows are scoped to).
     """
     user_id = _make_user(app, email="user@example.com")
     client = app.test_client()
@@ -115,18 +95,6 @@ def admin_client(app):
     with client.session_transaction() as sess:
         sess["user_id"] = user_id
     return client
-
-
-@pytest.fixture
-def experimental_client(app):
-    """Test client signed in as a non-admin user assigned to the experimental group."""
-    sid = _make_consented_session(app, experiment_group="experimental")
-    user_id = _make_user(app, email="experimental@example.com")
-    client = app.test_client()
-    with client.session_transaction() as sess:
-        sess["user_id"] = user_id
-        sess["session_id"] = sid
-    return client, sid
 
 
 @pytest.fixture

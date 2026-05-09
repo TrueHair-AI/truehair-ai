@@ -1,7 +1,6 @@
 """Tests for app models (repr and basic usage for coverage)."""
 
 from app.models import (
-    ExperimentSession,
     GeneratedImage,
     Rating,
     Visit,
@@ -62,9 +61,14 @@ def test_generated_image_rating_relationship(app, session_id, hairstyle):
         assert gen.rating.rating == 4
 
 
-def test_experiment_session_lookup_by_session_id(app, session_id):
-    """ExperimentSession is queryable by session_id (the primary identity key)."""
+def test_generated_image_was_ai_recommended_defaults_false(app, session_id, hairstyle):
+    """was_ai_recommended is non-nullable and defaults to False."""
     with app.app_context():
-        rows = ExperimentSession.query.filter_by(session_id=session_id).all()
-        assert len(rows) == 1
-        assert rows[0].experiment_group == "control"
+        gen = GeneratedImage(
+            session_id=session_id,
+            hairstyle_id=hairstyle.id,
+        )
+        db.session.add(gen)
+        db.session.commit()
+        db.session.refresh(gen)
+        assert gen.was_ai_recommended is False

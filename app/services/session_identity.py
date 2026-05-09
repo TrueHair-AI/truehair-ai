@@ -1,24 +1,27 @@
-"""Anonymous session identity — IRB-compliant replacement for Google OAuth.
+"""Per-browser session identity used to scope GeneratedImage / Rating /
+Recommendation rows back to the request that produced them.
 
-Each consented participant gets a UUIDv4 stored in Flask's signed session cookie.
-No PII, no account, no login. See the approved IRB protocol (Sections 2.1, 6.5).
+The cookie is minted in the OAuth callback (`auth.py`) so every signed-in
+user has one for the lifetime of the login. The four write paths in
+`main.py` (generate / rate / recommend / refine) read it to tie new rows
+to the originating browser, which keeps cross-session isolation working
+even when two accounts share a User row (e.g. shared family device).
 """
 
 import uuid
-from functools import wraps
 
-from flask import redirect, session, url_for
+from flask import session
 
 SESSION_ID_KEY = "session_id"
 
 
 def get_session_id():
-    """Return the anonymous session UUID for this browser, or None if not yet consented."""
+    """Return the session UUID for this browser, or None if not yet minted."""
     return session.get(SESSION_ID_KEY)
 
 
 def new_session_id():
-    """Generate a new anonymous session UUID and store it in the signed session cookie."""
+    """Generate a new session UUID and store it in the signed session cookie."""
     sid = str(uuid.uuid4())
     session[SESSION_ID_KEY] = sid
     session.permanent = True
@@ -26,21 +29,5 @@ def new_session_id():
 
 
 def clear_session_id():
-    """Remove the session identifier (used if a participant actively abandons)."""
+    """Remove the session identifier (used on logout)."""
     session.pop(SESSION_ID_KEY, None)
-
-
-def consent_required(f):
-    """Gate access: participant must have clicked 'I agree' on the consent page."""
-    from app.models import Consent
-
-    @wraps(f)
-    def decorated(*args, **kwargs):
-        sid = get_session_id()
-        if not sid:
-            return redirect(url_for("main.consent_page"))
-        if not Consent.query.filter_by(session_id=sid).first():
-            return redirect(url_for("main.consent_page"))
-        return f(*args, **kwargs)
-
-    return decorated

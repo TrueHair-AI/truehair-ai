@@ -92,9 +92,8 @@ def _on_google_login(blueprint, token):
 
     session["user_id"] = user.id
     # GeneratedImage / Rating / Recommendation still have NOT NULL `session_id`
-    # columns (S2 will relax that). Mint one if the browser doesn't already
-    # carry an IRB-era session_id, so the four write paths in main.py succeed
-    # for users who never went through /consent.
+    # columns; mint one for this browser if it doesn't already carry one so
+    # the four write paths in main.py succeed.
     if not get_session_id():
         new_session_id()
     return False
