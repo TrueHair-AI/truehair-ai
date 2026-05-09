@@ -160,6 +160,83 @@ def test_terms_page_drops_irb_framing(client):
     assert b"educational prototype" not in text
 
 
+def test_privacy_page_public(client):
+    """Privacy page is public and renders the consumer-policy sections (issue #96)."""
+    response = client.get("/privacy")
+    assert response.status_code == 200
+    body = response.data
+    assert b"Privacy Notice" in body
+    # Section headings from the consumer rewrite.
+    assert b"What we collect" in body
+    assert b"What we do not collect" in body
+    assert b"Cookies and browser storage" in body
+    assert b"Vertex AI" in body and b"Gemini" in body
+    assert b"How long we keep things" in body
+    assert b"Your rights" in body
+
+
+def test_privacy_page_zdr_product_promise(client):
+    """ZDR section is framed as a product promise that mirrors the landing page."""
+    response = client.get("/privacy")
+    assert response.status_code == 200
+    body = response.data
+    # The opening promise mirrors landing.html's "Why TrueHair AI" hero line.
+    assert b"We don" in body and b"store your photos. Neither does Google." in body
+    # The four-bullet promise (no training, no caching, no human review, no
+    # identity linkage) is what backs up the landing-page comparison table.
+    assert b"No training on your data" in body
+    assert b"No caching" in body
+    assert b"No human review" in body
+    assert b"No identity linkage" in body
+    # Link to Google's contractual data-governance policy is the citation.
+    assert b"cloud.google.com/vertex-ai/generative-ai/docs/data-governance" in body
+
+
+def test_privacy_page_drops_irb_framing(client):
+    """Privacy rewrite must not leak any IRB / research-study framing."""
+    response = client.get("/privacy")
+    assert response.status_code == 200
+    text = response.data.lower()
+    assert b"irb" not in text
+    assert b"institutional review board" not in text
+    assert b"research study" not in text
+    assert b"research participant" not in text
+    assert b"post-study" not in text
+    # Old "anonymous study" framing implied no accounts existed; we now have
+    # Google sign-in, so the phrase must not survive.
+    assert b"anonymous research" not in text
+
+
+def test_privacy_page_lists_account_data_collected(client):
+    """The new privacy notice acknowledges Google sign-in account fields."""
+    response = client.get("/privacy")
+    body = response.data
+    # Each of the three Google-returned fields must be named explicitly.
+    assert b"Google email" in body
+    assert b"display name" in body
+    assert b"avatar" in body
+
+
+def test_privacy_page_documents_cookies_and_localstorage(client):
+    """Cookies + localStorage section must call out the actual keys we set."""
+    response = client.get("/privacy")
+    body = response.data
+    # The first-visit terms modal flag in localStorage.
+    assert b"terms_accepted_v1" in body
+    # The Flask session cookie stores user_id (post sign-in) and session_id (pre).
+    assert b"user_id" in body
+    assert b"session_id" in body
+
+
+def test_privacy_page_support_email(client):
+    """Support email must be Rose's Colby address; no Colby IRB contact remains."""
+    response = client.get("/privacy")
+    body = response.data
+    assert b"rfagya27@colby.edu" in body
+    # The old Colby IRB mailbox must not appear anymore.
+    assert b"institutionalreviewboard@colby.edu" not in body
+
+
 def test_login_page_renders_terms_modal(client):
     """/login renders the first-visit Terms modal markup; JS gates visibility on localStorage."""
     response = client.get("/login")
