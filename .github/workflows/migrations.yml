@@ -1,0 +1,57 @@
+name: Run Migrations (Postgres)
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+
+jobs:
+  migrations-postgres:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: truehair_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/truehair_ci
+      FLASK_APP: run.py
+      FLASK_SECRET_KEY: ci-not-a-secret
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Set up Python
+        run: uv python install
+
+      - name: Install dependencies
+        run: uv sync --all-extras --dev
+
+      - name: Run migrations (upgrade head)
+        run: uv run flask db upgrade
+
+      - name: Validate latest migration's downgrade
+        run: |
+          uv run flask db downgrade -- -1
+          uv run flask db upgrade
+
+      - name: Run seed scripts
+        run: |
+          uv run python seed_hairstyles.py
+          uv run python seed_stylists.py
