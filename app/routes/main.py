@@ -437,8 +437,8 @@ def operations_dashboard():
 def export_data():
     """Export anonymized experiment data, aggregated per participant (session_id).
 
-    A single participant may have multiple ExperimentSession rows if they timed
-    out and resumed (see api_session_start). Iterating ExperimentSession
+    A single participant may have multiple ExperimentSession rows from the
+    legacy heartbeat flow (timeout-then-resume). Iterating ExperimentSession
     directly produces duplicate participant rows and double-counts images and
     ratings (which are queried by session_id, not ExperimentSession.id).
     """
