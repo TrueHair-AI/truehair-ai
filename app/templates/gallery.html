@@ -52,6 +52,25 @@
     <!-- Grid -->
     <div id="gallery-grid" class="row g-4 d-none"></div>
 
+    <!-- Shared fullscreen modal — same UX as result.html. JS sets the src on click. -->
+    <div class="modal fade" id="galleryImageModal" tabindex="-1" aria-labelledby="galleryImageModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-xl" style="max-width: 90vw;">
+            <div class="modal-content bg-transparent border-0" style="cursor: zoom-out;">
+                <h2 id="galleryImageModalLabel" class="visually-hidden">Fullscreen visualization</h2>
+                <div class="modal-header border-0 pb-0 position-absolute top-0 end-0 w-100 d-flex justify-content-end" style="z-index: 1055;">
+                    <button type="button" class="btn btn-dark border-0 m-3 d-flex align-items-center justify-content-center" data-bs-dismiss="modal" aria-label="Close"
+                        style="width: 44px; height: 44px; border-radius: 50%; background-color: rgba(42, 42, 45, 0.8); backdrop-filter: blur(4px); box-shadow: 0 4px 12px rgba(0,0,0,0.5); transition: all 0.2s ease; cursor: pointer;">
+                        <i class="bi bi-x-lg text-white"></i>
+                    </button>
+                </div>
+                <div class="modal-body text-center p-0 d-flex justify-content-center align-items-center">
+                    <img id="gallery-modal-image" src="" class="img-fluid rounded-4 shadow-lg" alt="Fullscreen visualization"
+                        style="max-height: 90vh; object-fit: contain; cursor: default;">
+                </div>
+            </div>
+        </div>
+    </div>
+
 </div>
 {% endblock %}
 
@@ -103,6 +122,23 @@
         });
     }
 
+    const modalEl = document.getElementById("galleryImageModal");
+    const modalImg = document.getElementById("gallery-modal-image");
+
+    function openFullscreen(url, alt) {
+        modalImg.src = url;
+        modalImg.alt = alt;
+        bootstrap.Modal.getOrCreateInstance(modalEl).show();
+    }
+
+    // Click anywhere on the modal backdrop area (but not on the image itself
+    // or the close button) dismisses — same UX as result.html.
+    modalEl.addEventListener("click", (e) => {
+        if (e.target.closest(".modal-content") && e.target.tagName !== "IMG" && !e.target.closest("button")) {
+            bootstrap.Modal.getOrCreateInstance(modalEl).hide();
+        }
+    });
+
     function render(items) {
         loadingEl.classList.add("d-none");
 
@@ -125,6 +161,11 @@
                 <div class="bg-card rounded-4 border border-secondary border-opacity-25 overflow-hidden h-100 d-flex flex-column">
                     <div class="position-relative" style="aspect-ratio: 1 / 1; background-color: #1c1c1e;">
                         <img class="w-100 h-100" style="object-fit: cover;" alt="${escapeHtml(safeName)}">
+                        <button type="button" class="gallery-maximize-btn btn btn-dark border-secondary border-opacity-50 text-white position-absolute top-0 end-0 m-2 rounded-circle d-flex align-items-center justify-content-center"
+                            title="View fullscreen" aria-label="View fullscreen"
+                            style="width: 36px; height: 36px; z-index: 10; background-color: rgba(42, 42, 45, 0.8); backdrop-filter: blur(4px); transition: all 0.2s ease;">
+                            <i class="bi bi-arrows-fullscreen"></i>
+                        </button>
                     </div>
                     <div class="p-3 d-flex flex-column gap-2 flex-grow-1">
                         <div class="fw-bold text-white text-truncate" title="${escapeHtml(safeName)}">${escapeHtml(safeName)}</div>
@@ -139,6 +180,7 @@
             // Set blob URL via property to avoid string interpolation pitfalls.
             col.querySelector("img").src = url;
             col.querySelector("a.btn").href = url;
+            col.querySelector(".gallery-maximize-btn").addEventListener("click", () => openFullscreen(url, safeName));
             frag.appendChild(col);
         }
         gridEl.appendChild(frag);
