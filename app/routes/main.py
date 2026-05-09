@@ -35,7 +35,7 @@ from app.models import (
     Visit,
     db,
 )
-from app.services.auth import admin_required, login_required
+from app.services.auth import admin_required, current_user, login_required
 from app.services.session_identity import (
     get_session_id,
     new_session_id,
@@ -189,6 +189,34 @@ def style_studio():
     return render_template(
         "style_studio.html", hairstyles=hairstyles, categories=categories
     )
+
+
+@main_bp.route("/gallery")
+@login_required
+def gallery():
+    """Render the user's encrypted-on-device visualization gallery.
+
+    The page is a thin shell — the visualizations themselves live encrypted
+    in IndexedDB on the user's machine and are decrypted by gallery.js using
+    a key derived from `(user_id, storage_salt)`. Server-side photo storage
+    is still off the table per product policy.
+    """
+    log_visit("Gallery")
+    return render_template("gallery.html")
+
+
+@main_bp.route("/api/me/storage-key")
+@login_required
+def storage_key():
+    """Return the data needed to derive the per-user IndexedDB encryption key.
+
+    The salt is generated once at User creation and persists across logins,
+    so visualizations encrypted on a previous session decrypt on later ones.
+    Combining it with `user_id` ensures a different account on the same
+    browser cannot decrypt the previous user's blobs.
+    """
+    user = current_user()
+    return jsonify({"user_id": user.id, "salt": user.storage_salt})
 
 
 @main_bp.route("/stylists")

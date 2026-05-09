@@ -376,6 +376,22 @@
 </style>
 
 <script type="module">
+    import { persistGeneratedImage } from "{{ url_for('static', filename='js/gallery.js') }}";
+
+    // Persist a generated visualization to the encrypted IndexedDB gallery.
+    // Fire-and-forget: a persist failure must not block the user from seeing
+    // their result. Browsers without WebCrypto / IndexedDB just lose gallery
+    // access; the studio still works.
+    function persistToGallery(blob, { id, hairstyle_name }) {
+        persistGeneratedImage(blob, {
+            id,
+            hairstyle_name,
+            created_at: new Date().toISOString(),
+        }).catch((err) => {
+            console.warn("gallery: persist failed", err);
+        });
+    }
+
     // Module-level state
     const state = {
         photoFile: null,                // the File object
@@ -721,6 +737,14 @@
                 }
                 const blob = await res.blob();
                 const blobUrl = URL.createObjectURL(blob);
+                // Persist to gallery even if the user never picks this style —
+                // the GeneratedImage row was already created server-side, so
+                // the gallery is the only client-side counterpart.
+                const item = document.querySelector(`.hairstyle-item[data-id="${idStr}"]`);
+                persistToGallery(blob, {
+                    id: generatedImageId,
+                    hairstyle_name: item?.dataset?.name || "",
+                });
                 return { ok: true, blob, blobUrl, generatedImageId };
             } catch (e) {
                 // Surface pre-gen failures in DevTools so we have *some* signal
@@ -1039,7 +1063,16 @@
                 if (!Number.isFinite(parsedId)) {
                     throw new Error("Server did not return a valid image id");
                 }
-                blobUrl = URL.createObjectURL(await res.blob());
+                const liveBlob = await res.blob();
+                blobUrl = URL.createObjectURL(liveBlob);
+                // Persist live generations (catalog cache miss + reference path).
+                // Cached pre-gen blobs were already persisted in preGenerateOne.
+                persistToGallery(liveBlob, {
+                    id: parsedId,
+                    hairstyle_name: useReference
+                        ? "Custom reference"
+                        : (state.selectedHairstyleName || ""),
+                });
             }
 
             state.generatedImageId = parsedId;
