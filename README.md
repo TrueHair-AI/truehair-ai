@@ -94,6 +94,39 @@ uv run ruff format .   # format
 
 ## Architecture
 
+```mermaid
+flowchart LR
+    subgraph Client["User's browser"]
+        direction TB
+        UI["Style Studio UI<br/>Bootstrap 5 · vanilla JS"]
+        IDB[("IndexedDB<br/>encrypted gallery")]
+        UI <--> IDB
+    end
+
+    subgraph Server["Flask app · Gunicorn"]
+        direction TB
+        Routes["routes/<br/>main.py · auth.py"]
+        Models["SQLAlchemy models<br/>users · hairstyles · stylists"]
+        Routes <--> Models
+    end
+
+    subgraph Cloud["External services"]
+        direction TB
+        OAuth["Google OAuth<br/>flask-dance"]
+        Vertex["Vertex AI Gemini<br/>ZDR mode"]
+    end
+
+    DB[("SQLite local dev<br/>PostgreSQL prod")]
+
+    UI -- "selfie + style choice" --> Routes
+    Routes -- "prompt + image" --> Vertex
+    Vertex -- "generated image" --> Routes
+    Routes -- "image bytes" --> UI
+    UI -. "redirect" .-> OAuth
+    OAuth -. "token + profile" .-> Routes
+    Models <--> DB
+```
+
 | Layer | Tech |
 |---|---|
 | Web framework | Flask 3 + Jinja templates |
