@@ -45,6 +45,8 @@
                 <a href="{{ url_for('main.style_studio') }}"
                     class="{% if request.endpoint == 'main.style_studio' %}text-yellow{% else %}text-white{% endif %} text-decoration-none fw-semibold text-sm nav-link-hover">Style
                     Studio</a>
+                <a href="{{ url_for('main.gallery') }}"
+                    class="{% if request.endpoint == 'main.gallery' %}text-yellow{% else %}text-white{% endif %} text-decoration-none fw-semibold text-sm nav-link-hover">Gallery</a>
                 <a href="{{ url_for('main.stylists') }}"
                     class="{% if request.endpoint == 'main.stylists' %}text-yellow{% else %}text-white{% endif %} text-decoration-none fw-semibold text-sm nav-link-hover">Stylist
                     Directory</a>

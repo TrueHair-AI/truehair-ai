@@ -1,0 +1,159 @@
+{% extends 'base.html' %}
+
+{% block title %}Gallery - TrueHair AI{% endblock %}
+
+{% block content %}
+<div class="container py-5" style="max-width: 1200px;">
+
+    <!-- Header -->
+    <div class="mb-4 col-lg-8">
+        <h1 class="fw-bold mb-2 display-5 text-white">Your Gallery</h1>
+        <p class="text-secondary fs-5 pe-xl-5">Every visualization you've generated, encrypted and stored only on this
+            device.</p>
+    </div>
+
+    <!-- One-time first-visit notice. JS toggles d-none after the user dismisses. -->
+    <div id="gallery-first-visit-notice"
+        class="alert d-none align-items-start gap-3 border border-secondary border-opacity-25 rounded-4 mb-4 p-4"
+        style="background-color: rgba(248, 205, 36, 0.08);" role="alert">
+        <i class="bi bi-shield-lock text-yellow fs-4 mt-1"></i>
+        <div class="flex-grow-1 text-secondary">
+            These visualizations live only on this device. Clearing your browser's site data will permanently delete
+            them. Save anything you want to keep using the Download button.
+        </div>
+        <button type="button" id="gallery-notice-dismiss"
+            class="btn-close btn-close-white" aria-label="Dismiss"></button>
+    </div>
+
+    <!-- Loading state -->
+    <div id="gallery-loading" class="text-center py-5">
+        <div class="spinner-border text-yellow" role="status">
+            <span class="visually-hidden">Loading…</span>
+        </div>
+        <div class="text-secondary mt-3">Decrypting your visualizations…</div>
+    </div>
+
+    <!-- Empty state -->
+    <div id="gallery-empty" class="d-none text-center py-5">
+        <i class="bi bi-images text-secondary" style="font-size: 3rem;"></i>
+        <h4 class="text-white fw-bold mt-3 mb-2">No visualizations yet</h4>
+        <p class="text-secondary mb-4">Generate a look in the Style Studio and it'll appear here.</p>
+        <a href="{{ url_for('main.style_studio') }}" class="btn btn-primary fw-bold px-4 py-2 text-dark">
+            <i class="bi bi-magic"></i> Open Style Studio
+        </a>
+    </div>
+
+    <!-- Error state -->
+    <div id="gallery-error" class="d-none alert alert-danger border-0" role="alert">
+        <i class="bi bi-exclamation-triangle"></i>
+        <span id="gallery-error-message">We couldn't load your gallery.</span>
+    </div>
+
+    <!-- Grid -->
+    <div id="gallery-grid" class="row g-4 d-none"></div>
+
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script type="module">
+    import { loadAllForCurrentUser } from "{{ url_for('static', filename='js/gallery.js') }}";
+
+    const TOOLTIP_KEY = "gallery_tooltip_seen_v1";
+
+    const loadingEl = document.getElementById("gallery-loading");
+    const emptyEl = document.getElementById("gallery-empty");
+    const errorEl = document.getElementById("gallery-error");
+    const errorMsg = document.getElementById("gallery-error-message");
+    const gridEl = document.getElementById("gallery-grid");
+    const noticeEl = document.getElementById("gallery-first-visit-notice");
+    const dismissBtn = document.getElementById("gallery-notice-dismiss");
+
+    // First-visit tooltip — show until the user dismisses it once.
+    if (!localStorage.getItem(TOOLTIP_KEY)) {
+        noticeEl.classList.remove("d-none");
+        noticeEl.classList.add("d-flex");
+    }
+    dismissBtn.addEventListener("click", () => {
+        noticeEl.classList.add("d-none");
+        noticeEl.classList.remove("d-flex");
+        localStorage.setItem(TOOLTIP_KEY, "1");
+    });
+
+    function escapeHtml(s) {
+        return String(s).replace(/[&<>"']/g, (c) => ({
+            "&": "&amp;",
+            "<": "&lt;",
+            ">": "&gt;",
+            '"': "&quot;",
+            "'": "&#39;",
+        }[c]));
+    }
+
+    function formatDate(iso) {
+        if (!iso) return "";
+        const d = new Date(iso);
+        if (Number.isNaN(d.getTime())) return "";
+        return d.toLocaleString(undefined, {
+            year: "numeric",
+            month: "short",
+            day: "numeric",
+            hour: "numeric",
+            minute: "2-digit",
+        });
+    }
+
+    function render(items) {
+        loadingEl.classList.add("d-none");
+
+        if (!items.length) {
+            emptyEl.classList.remove("d-none");
+            return;
+        }
+
+        gridEl.classList.remove("d-none");
+
+        const frag = document.createDocumentFragment();
+        for (const item of items) {
+            const url = URL.createObjectURL(item.blob);
+            const safeName = item.hairstyle_name || "Custom reference";
+            const filenameStem = safeName.replace(/\s+/g, "_") || "visualization";
+
+            const col = document.createElement("div");
+            col.className = "col-12 col-sm-6 col-md-4 col-lg-3";
+            col.innerHTML = `
+                <div class="bg-card rounded-4 border border-secondary border-opacity-25 overflow-hidden h-100 d-flex flex-column">
+                    <div class="position-relative" style="aspect-ratio: 1 / 1; background-color: #1c1c1e;">
+                        <img class="w-100 h-100" style="object-fit: cover;" alt="${escapeHtml(safeName)}">
+                    </div>
+                    <div class="p-3 d-flex flex-column gap-2 flex-grow-1">
+                        <div class="fw-bold text-white text-truncate" title="${escapeHtml(safeName)}">${escapeHtml(safeName)}</div>
+                        <div class="text-secondary small">${escapeHtml(formatDate(item.created_at))}</div>
+                        <a class="btn btn-outline-yellow btn-sm fw-semibold mt-auto d-flex align-items-center justify-content-center gap-2"
+                           download="truehair_${escapeHtml(filenameStem)}_${item.id}.webp">
+                            <i class="bi bi-download"></i> Download
+                        </a>
+                    </div>
+                </div>
+            `;
+            // Set blob URL via property to avoid string interpolation pitfalls.
+            col.querySelector("img").src = url;
+            col.querySelector("a.btn").href = url;
+            frag.appendChild(col);
+        }
+        gridEl.appendChild(frag);
+    }
+
+    (async () => {
+        try {
+            const items = await loadAllForCurrentUser();
+            render(items);
+        } catch (err) {
+            console.error("gallery load failed", err);
+            loadingEl.classList.add("d-none");
+            errorMsg.textContent = "We couldn't load your gallery. Try refreshing — if the problem persists, your browser may not support encrypted client-side storage.";
+            errorEl.classList.remove("d-none");
+        }
+    })();
+</script>
+{% endblock %}

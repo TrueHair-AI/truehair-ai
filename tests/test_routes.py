@@ -1440,3 +1440,51 @@ def test_api_generate_rejects_oversized_observation(auth_client, hairstyle):
         content_type="multipart/form-data",
     )
     assert response.status_code == 400
+
+
+# ---------------------------------------------------------------------------
+# /gallery + GET /api/me/storage-key (issue #106)
+# ---------------------------------------------------------------------------
+
+
+def test_gallery_unauthenticated_redirects_to_login(client):
+    response = client.get("/gallery")
+    assert response.status_code == 302
+    assert "/login" in response.headers["Location"]
+
+
+def test_gallery_authenticated_renders(auth_client):
+    response = auth_client.get("/gallery")
+    assert response.status_code == 200
+    # The page is a thin shell — gallery.js does the heavy lifting client-side.
+    assert b"gallery.js" in response.data
+
+
+def test_storage_key_unauthenticated_returns_401(client):
+    response = client.get("/api/me/storage-key")
+    assert response.status_code == 401
+
+
+def test_storage_key_returns_user_id_and_salt(auth_client, app):
+    from app.models import User
+
+    response = auth_client.get("/api/me/storage-key")
+    assert response.status_code == 200
+    data = response.get_json()
+    assert "user_id" in data and "salt" in data
+
+    with app.app_context():
+        user = db.session.get(User, data["user_id"])
+        assert user is not None
+        assert user.email == "user@example.com"
+        # Salt is server-issued and must match what the user was provisioned with.
+        assert data["salt"] == user.storage_salt
+        # Default salt is 32 random bytes hex-encoded → 64 chars.
+        assert len(data["salt"]) == 64
+
+
+def test_storage_key_is_stable_across_requests(auth_client):
+    """Salt persists across calls so encrypted blobs remain decryptable."""
+    first = auth_client.get("/api/me/storage-key").get_json()
+    second = auth_client.get("/api/me/storage-key").get_json()
+    assert first == second
