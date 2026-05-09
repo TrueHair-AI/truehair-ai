@@ -266,7 +266,12 @@ def test_operations_dashboard_renders_ai_recommended_card(admin_client):
 
 
 def test_operations_dashboard_ai_rec_rate_with_data(app, admin_client, hairstyle):
-    """AI-recommended rate is the share of generations where was_ai_recommended is True."""
+    """AI-recommended rate is the share of catalog picks where was_ai_recommended is True.
+
+    Reference-photo generations skip the recommendation step, so they must be
+    excluded from both the denominator and numerator — otherwise the metric
+    drifts as that path's usage grows.
+    """
     with app.app_context():
         for was_ai in (True, True, False):
             db.session.add(
@@ -276,11 +281,21 @@ def test_operations_dashboard_ai_rec_rate_with_data(app, admin_client, hairstyle
                     was_ai_recommended=was_ai,
                 )
             )
+        # Reference-photo row: must NOT count toward the denominator even
+        # though was_ai_recommended is False.
+        db.session.add(
+            GeneratedImage(
+                session_id=str(uuid.uuid4()),
+                hairstyle_id=None,
+                used_custom_reference=True,
+                was_ai_recommended=False,
+            )
+        )
         db.session.commit()
 
     response = admin_client.get("/dashboard/operations")
     assert response.status_code == 200
-    # 2 / 3 = 66%
+    # 2 / 3 = 66% (the reference-photo row is excluded).
     assert b">66%<" in response.data
 
 

@@ -300,16 +300,24 @@ def operations_dashboard():
     )
     retention_change = retention_rate - retention_rate_last_week
 
-    ai_rec_total = GeneratedImage.query.count()
+    # Scope the AI-recommended rate to catalog picks. Reference-photo
+    # generations skip the recommendation step entirely, so including them
+    # would pull the rate down as that path's usage grows even if the
+    # acceptance rate among catalog picks is unchanged.
+    catalog_only = GeneratedImage.used_custom_reference.is_(False)
+    ai_rec_total = GeneratedImage.query.filter(catalog_only).count()
     ai_rec_hits = GeneratedImage.query.filter(
-        GeneratedImage.was_ai_recommended.is_(True)
+        catalog_only,
+        GeneratedImage.was_ai_recommended.is_(True),
     ).count()
     ai_rec_rate = int(ai_rec_hits / ai_rec_total * 100) if ai_rec_total > 0 else 0
 
     ai_rec_total_last_week = GeneratedImage.query.filter(
+        catalog_only,
         GeneratedImage.created_at < week_ago,
     ).count()
     ai_rec_hits_last_week = GeneratedImage.query.filter(
+        catalog_only,
         GeneratedImage.was_ai_recommended.is_(True),
         GeneratedImage.created_at < week_ago,
     ).count()

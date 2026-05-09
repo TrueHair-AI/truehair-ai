@@ -24,14 +24,15 @@ depends_on = None
 
 def upgrade():
     op.drop_table("consent")
-
-    with op.batch_alter_table("experiment_session") as batch_op:
-        batch_op.drop_index("ix_experiment_session_session_id")
     op.drop_table("experiment_session")
 
+    # `false` literal (not `0`) so the backfill works on Postgres in addition
+    # to SQLite — Postgres rejects integer literals into a boolean column.
     op.execute(
-        "UPDATE generated_image SET was_ai_recommended = 0 "
-        "WHERE was_ai_recommended IS NULL"
+        sa.text(
+            "UPDATE generated_image SET was_ai_recommended = false "
+            "WHERE was_ai_recommended IS NULL"
+        )
     )
 
     with op.batch_alter_table("generated_image") as batch_op:
