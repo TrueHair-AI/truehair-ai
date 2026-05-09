@@ -121,6 +121,11 @@
     <section id="phase-catalog" class="phase" hidden>
         <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-end mb-4 gap-3">
             <div>
+                <button type="button" id="change-photo-btn"
+                    class="btn btn-link text-secondary p-0 mb-2 fw-semibold text-decoration-none"
+                    style="font-size: 0.9rem;">
+                    <i class="bi bi-arrow-left me-1"></i>Change photo
+                </button>
                 <h2 class="fw-bold mb-1">Pick a hairstyle</h2>
                 <p class="text-secondary mb-0">
                     Styles with a ✨ are AI-recommended based on your photo. Hover for why.
@@ -465,6 +470,14 @@
     const resultTitle = document.getElementById('result-title');
     const resultStyleName = document.getElementById('result-style-name');
     const resultStyleDesc = document.getElementById('result-style-desc');
+
+    const changePhotoBtn = document.getElementById('change-photo-btn');
+    // Snapshot the server-rendered grid order so a Change-photo reset can
+    // undo the hoisting that applyRecommendationHighlights() performs.
+    const hairstyleGrid = document.getElementById('hairstyle-grid');
+    const originalHairstyleOrder = Array.from(
+        hairstyleGrid.querySelectorAll('.hairstyle-item')
+    );
 
     // --- Phase Management ---
     function showPhase(name) {
@@ -1209,6 +1222,36 @@
         clearCatalogSelection();
         showPhase("catalog");
         window.scrollTo({ top: 0, behavior: "smooth" });
+    });
+
+    // --- Phase 3 → 1 (Change Photo) ---
+    function clearRecommendationHighlights() {
+        document.querySelectorAll('.hairstyle-item').forEach(item => {
+            const card = item.querySelector('.style-card');
+            card.classList.remove('is-recommended');
+            item.querySelector('.rec-badge').classList.add('d-none');
+            delete item.dataset.reasoning;
+        });
+        // Restore the server-rendered order. appendChild moves nodes, so
+        // iterating in the original sequence reattaches them after the
+        // reference tile (which stays as the grid's first child).
+        originalHairstyleOrder.forEach(item => hairstyleGrid.appendChild(item));
+    }
+
+    changePhotoBtn.addEventListener('click', () => {
+        if (state.generatedImageBlobUrl) {
+            URL.revokeObjectURL(state.generatedImageBlobUrl);
+            state.generatedImageBlobUrl = null;
+        }
+        state.generatedImageId = null;
+        state.recommendations = null;
+        state.referenceFile = null;
+        state.aiPanelClickedId = null;
+        clearCatalogSelection();
+        clearRecommendationHighlights();
+        resetAIPanel();
+        clearPhoto();
+        showPhase('upload');
     });
     
     // --- Image Modal Click to Close ---
