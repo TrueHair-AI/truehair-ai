@@ -35,11 +35,6 @@ class Config:
     GOOGLE_CLOUD_PROJECT = os.environ.get("GOOGLE_CLOUD_PROJECT")
     GOOGLE_CLOUD_LOCATION = os.environ.get("GOOGLE_CLOUD_LOCATION", "us-central1")
 
-    R2_ACCOUNT_ID = os.environ.get("R2_ACCOUNT_ID")
-    R2_ACCESS_KEY_ID = os.environ.get("R2_ACCESS_KEY_ID")
-    R2_SECRET_ACCESS_KEY = os.environ.get("R2_SECRET_ACCESS_KEY")
-    R2_BUCKET_NAME = os.environ.get("R2_BUCKET_NAME")
-
     # Google OAuth — single sign-in flow used by every TrueHair user.
     GOOGLE_OAUTH_CLIENT_ID = os.environ.get("GOOGLE_OAUTH_CLIENT_ID")
     GOOGLE_OAUTH_CLIENT_SECRET = os.environ.get("GOOGLE_OAUTH_CLIENT_SECRET")

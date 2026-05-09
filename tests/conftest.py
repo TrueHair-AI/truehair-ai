@@ -21,10 +21,6 @@ class TestConfig(Config):
     SESSION_COOKIE_SECURE = False
     GOOGLE_CLOUD_PROJECT = "test-project"
     GOOGLE_CLOUD_LOCATION = "us-central1"
-    R2_ACCOUNT_ID = "test-account-id"
-    R2_ACCESS_KEY_ID = "test-access-key"
-    R2_SECRET_ACCESS_KEY = "test-secret-key"
-    R2_BUCKET_NAME = "test-bucket"
     ADMIN_EMAILS = "admin@example.com,other-admin@example.com"
     GOOGLE_OAUTH_CLIENT_ID = "test-client-id"
     GOOGLE_OAUTH_CLIENT_SECRET = "test-client-secret"
